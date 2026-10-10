@@ -1,0 +1,30 @@
+#!/bin/bash
+# gbadual launcher for ROCKNIX.
+#   launch.sh /storage/roms/gba/Game.gba [--option=value ...]
+# Output goes to gbadual.log next to this script.
+
+. /etc/profile >/dev/null 2>&1
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Controller mappings shipped with ROCKNIX
+for db in /storage/.config/SDL-GameControllerDB/gamecontrollerdb.txt \
+          /usr/config/SDL-GameControllerDB/gamecontrollerdb.txt; do
+	if [ -f "$db" ]; then
+		export SDL_GAMECONTROLLERCONFIG_FILE="$db"
+		break
+	fi
+done
+
+# Find sway's IPC socket so gbadual can span both screens.
+if [ -z "$SWAYSOCK" ]; then
+	for s in "$XDG_RUNTIME_DIR"/sway-ipc.*.sock /var/run/0-runtime-dir/sway-ipc.*.sock /run/user/*/sway-ipc.*.sock; do
+		if [ -S "$s" ]; then
+			export SWAYSOCK="$s"
+			break
+		fi
+	done
+fi
+
+cd "$DIR"
+./gbadual "$@" > "$DIR/gbadual.log" 2>&1

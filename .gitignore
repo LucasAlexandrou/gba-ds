@@ -1,0 +1,8 @@
+roms/
+work/
+deps/
+build/
+dist/*.zip
+*.sav
+*.ss
+tools/harness
