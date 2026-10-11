@@ -29,17 +29,20 @@ static int mapW = GBA_W, mapH = GBA_H;
 static int mapShownIdx = -1;
 static uint64_t mapAnimStart, frameCount;
 static bool singleShowsMap;
-static double fps;
+static double fps, speedPct;
 static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
+enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
 static const char* menuLabels[] = {
-	[M_RESUME] = "RESUME", [M_SWAP] = "SWAP SCREENS", [M_SAVE] = "SAVE STATE", [M_SCALE] = "", [M_LCD] = "", [M_RESTART] = "RESTART GAME",
+	[M_RESUME] = "RESUME", [M_SWAP] = "SWAP SCREENS", [M_SAVE] = "SAVE STATE", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_RESTART] = "RESTART GAME",
 	[M_LOAD] = "LOAD STATE", [M_LIBRARY] = "EXIT TO EMULATOR", [M_EXIT] = "EXIT TO MAIN MENU",
 };
 static int menuItems[9], nMenuItems;
+/* two pages, switched with L1/R1 or the tabs */
+static int pages[2][8], pageLen[2], curPage;
+static const char* pageNames[2] = { "GAME", "DISPLAY" };
 static bool restartArmed;
 static bool menuOpen;
 static int menuSel;
@@ -58,14 +61,45 @@ static bool item_enabled(int item) {
 	return item != M_LOAD || file_exists(gp.state);
 }
 
+static int menu_width(int scr) {
+	int px = ui_px(scr);
+	return SDL_min(screens[scr].rect.w - px * 16, ui_text_width("EXIT TO MAIN MENU", px) + px * 48);
+}
+
 static SDL_Rect item_rect(int scr, int i) {
 	SDL_Rect r = screens[scr].rect;
 	int px = ui_px(scr);
 	int h = px * 14, gap = px * 3;
-	int w = SDL_min(r.w - px * 16, ui_text_width("EXIT TO MAIN MENU", px) + px * 48);
-	int total = nMenuItems * h + (nMenuItems - 1) * gap;
-	int top = (r.h - total) / 2 + px * 6;
+	int w = menu_width(scr);
+	int top = px * 28; /* below the page tabs; same on both pages */
+	(void) r;
 	return (SDL_Rect) { (r.w - w) / 2, top + i * (h + gap), w, h };
+}
+
+static SDL_Rect tab_rect(int scr, int t) {
+	SDL_Rect r = screens[scr].rect;
+	int px = ui_px(scr);
+	int w = menu_width(scr);
+	int tw = (w - px * 3) / 2;
+	return (SDL_Rect) { (r.w - w) / 2 + t * (tw + px * 3), px * 7, tw, px * 14 };
+}
+
+static void set_page(int page) {
+	curPage = page;
+	nMenuItems = pageLen[page];
+	memcpy(menuItems, pages[page], sizeof(int) * nMenuItems);
+	menuSel = 0;
+	menuPressed = -1;
+	menuNote[0] = 0;
+	restartArmed = false;
+}
+
+static int tab_at(int scr, int x, int y) {
+	for (int t = 0; t < 2; ++t) {
+		SDL_Rect r = tab_rect(scr, t);
+		if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return t;
+	}
+	return -1;
 }
 
 static int item_at(int scr, int x, int y) {
@@ -80,8 +114,15 @@ static void draw_menu(void) {
 	for (int s = 0; s < nScreens; ++s) ui_dim(s, 170);
 	int scr = ui_touch_screen();
 	int px = ui_px(scr);
-	SDL_Rect first = item_rect(scr, 0);
-	ui_text_center(scr, screens[scr].rect.w / 2, first.y - px * 16, px + 1, "PAUSED", C_GOLD);
+	for (int t = 0; t < 2; ++t) {
+		SDL_Rect r = tab_rect(scr, t);
+		bool on = t == curPage;
+		ui_fill(scr, r, on ? C_BTN_EDGE : C_BTN);
+		ui_text_center(scr, r.x + r.w / 2, r.y + (r.h - px * 7) / 2, px, pageNames[t], on ? (SDL_Color) { 20, 16, 36, 255 } : C_DIS);
+	}
+	SDL_Rect t0 = tab_rect(scr, 0), t1 = tab_rect(scr, 1);
+	ui_text(scr, t0.x - px * 14, t0.y + (t0.h - px * 7) / 2, px, "L1", C_DIS);
+	ui_text(scr, t1.x + t1.w + px * 3, t1.y + (t1.h - px * 7) / 2, px, "R1", C_DIS);
 	for (int i = 0; i < nMenuItems; ++i) {
 		SDL_Rect r = item_rect(scr, i);
 		bool sel = i == menuSel;
@@ -91,6 +132,7 @@ static void draw_menu(void) {
 		const char* label = menuLabels[menuItems[i]];
 		if (menuItems[i] == M_SCALE) label = !strcmp(cfg->scale, "fit") ? "SCALE: FULL WIDTH" : !strcmp(cfg->scale, "stretch") ? "SCALE: STRETCH" : "SCALE: PIXEL PERFECT";
 		if (menuItems[i] == M_LCD) label = cfg->lcdGrid ? "LCD GRID: ON" : "LCD GRID: OFF";
+		if (menuItems[i] == M_FPS) label = cfg->showFps ? "SHOW FPS: ON" : "SHOW FPS: OFF";
 		if (menuItems[i] == M_RESTART && restartArmed) label = "TAP AGAIN TO RESTART";
 		ui_text_center(scr, r.x + r.w / 2, r.y + (r.h - px * 7) / 2, px, label, en ? C_TEXT : C_DIS);
 	}
@@ -160,8 +202,8 @@ static void save_prefs(void) {
 	FILE* f = fopen(prefs, "w");
 	if (f) {
 		fprintf(f, "# written by gbadual's pause menu; overrides gbadual.cfg\n");
-		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\n", cfg->swap ? 1 : 0, cfg->scale,
-		        cfg->mapScale, cfg->lcdGrid ? 1 : 0);
+		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\n", cfg->swap ? 1 : 0,
+		        cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0);
 		fclose(f);
 	}
 }
@@ -206,8 +248,9 @@ static void draw_game(void) {
 				ui_text(s, px * 4, r.h - px * 12, px, osd, C_TEXT);
 			}
 			if (cfg->showFps) {
-				char buf[32];
-				snprintf(buf, sizeof(buf), "%.1f", fps);
+				char buf[48];
+				snprintf(buf, sizeof(buf), "%.1f FPS  %d%%", fps, (int) (speedPct + 0.5));
+				ui_text(s, px * 4 + 2, px * 4 + 2, px, buf, (SDL_Color) { 0, 0, 0, 255 });
 				ui_text(s, px * 4, px * 4, px, buf, C_TEXT);
 			}
 			continue;
@@ -221,12 +264,15 @@ static void draw_game(void) {
 			SDL_Rect area = { r.w / 12, r.h / 6, r.w - r.w / 6, r.h - r.h / 3 };
 			ui_image(s, logoTex, logoW, logoH, "fit", &area);
 		}
-		load_overlay();
-		if (overlayTex[0] || overlayTex[1]) ui_image(s, overlayTex, overlayW, overlayH, "stretch", NULL);
+		if (mapShownIdx >= 0) { /* overlays frame the map only, never the logo */
+			load_overlay();
+			if (overlayTex[0] || overlayTex[1]) ui_image(s, overlayTex, overlayW, overlayH, "stretch", NULL);
+		}
 	}
 }
 
 static void open_menu(void) {
+	set_page(0);
 	menuOpen = true;
 	menuSel = 0;
 	menuPressed = -1;
@@ -274,6 +320,10 @@ static bool activate(int item, enum GameExit* exitTo) {
 		} else {
 			snprintf(menuNote, sizeof(menuNote), "LOAD FAILED");
 		}
+		break;
+	case M_FPS:
+		cfg->showFps = !cfg->showFps;
+		save_prefs();
 		break;
 	case M_RESTART:
 		if (!restartArmed) {
@@ -340,16 +390,18 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	ui_logo_path(cfg, emu.gameCode, logo, sizeof(logo));
 	if (!ui_load_image(logo, logoTex, &logoW, &logoH, true)) fprintf(stderr, "no logo at %s\n", logo);
 
-	nMenuItems = 0;
-	menuItems[nMenuItems++] = M_RESUME;
-	menuItems[nMenuItems++] = M_SWAP;
-	menuItems[nMenuItems++] = M_SCALE;
-	menuItems[nMenuItems++] = M_LCD;
-	menuItems[nMenuItems++] = M_SAVE;
-	menuItems[nMenuItems++] = M_LOAD;
-	menuItems[nMenuItems++] = M_RESTART;
-	if (fromLibrary) menuItems[nMenuItems++] = M_LIBRARY;
-	menuItems[nMenuItems++] = M_EXIT;
+	pageLen[0] = pageLen[1] = 0;
+	pages[0][pageLen[0]++] = M_RESUME;
+	pages[0][pageLen[0]++] = M_RESTART;
+	pages[0][pageLen[0]++] = M_SAVE;
+	pages[0][pageLen[0]++] = M_LOAD;
+	if (fromLibrary) pages[0][pageLen[0]++] = M_LIBRARY;
+	pages[0][pageLen[0]++] = M_EXIT;
+	pages[1][pageLen[1]++] = M_SWAP;
+	pages[1][pageLen[1]++] = M_SCALE;
+	pages[1][pageLen[1]++] = M_LCD;
+	pages[1][pageLen[1]++] = M_FPS;
+	set_page(0);
 
 	if (cfg->loadState[0]) {
 		if (!emu_state_load_file(&emu, cfg->loadState)) fprintf(stderr, "could not load %s\n", cfg->loadState);
@@ -382,6 +434,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	bool comboUsed = false;
 	int selectPulse = 0;
 	unsigned ffPhase = 0;
+	bool noPace = getenv("GBADUAL_NOPACE") != NULL;
 	enum GameExit exitTo = GAME_QUIT_APP;
 	bool done = false;
 	bool wasMenu = false;
@@ -411,6 +464,14 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				continue;
 			}
 			if (p.screen != ui_touch_screen()) continue;
+			if (p.kind == 1) {
+				int t = tab_at(p.screen, p.x, p.y);
+				if (t >= 0) {
+					if (t != curPage) set_page(t);
+					ignorePointerUp = true;
+					continue;
+				}
+			}
 			int it = item_at(p.screen, p.x, p.y);
 			if (p.kind == 1) {
 				ignorePointerUp = false;
@@ -446,6 +507,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		if (done) break;
 
 		if (menuOpen) {
+			if (btn_pressed(B_L) && curPage > 0) set_page(curPage - 1);
+			if (btn_pressed(B_R) && curPage < 1) set_page(curPage + 1);
 			if (btn_pressed(B_DOWN)) menuSel = (menuSel + 1) % nMenuItems;
 			if (btn_pressed(B_UP)) menuSel = (menuSel + nMenuItems - 1) % nMenuItems;
 			if (btn_pressed(B_B) || btn_pressed(B_START)) menuOpen = false;
@@ -458,6 +521,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		if (wasMenu && !menuOpen) {
 			if (audio) SDL_PauseAudioDevice(audio, 0);
 			next = SDL_GetPerformanceCounter() / freq;
+			fpsT0 = next;
+			fpsFrames = 0;
 			forceMap = true;
 		}
 		wasMenu = menuOpen;
@@ -561,9 +626,11 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 
 		/* ---- pacing: real-time clock nudged by audio queue depth */
 		double now = SDL_GetPerformanceCounter() / freq;
-		++fpsFrames;
+		fpsFrames += runs; /* emulated frames */
 		if (now - fpsT0 >= 1.0) {
 			fps = fpsFrames / (now - fpsT0);
+			speedPct = fps / GBA_FPS * 100.0;
+			if (debug) fprintf(stderr, "speed %.1f fps (%.0f%%)\n", fps, speedPct);
 			fpsFrames = 0;
 			fpsT0 = now;
 		}
@@ -571,10 +638,11 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		next += frameSec;
 		if (audio) {
 			int queued = (int) (SDL_GetQueuedAudioSize(audio) / 4);
-			if (queued > targetQueued * 3 / 2) next += frameSec * 0.05;
-			else if (queued < targetQueued / 2) next -= frameSec * 0.05;
+			if (queued > targetQueued * 3 / 2) next += frameSec * 0.015;
+			else if (queued < targetQueued / 2) next -= frameSec * 0.015;
 		}
 		if (next < now - 4 * frameSec) next = now;
+		if (noPace) next = now; /* benchmarking: run as fast as possible */
 		double wait = next - now;
 		if (wait > 0) {
 			struct timespec ts = { 0, (long) (wait * 1e9) };

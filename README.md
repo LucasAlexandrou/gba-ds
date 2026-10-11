@@ -41,20 +41,11 @@ If you used the earlier build, delete the old `... (Dual Screen).sh` entries fro
 ## Playing
 
 - **Resume:** leaving a game saves its state automatically, and launching it again picks up exactly there. Turn this off with `auto_resume = 0`. Battery saves are written as usual too, so in-game saves are never at risk.
-- **Pause menu:** tap the touchscreen or press **HOME**. Both screens dim, the game and its sound pause, and the menu appears on the touchscreen:
-  - Resume
-  - Swap screens
-  - Scale: pixel perfect (4×) or full width (fills the screen width, keeps the shape)
-  - LCD grid on or off
+- **Pause menu:** tap the touchscreen or press **HOME**. Both screens dim, the game and its sound pause, and the menu appears on the touchscreen. It has two pages. Switch between them with **L1/R1** or by tapping the tabs at the top.
+  - **Game:** Resume · Restart game (tap twice; unsaved progress is lost) · Save state · Load state (greyed out until you've saved one) · Exit to emulator (back to the game list) · Exit to main menu (back to EmulationStation). Both exits save a resume point first.
+  - **Display:** Swap screens · Scale (pixel perfect / full width) · LCD grid · Show FPS (frames per second and % of full speed).
 
-  Swap, scale and LCD grid choices are remembered for next time.
-  - Save state
-  - Load state (greyed out until you've saved one)
-  - Restart game (tap twice; unsaved progress is lost)
-  - Exit to emulator (saves a resume point, then back to gbadual's game list)
-  - Exit to main menu (saves a resume point, then quits to EmulationStation)
-
-  The menu works by touch or with the D-pad and A. B, Start or HOME closes it.
+  Display choices are remembered for next time. The menu works by touch or with the D-pad and A; B, Start or HOME closes it.
 
 ### Buttons
 
@@ -70,7 +61,7 @@ If you used the earlier build, delete the old `... (Dual Screen).sh` entries fro
 | R2 (hold) | Fast-forward |
 | HOME + R1 / L1 | Quick save / load state |
 | HOME + Start | Quit |
-| HOME + X | FPS counter |
+| HOME + X | FPS counter (also in the menu) |
 
 ### Library
 
@@ -98,7 +89,7 @@ You can frame the map screen with your own art. Put a PNG at `gbadual/overlays/<
 - `<scale>` is `integer` (pixel perfect) or `fit` (full width).
 - `<CODE>.png` with no scale suffix is used for both modes.
 
-Each overlay is 1024×768 and is drawn on top of the whole map screen, so leave it transparent where the map should show. It also covers the logo screen. These are the map rectangles to keep clear:
+Each overlay is 1024×768 and is drawn on top of the whole map screen, so leave it transparent where the map should show. It's only drawn while a map is showing, not over the logo screen. These are the map rectangles to keep clear:
 
 | Game | integer | fit |
 |---|---|---|
