@@ -22,7 +22,7 @@ LDFLAGS    += -L$(SDL_PREFIX)/lib -Wl,-rpath-link,$(SDL_PREFIX)/lib
 LIBS       := $(MGBA_BUILD)/libmgba.a -lSDL2 -lpthread -lm
 
 CORE_SRC   := src/emu.c src/mapcap.c src/profiles.c
-APP_SRC    := src/main.c src/config.c src/font.c src/ui.c src/library.c src/game.c src/paths.c src/image.c src/logo.c $(CORE_SRC)
+APP_SRC    := src/main.c src/config.c src/font.c src/ui.c src/library.c src/game.c src/paths.c src/image.c src/logo.c src/mapframe.c $(CORE_SRC)
 
 all: $(OUT)/gbadual
 
@@ -33,9 +33,9 @@ $(OUT)/gbadual: $(APP_SRC) src/*.h $(MGBA_BUILD)/libmgba.a
 # development tools (host only; need libpng)
 tools: $(OUT)/harness
 
-$(OUT)/harness: tools/harness.c tools/png.c $(CORE_SRC) src/*.h
+$(OUT)/harness: tools/harness.c tools/png.c $(CORE_SRC) src/logo.c src/*.h
 	@mkdir -p $(OUT)
-	$(CC) $(CFLAGS) -o $@ tools/harness.c tools/png.c $(CORE_SRC) $(MGBA_BUILD)/libmgba.a -lpng -lpthread -lm
+	$(CC) $(CFLAGS) -o $@ tools/harness.c tools/png.c $(CORE_SRC) src/logo.c $(MGBA_BUILD)/libmgba.a -lpng -lpthread -lm
 
 clean:
 	rm -rf build

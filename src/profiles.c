@@ -18,6 +18,10 @@ static const MapProfile profiles[] = {
 		.bgColor = 0x29007B, .minForeground = 12,
 		.mem = { { 0x03002C68, 0xFF, 0x02, 1 } },
 		.logo = { .wait = 1700, .layer = 1, .maxY = 160 },
+		/* name entry screen: power on, Start through the title, A (Game Start), A (new file) */
+		.frame = { .steps = { { 0, 900 }, { K_START, 3 }, { 0, 9 }, { K_START, 3 }, { 0, 69 }, { K_A, 3 }, { 0, 49 },
+		                      { K_A, 3 }, { 0, 69 } },
+		           .layer = 1, .t = 8, .p = 8, .x0 = 0, .y0 = 40, .x1 = 232, .y1 = 152 },
 		.animFrames = 8, .animStep = 4,
 	},
 	{
@@ -31,6 +35,11 @@ static const MapProfile profiles[] = {
 		.bgColor = 0x000000, .minForeground = 12,
 		.mem = { { 0x03002B28, 0xFF, 0x02, 1 } },
 		.logo = { .wait = 1700, .layer = 1, .maxY = 130 },
+		/* name entry screen */
+		.frame = { .steps = { { 0, 700 }, { K_START, 3 }, { 0, 9 }, { K_A, 3 }, { 0, 39 }, { K_START, 3 }, { 0, 9 },
+		                      { K_A, 3 }, { 0, 39 }, { K_START, 3 }, { 0, 9 }, { K_A, 3 }, { 0, 39 }, { K_START, 3 },
+		                      { 0, 9 }, { K_A, 3 }, { 0, 90 } },
+		           .layer = 1, .t = 8, .p = 8, .x0 = 0, .y0 = 40, .x1 = 232, .y1 = 152, .minLuma = 90 },
 		.animFrames = 8, .animStep = 3,
 	},
 	{
@@ -45,6 +54,9 @@ static const MapProfile profiles[] = {
 		.mem = { { 0x03000C80, 0xFF, 0x01, 1 } },
 		.live = { { 0x03000C80, 0xFF, 0x00, 1 } },
 		.logo = { .wait = 700, .layer = 0, .maxY = 120, .blackIsClear = true },
+		/* the bevelled boxes of the file menu (same style as name entry) */
+		.frame = { .steps = { { 0, 600 }, { K_START, 3 }, { 0, 9 }, { K_START, 3 }, { 0, 400 } },
+		           .layer = 1, .t = 4, .p = 1, .x0 = 10, .y0 = 10, .x1 = 98, .y1 = 34 },
 		.animFrames = 8, .animStep = 4,
 	},
 	{
@@ -59,10 +71,12 @@ static const MapProfile profiles[] = {
 		.tight_x = 12, .tight_y = 16, .tight_w = 216, .tight_h = 132,
 		/* the "A" prompt beside the minimap, and two slivers of the frame's corners */
 		.masks = { { 172, 132, 24, 24 }, { 12, 16, 16, 8 }, { 12, 24, 8, 8 }, { 212, 16, 16, 8 } },
+		.arrows = { { 104, 14, 32, 12 }, { 104, 136, 32, 12 } }, .arrowKey = 1, /* top/bottom centre */
 		.gridX = 4, .gridY = 4, .gridCell = 8,
 		.mem = { { 0x03000C70, 0xFF, 0x05, 1 } },
 		.live = { { 0x03000C70, 0xFF, 0x04, 1 } },
 		.logo = { .wait = 200, .pressStart = true, .wait2 = 200, .layer = 1, .maxY = 104 },
+		.gridBackground = true,
 		.animFrames = 8, .animStep = 4,
 	},
 	{
@@ -77,10 +91,12 @@ static const MapProfile profiles[] = {
 		/* inner grid only: drops the top bar (L SLEEP / area name / STATUS R) and frame */
 		.tight_x = 8, .tight_y = 16, .tight_w = 224, .tight_h = 136,
 		.masks = { { 168, 136, 64, 16 } }, /* "A OBJECTIVE" prompt */
+		.arrows = { { 104, 12, 32, 12 }, { 104, 140, 32, 12 } }, .arrowKey = 2, /* top/bottom centre */
 		.gridX = 0, .gridY = 0, .gridCell = 8,
 		.mem = { { 0x03000BDE, 0xFF, 0x03, 1 } },
 		.live = { { 0x03000BDE, 0xFF, 0x01, 1 } },
 		.logo = { .wait = 200, .pressStart = true, .wait2 = 300, .layer = 1, .maxY = 125 },
+		.gridBackground = true,
 		.animFrames = 8, .animStep = 4,
 	},
 };

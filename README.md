@@ -81,15 +81,25 @@ If you used the earlier build, delete the old `... (Dual Screen).sh` entries fro
 
 Until the first map is ready (title screen, intro, a fresh boot), the map screen shows the game's logo. No logo files are shipped: the first time a game appears in the list, gbadual boots it silently in the background, runs it to its title screen, and renders just the background layer that holds the logo. It saves that as `gbadual/states/logos/<CODE>.png`, at the game's own resolution with transparency, and draws it at sharp whole-number scale. To use your own art instead, put `<CODE>.png` (or `.bmp`) in `gbadual/logos/`.
 
-## Map screen overlays
+## Map screen surrounds and overlays
 
-You can frame the map screen with your own art. Put a PNG at `gbadual/overlays/<CODE>-<scale>.png`:
+With **Overlays** on (Display page), the space around the map is filled with a surround generated from each game's own graphics. Nothing is shipped; like the logos, it's extracted from the ROM once in the background and cached in `gbadual/states/frames/`.
 
+- **Metroid: Zero Mission / Fusion:** the map's own empty grid tile, continued to the screen edges in step with the map's grid. The scroll arrows at the top and bottom centre are removed, and what they covered is rebuilt from the neighbouring grid cells.
+- **Castlevania (all three):** the map's background colour, plus the border from the game's own menus:
+  - Aria of Sorrow and Harmony of Dissonance use their name-entry frame.
+  - Circle of the Moon uses the bevelled boxes from its file menu.
+
+  In pixel-perfect mode the border goes all the way round the map. In full-width mode it spans the top and bottom.
+
+The surround is assembled in the game's own pixel space and scaled together with the map, so it lines up exactly and the LCD grid covers it too.
+
+You can still add your own art on top: put a PNG at `gbadual/overlays/<CODE>-<scale>.png`.
 - `<CODE>` is the game code: `A2CE` Aria of Sorrow, `AAME` Circle of the Moon, `ACHE` Harmony of Dissonance, `BMXE` Zero Mission, `AMTE` Fusion.
 - `<scale>` is `integer` (pixel perfect) or `fit` (full width).
 - `<CODE>.png` with no scale suffix is used for both modes.
 
-Each overlay is 1024×768 and is drawn on top of the whole map screen, so leave it transparent where the map should show. It's only drawn while a map is showing, not over the logo screen. These are the map rectangles to keep clear:
+Each overlay is 1024×768 and is drawn over the whole map screen, so leave it transparent where the map should show. It's only drawn while a map is showing, not over the logo screen. These are the map rectangles to keep clear:
 
 | Game | integer | fit |
 |---|---|---|

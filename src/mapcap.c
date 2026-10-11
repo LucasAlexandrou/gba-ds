@@ -30,6 +30,8 @@ struct MapCapture {
 	void* snapshot;
 
 	uint32_t* published[MAP_MAX_FRAMES];
+	uint32_t pubTile[16 * 16];
+	bool pubTileValid;
 	int pubFrames;
 	uint32_t serial;
 	const char* lastError;
@@ -129,6 +131,51 @@ static void find_tile(MapCapture* mc, const uint32_t* fb) {
 	mc->tileValid = true;
 }
 
+static bool is_arrow(int key, uint32_t c) {
+	int r = c & 0xFF, g = (c >> 8) & 0xFF, b = (c >> 16) & 0xFF;
+	if (key == 1) return r > 140 && b > 140 && g < 110;          /* magenta */
+	if (key == 2) return r > 200 && b < 110 && (g > 150 || g < 110); /* yellow, orange, red */
+	return false;
+}
+
+/* Removes scroll arrows drawn over the map (crop coordinates in out). */
+static void remove_arrows(MapCapture* mc, uint32_t* out) {
+	const MapProfile* p = mc->prof;
+	int k = p->gridCell > 0 ? p->gridCell : 8;
+	for (int a = 0; a < 2 && p->arrows[a].w; ++a) {
+		for (int y = p->arrows[a].y; y < p->arrows[a].y + p->arrows[a].h; ++y) {
+			if (y < mc->cy || y >= mc->cy + mc->ch) continue;
+			uint32_t* row = &out[(y - mc->cy) * mc->cw];
+			for (int x = p->arrows[a].x; x < p->arrows[a].x + p->arrows[a].w; ++x) {
+				int u = x - mc->cx;
+				if (u < 0 || u >= mc->cw || !is_arrow(p->arrowKey, row[u])) continue;
+				/* majority vote among the same pixel 1-3 grid cells to either side,
+				 * so one-off details (door dividers) don't get copied */
+				uint32_t cands[6];
+				int nc = 0;
+				for (int d = 1; d <= 3; ++d) {
+					int c1 = u - d * k, c2 = u + d * k;
+					if (c1 >= 0 && !is_arrow(p->arrowKey, row[c1])) cands[nc++] = row[c1];
+					if (c2 < mc->cw && !is_arrow(p->arrowKey, row[c2])) cands[nc++] = row[c2];
+				}
+				uint32_t rep = 0;
+				bool found = false;
+				int bestN = 0;
+				for (int i = 0; i < nc; ++i) {
+					int n = 0;
+					for (int j = 0; j < nc; ++j) n += cands[j] == cands[i];
+					if (n > bestN) bestN = n, rep = cands[i], found = true;
+				}
+				if (!found && mc->tileValid) {
+					rep = mc->tile[(((y - p->gridY) % k + k) % k) * k + ((x - p->gridX) % k + k) % k];
+					found = true;
+				}
+				if (found) row[u] = rep;
+			}
+		}
+	}
+}
+
 static void crop(MapCapture* mc, const uint32_t* fb, uint32_t* out) {
 	const MapProfile* p = mc->prof;
 	for (int y = 0; y < mc->ch; ++y) {
@@ -136,9 +183,10 @@ static void crop(MapCapture* mc, const uint32_t* fb, uint32_t* out) {
 	}
 	if (!mc->tight || !p->masks[0].w) return;
 	if (!mc->tileValid) find_tile(mc, fb);
+	if (p->arrows[0].w) remove_arrows(mc, out);
 	if (!mc->tileValid) return;
 	int k = p->gridCell;
-	for (int m = 0; m < 4 && p->masks[m].w; ++m) {
+	for (int m = 0; m < 8 && p->masks[m].w; ++m) {
 		for (int y = p->masks[m].y; y < p->masks[m].y + p->masks[m].h; ++y) {
 			for (int x = p->masks[m].x; x < p->masks[m].x + p->masks[m].w; ++x) {
 				if (x < mc->cx || y < mc->cy || x >= mc->cx + mc->cw || y >= mc->cy + mc->ch) continue;
@@ -256,6 +304,10 @@ static void* worker(void* arg) {
 				memcpy(mc->published[i], mc->work[i], n * sizeof(uint32_t));
 			}
 			mc->pubFrames = mc->workFrames;
+			if (mc->tileValid) {
+				memcpy(mc->pubTile, mc->tile, sizeof(mc->pubTile));
+				mc->pubTileValid = true;
+			}
 			++mc->serial;
 		}
 		mc->busy = false;
@@ -398,6 +450,14 @@ bool mapcap_poll(MapCapture* mc, uint32_t lastSerial, MapResult* out) {
 		}
 		out->pixels = out->frames[0];
 		out->serial = mc->serial;
+		int k = mc->prof->gridCell;
+		out->hasTile = mc->pubTileValid && k > 0 && k <= 16;
+		if (out->hasTile) {
+			out->tileK = k;
+			out->tileX = ((mc->prof->gridX - mc->cx) % k + k) % k;
+			out->tileY = ((mc->prof->gridY - mc->cy) % k + k) % k;
+			memcpy(out->tile, mc->pubTile, sizeof(out->tile));
+		}
 	}
 	pthread_mutex_unlock(&mc->lock);
 	return fresh;

@@ -5,6 +5,8 @@
 #include "paths.h"
 #include "ui.h"
 #include "logo.h"
+#include "mapframe.h"
+#include "profiles.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -184,10 +186,42 @@ static void auto_save(void) {
 	}
 }
 
+/* generated surround (built-in overlay), see mapframe.c */
+static MapFrame mf;
+static SDL_Texture* canvasTex[2];
+static int canvasTexW, canvasTexH;
+static bool canvasDirty;
+static char framePath[1200];
+
 static void upload_map_frame(int idx) {
 	if (idx == mapShownIdx || !mapRes.frames[idx]) return;
 	for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, mapRes.frames[idx], mapW * 4);
 	mapShownIdx = idx;
+	canvasDirty = true;
+}
+
+/* Draws the map with its generated surround; false if there's none to draw. */
+static bool draw_framed_map(int s) {
+	if (!cfg->overlays || !mapframe_ready(&mf) || mapShownIdx < 0) return false;
+	SDL_Rect r = screens[s].rect;
+	if (mapframe_layout(&mf, r.w, r.h, cfg->mapScale) || mf.baseDirty) canvasDirty = true;
+	if (canvasTexW != mf.cw || canvasTexH != mf.ch) {
+		for (int i = 0; i < nViews; ++i) {
+			if (canvasTex[i]) SDL_DestroyTexture(canvasTex[i]);
+			canvasTex[i] = SDL_CreateTexture(views[i].ren, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, mf.cw, mf.ch);
+			SDL_SetTextureBlendMode(canvasTex[i], SDL_BLENDMODE_NONE);
+		}
+		canvasTexW = mf.cw;
+		canvasTexH = mf.ch;
+		canvasDirty = true;
+	}
+	if (canvasDirty) {
+		const uint32_t* px = mapframe_compose(&mf, mapRes.frames[mapShownIdx]);
+		for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(canvasTex[i], NULL, px, mf.cw * 4);
+		canvasDirty = false;
+	}
+	ui_image_pixels(s, canvasTex, mf.cw, mf.ch, "stretch", cfg->lcdGrid);
+	return true;
 }
 
 static bool frame_is_dark(const uint32_t* fb) {
@@ -268,7 +302,9 @@ static void draw_game(void) {
 			continue;
 		}
 		/* the map screen */
-		if (mapShownIdx >= 0) {
+		if (mapShownIdx >= 0 && draw_framed_map(s)) {
+			/* map + generated surround */
+		} else if (mapShownIdx >= 0) {
 			ui_fill(s, (SDL_Rect) { 0, 0, r.w, r.h }, borderColor);
 			ui_image_pixels(s, mapTex, mapW, mapH, cfg->mapScale, cfg->lcdGrid);
 		} else if (logoTex[0] || logoTex[1]) {
@@ -404,6 +440,13 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	overlayMode[0] = 0;
 	uint32_t logoGen = logo_generation();
 	ui_load_logo(cfg, rom, emu.gameCode, logoTex, &logoW, &logoH, &logoPixel);
+	mapframe_init(&mf, mc ? profile_find(emu.gameCode) : NULL, mapW, mapH);
+	canvasTexW = canvasTexH = 0;
+	snprintf(framePath, sizeof(framePath), "%s/frames", cfg->stateDir);
+	mkdirs(framePath);
+	snprintf(framePath, sizeof(framePath), "%s/frames/%.4s.png", cfg->stateDir, emu.gameCode);
+	if (mf.prof && mf.prof->frame.t && !mapframe_load_atlas(&mf, framePath)) frame_request(rom, emu.gameCode, framePath);
+	uint32_t frameGen = logo_generation();
 
 	pageLen[0] = pageLen[1] = 0;
 	pages[0][pageLen[0]++] = M_RESUME;
@@ -462,6 +505,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	int fpsFrames = 0;
 
 	while (!done) {
+		if (mf.prof && mf.prof->frame.t && !mf.atlas && logo_generation() != frameGen) {
+			frameGen = logo_generation();
+			if (mapframe_load_atlas(&mf, framePath)) canvasDirty = true;
+		}
 		if (!logoTex[0] && !logoTex[1] && logo_generation() != logoGen) {
 			logoGen = logo_generation();
 			ui_load_logo(cfg, NULL, emu.gameCode, logoTex, &logoW, &logoH, &logoPixel);
@@ -639,6 +686,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				}
 			}
 			if (mapcap_poll(mc, mapRes.serial, &mapRes)) {
+				if (mapRes.hasTile) mapframe_set_tile(&mf, mapRes.tile, mapRes.tileK, mapRes.tileX, mapRes.tileY);
 				mapShownIdx = -1;
 				mapAnimStart = frameCount;
 				upload_map_frame(0);
@@ -698,5 +746,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	ui_free_image(logoTex);
 	ui_free_image(overlayTex);
 	overlayMode[0] = 0;
+	mapframe_free(&mf);
+	for (int i = 0; i < 2; ++i) {
+		if (canvasTex[i]) SDL_DestroyTexture(canvasTex[i]);
+		canvasTex[i] = NULL;
+	}
 	return exitTo;
 }

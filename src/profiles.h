@@ -38,8 +38,13 @@ typedef struct MapProfile {
 	 * with empty map-grid tiles, e.g. button prompts drawn over the map.
 	 * gridX/gridY/gridCell give the phase and size of the background grid. */
 	int tight_x, tight_y, tight_w, tight_h;
-	struct { int x, y, w, h; } masks[4];
+	struct { int x, y, w, h; } masks[8];
 	int gridX, gridY, gridCell;
+	/* Scroll arrows drawn on top of the map: inside these rects, pixels of the
+	 * arrow's colours (arrowKey 1 = magenta, 2 = yellow/orange/red) are
+	 * replaced with the same pixel one or two grid cells to the side. */
+	struct { int x, y, w, h; } arrows[2];
+	int arrowKey;
 
 	Probe probes[8];
 	int minProbes;    /* how many probes must match (0 = all) */
@@ -61,6 +66,20 @@ typedef struct MapProfile {
 		int wait, wait2, layer, maxY;
 		bool pressStart, blackIsClear;
 	} logo;
+
+	/* Border for the map screen, taken from one of the game's own menu screens
+	 * (Castlevania): play `steps` from power-on, render BG `layer` alone, and
+	 * read a frame of thickness t whose corners are at x0/x1, y0/y1. Edges are
+	 * tiled from p-wide slices (the most common one along each edge, which
+	 * skips one-off decorations). */
+	struct {
+		MacroStep steps[24];
+		int layer, t, p;
+		int x0, y0, x1, y1;
+		int minLuma; /* pixels darker than this are dropped (translucent panel fills) */
+	} frame;
+	/* Metroid: fill the map screen with the map's own empty grid tile. */
+	bool gridBackground;
 
 	int animFrames; /* frames to record for the blinking/pulsing marker loop */
 	int animStep;   /* emulated frames between recorded frames */

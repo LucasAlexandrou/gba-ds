@@ -14,8 +14,14 @@
  * the logo couldn't be found. */
 bool logo_extract(const char* romPath, const char* gameCode, const char* outPng);
 
+/* Map-screen border pieces from one of the game's menu screens, saved as a
+ * (2t+p) x (2t+p) atlas: corners in the corners, one edge slice between them
+ * (see MapProfile.frame). */
+bool frame_extract(const char* romPath, const char* gameCode, const char* outPng);
+
 /* Background queue: extracts outPng if it doesn't exist yet. */
 void logo_request(const char* romPath, const char* gameCode, const char* outPng);
+void frame_request(const char* romPath, const char* gameCode, const char* outPng);
 /* Changes every time a queued logo finishes; compare to know when to reload. */
 uint32_t logo_generation(void);
 void logo_shutdown(void);
