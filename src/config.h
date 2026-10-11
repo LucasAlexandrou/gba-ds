@@ -10,6 +10,7 @@ typedef struct Config {
 	char mapScale[16]; /* map:  integer | fit | stretch */
 	bool smooth;       /* plain linear filtering when scaling (blurry) */
 	char borderColor[16]; /* RRGGBB behind the map screen (outside the map image) */
+	bool overlays;     /* draw map-screen overlay PNGs */
 	bool lcdGrid;      /* draw an LCD pixel grid over game and map */
 	int lcdStrength;   /* grid darkness, 0..100 */
 	bool vsync;

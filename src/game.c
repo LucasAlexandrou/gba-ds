@@ -34,14 +34,22 @@ static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
+enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
 static const char* menuLabels[] = {
-	[M_RESUME] = "RESUME", [M_SWAP] = "SWAP SCREENS", [M_SAVE] = "SAVE STATE", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_RESTART] = "RESTART GAME",
+	[M_RESUME] = "RESUME", [M_SWAP] = "SWAP SCREENS", [M_SAVE] = "SAVE STATE", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_OVERLAY] = "", [M_RESTART] = "RESTART GAME",
 	[M_LOAD] = "LOAD STATE", [M_LIBRARY] = "EXIT TO EMULATOR", [M_EXIT] = "EXIT TO MAIN MENU",
 };
 static int menuItems[9], nMenuItems;
 /* two pages, switched with L1/R1 or the tabs */
 static int pages[2][8], pageLen[2], curPage;
+/* Buttons still held when the menu closes (or after a HOME combo) are kept
+ * from the game until released, so e.g. the A that picked "Save state"
+ * doesn't make Samus jump. */
+static bool suppress[B_COUNT];
+#define HELD(b) (btnNow[b] && !suppress[b])
+static void suppress_held(void) {
+	for (int b = 0; b < B_COUNT; ++b) suppress[b] = btnNow[b];
+}
 static const char* pageNames[2] = { "GAME", "DISPLAY" };
 static bool restartArmed;
 static bool menuOpen;
@@ -133,6 +141,7 @@ static void draw_menu(void) {
 		if (menuItems[i] == M_SCALE) label = !strcmp(cfg->scale, "fit") ? "SCALE: FULL WIDTH" : !strcmp(cfg->scale, "stretch") ? "SCALE: STRETCH" : "SCALE: PIXEL PERFECT";
 		if (menuItems[i] == M_LCD) label = cfg->lcdGrid ? "LCD GRID: ON" : "LCD GRID: OFF";
 		if (menuItems[i] == M_FPS) label = cfg->showFps ? "SHOW FPS: ON" : "SHOW FPS: OFF";
+		if (menuItems[i] == M_OVERLAY) label = cfg->overlays ? "OVERLAYS: ON" : "OVERLAYS: OFF";
 		if (menuItems[i] == M_RESTART && restartArmed) label = "TAP AGAIN TO RESTART";
 		ui_text_center(scr, r.x + r.w / 2, r.y + (r.h - px * 7) / 2, px, label, en ? C_TEXT : C_DIS);
 	}
@@ -202,8 +211,9 @@ static void save_prefs(void) {
 	FILE* f = fopen(prefs, "w");
 	if (f) {
 		fprintf(f, "# written by gbadual's pause menu; overrides gbadual.cfg\n");
-		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\n", cfg->swap ? 1 : 0,
-		        cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0);
+		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %d\n",
+		        cfg->swap ? 1 : 0, cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0,
+		        cfg->overlays ? 1 : 0);
 		fclose(f);
 	}
 }
@@ -264,7 +274,7 @@ static void draw_game(void) {
 			SDL_Rect area = { r.w / 12, r.h / 6, r.w - r.w / 6, r.h - r.h / 3 };
 			ui_image(s, logoTex, logoW, logoH, "fit", &area);
 		}
-		if (mapShownIdx >= 0) { /* overlays frame the map only, never the logo */
+		if (mapShownIdx >= 0 && cfg->overlays) { /* overlays frame the map only, never the logo */
 			load_overlay();
 			if (overlayTex[0] || overlayTex[1]) ui_image(s, overlayTex, overlayW, overlayH, "stretch", NULL);
 		}
@@ -320,6 +330,10 @@ static bool activate(int item, enum GameExit* exitTo) {
 		} else {
 			snprintf(menuNote, sizeof(menuNote), "LOAD FAILED");
 		}
+		break;
+	case M_OVERLAY:
+		cfg->overlays = !cfg->overlays;
+		save_prefs();
 		break;
 	case M_FPS:
 		cfg->showFps = !cfg->showFps;
@@ -400,6 +414,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[1][pageLen[1]++] = M_SWAP;
 	pages[1][pageLen[1]++] = M_SCALE;
 	pages[1][pageLen[1]++] = M_LCD;
+	pages[1][pageLen[1]++] = M_OVERLAY;
 	pages[1][pageLen[1]++] = M_FPS;
 	set_page(0);
 
@@ -501,6 +516,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			else open_menu();
 		}
 		if (btn_released(modBtn)) {
+			if (comboUsed) suppress_held();
 			if (hotkeyBack && !comboUsed && !menuOpen) selectPulse = 4; /* plain Select goes to the game */
 			comboUsed = false;
 		}
@@ -519,6 +535,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			}
 		}
 		if (wasMenu && !menuOpen) {
+			suppress_held();
 			if (audio) SDL_PauseAudioDevice(audio, 0);
 			next = SDL_GetPerformanceCounter() / freq;
 			fpsT0 = next;
@@ -541,20 +558,28 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 
 		/* ---- emulate */
 		uint32_t keys = 0;
+		for (int b = 0; b < B_COUNT; ++b) {
+			if (!btnNow[b]) suppress[b] = false; /* released: counts again */
+		}
 		if (!btnNow[modBtn] || hotkeyBack) {
-			if (btnNow[B_A]) keys |= K_A;
-			if (btnNow[B_B]) keys |= K_B;
-			if (btnNow[B_START] && !(hotkeyBack && btnNow[B_SELECT])) keys |= K_START;
-			if (btnNow[B_SELECT] && !hotkeyBack) keys |= K_SELECT;
-			if (btnNow[B_L]) keys |= K_L;
-			if (btnNow[B_R]) keys |= K_R;
-			if (btnNow[B_UP]) keys |= K_UP;
-			if (btnNow[B_DOWN]) keys |= K_DOWN;
-			if (btnNow[B_LEFT]) keys |= K_LEFT;
-			if (btnNow[B_RIGHT]) keys |= K_RIGHT;
+			if (HELD(B_A)) keys |= K_A;
+			if (HELD(B_B)) keys |= K_B;
+			if (HELD(B_START) && !(hotkeyBack && btnNow[B_SELECT])) keys |= K_START;
+			if (HELD(B_SELECT) && !hotkeyBack) keys |= K_SELECT;
+			if (HELD(B_L)) keys |= K_L;
+			if (HELD(B_R)) keys |= K_R;
+			if (HELD(B_UP)) keys |= K_UP;
+			if (HELD(B_DOWN)) keys |= K_DOWN;
+			if (HELD(B_LEFT)) keys |= K_LEFT;
+			if (HELD(B_RIGHT)) keys |= K_RIGHT;
 			if (hotkeyBack && btnNow[B_SELECT]) keys &= ~(K_L | K_R | K_START);
 		}
 		if (selectPulse > 0) keys |= K_SELECT, --selectPulse;
+		{
+			static uint32_t lastKeys;
+			if (debug && keys != lastKeys) fprintf(stderr, "frame %llu: game keys %03x\n", (unsigned long long) frameCount, keys);
+			lastKeys = keys;
+		}
 
 		bool ff = btnNow[B_R2];
 		int runs = ff ? SDL_max(1, cfg->ffSpeed) : 1;
