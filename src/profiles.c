@@ -52,6 +52,11 @@ static const MapProfile profiles[] = {
 		.crop_x = 0, .crop_y = 0, .crop_w = 240, .crop_h = 160,
 		.probes = { { 0, 0, 0xCEDECE }, { 239, 0, 0xCEDECE }, { 2, 80, 0x212921 }, { 237, 80, 0x212921 } },
 		.tolerance = 8,
+		/* inner grid only: drops the top bar (L SLEEP / area name / STATUS R) and frame */
+		.tight_x = 12, .tight_y = 16, .tight_w = 216, .tight_h = 132,
+		/* the "A" prompt beside the minimap, and two slivers of the frame's corners */
+		.masks = { { 172, 132, 24, 24 }, { 12, 16, 16, 8 }, { 12, 24, 8, 8 }, { 212, 16, 16, 8 } },
+		.gridX = 4, .gridY = 4, .gridCell = 8,
 		.mem = { { 0x03000C70, 0xFF, 0x05, 1 } },
 		.live = { { 0x03000C70, 0xFF, 0x04, 1 } },
 		.animFrames = 8, .animStep = 4,
@@ -65,6 +70,10 @@ static const MapProfile profiles[] = {
 		.probes = { { 0, 0, 0x9C9C9C }, { 239, 0, 0x9C9C9C }, { 0, 159, 0x9C9C9C }, { 239, 159, 0x9C9C9C },
 		            { 2, 80, 0xFFFFFF }, { 237, 80, 0xFFFFFF } },
 		.tolerance = 8,
+		/* inner grid only: drops the top bar (L SLEEP / area name / STATUS R) and frame */
+		.tight_x = 8, .tight_y = 16, .tight_w = 224, .tight_h = 136,
+		.masks = { { 168, 136, 64, 16 } }, /* "A OBJECTIVE" prompt */
+		.gridX = 0, .gridY = 0, .gridCell = 8,
 		.mem = { { 0x03000BDE, 0xFF, 0x03, 1 } },
 		.live = { { 0x03000BDE, 0xFF, 0x01, 1 } },
 		.animFrames = 8, .animStep = 4,

@@ -13,6 +13,7 @@ typedef struct Config {
 	int lcdStrength;   /* grid darkness, 0..100 */
 	bool vsync;
 	bool map;          /* enable the second-screen map */
+	bool mapCrop;      /* crop map bezels/prompts where the profile knows how */
 	int mapInterval;   /* frames between periodic map refreshes */
 	bool abSwap;       /* GBA A on the bottom face button instead of the right one */
 	char hotkey[16];   /* guide | back */

@@ -10,6 +10,10 @@ struct MapCapture {
 	Emu shadow;
 	size_t stateSize;
 	size_t cropPixels;
+	int cx, cy, cw, ch; /* active crop */
+	bool tight;
+	uint32_t tile[16 * 16]; /* empty grid cell used to paint over masks */
+	bool tileValid;
 
 	/* scratch buffers used by the capture routine (worker thread only) */
 	uint32_t* work[MAP_MAX_FRAMES];
@@ -91,9 +95,57 @@ bool memprobes_match(const MemProbe* list, int n, Emu* e) {
 	return true;
 }
 
-static void crop(const MapProfile* p, const uint32_t* fb, uint32_t* out) {
-	for (int y = 0; y < p->crop_h; ++y) {
-		memcpy(&out[y * p->crop_w], &fb[(p->crop_y + y) * GBA_W + p->crop_x], p->crop_w * sizeof(uint32_t));
+/* The most common grid cell on screen is an empty one. */
+static void find_tile(MapCapture* mc, const uint32_t* fb) {
+	const MapProfile* p = mc->prof;
+	int k = p->gridCell;
+	if (k <= 0 || k > 16) return;
+	enum { MAXC = 30 * 20 };
+	static uint64_t hash[MAXC];
+	static int cellX[MAXC], cellY[MAXC];
+	int n = 0;
+	for (int y = mc->cy + ((p->gridY - mc->cy) % k + k) % k; y + k <= mc->cy + mc->ch && n < MAXC; y += k) {
+		for (int x = mc->cx + ((p->gridX - mc->cx) % k + k) % k; x + k <= mc->cx + mc->cw && n < MAXC; x += k) {
+			uint64_t h = 1469598103934665603ull;
+			for (int j = 0; j < k; ++j) {
+				for (int i = 0; i < k; ++i) h = (h ^ fb[(y + j) * GBA_W + x + i]) * 1099511628211ull;
+			}
+			hash[n] = h;
+			cellX[n] = x;
+			cellY[n] = y;
+			++n;
+		}
+	}
+	int best = -1, bestCount = 0;
+	for (int i = 0; i < n; ++i) {
+		int c = 0;
+		for (int j = 0; j < n; ++j) c += hash[j] == hash[i];
+		if (c > bestCount) bestCount = c, best = i;
+	}
+	if (best < 0 || bestCount < 4) return;
+	for (int j = 0; j < k; ++j) {
+		for (int i = 0; i < k; ++i) mc->tile[j * k + i] = fb[(cellY[best] + j) * GBA_W + cellX[best] + i];
+	}
+	mc->tileValid = true;
+}
+
+static void crop(MapCapture* mc, const uint32_t* fb, uint32_t* out) {
+	const MapProfile* p = mc->prof;
+	for (int y = 0; y < mc->ch; ++y) {
+		memcpy(&out[y * mc->cw], &fb[(mc->cy + y) * GBA_W + mc->cx], mc->cw * sizeof(uint32_t));
+	}
+	if (!mc->tight || !p->masks[0].w) return;
+	if (!mc->tileValid) find_tile(mc, fb);
+	if (!mc->tileValid) return;
+	int k = p->gridCell;
+	for (int m = 0; m < 4 && p->masks[m].w; ++m) {
+		for (int y = p->masks[m].y; y < p->masks[m].y + p->masks[m].h; ++y) {
+			for (int x = p->masks[m].x; x < p->masks[m].x + p->masks[m].w; ++x) {
+				if (x < mc->cx || y < mc->cy || x >= mc->cx + mc->cw || y >= mc->cy + mc->ch) continue;
+				int ty = ((y - p->gridY) % k + k) % k, tx = ((x - p->gridX) % k + k) % k;
+				out[(y - mc->cy) * mc->cw + (x - mc->cx)] = mc->tile[ty * k + tx];
+			}
+		}
 	}
 }
 
@@ -118,6 +170,7 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 	Emu* s = &mc->shadow;
 	size_t n = mc->cropPixels;
 	mc->workFrames = 0;
+	mc->tileValid = false;
 	if (!emu_state_load(s, state)) {
 		return "state load failed";
 	}
@@ -145,7 +198,7 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 			continue;
 		}
 		everUp = true;
-		crop(p, s->fb, mc->work[0]);
+		crop(mc, s->fb, mc->work[0]);
 		if (havePrev && count_diff(mc->prev, mc->work[0], n, p->maxDiff) <= p->maxDiff) {
 			if (++stable >= p->stableFrames) {
 				break;
@@ -169,7 +222,7 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 		if (!map_up(p, s)) {
 			break;
 		}
-		crop(p, s->fb, mc->work[i]);
+		crop(mc, s->fb, mc->work[i]);
 		if (memcmp(mc->work[i], mc->work[0], n * sizeof(uint32_t))) {
 			animated = true;
 		}
@@ -211,7 +264,7 @@ static void* worker(void* arg) {
 	return NULL;
 }
 
-MapCapture* mapcap_create(const char* romPath, const char* gameCode) {
+MapCapture* mapcap_create(const char* romPath, const char* gameCode, bool tight) {
 	const MapProfile* p = profile_find(gameCode);
 	if (!p) {
 		return NULL;
@@ -224,7 +277,13 @@ MapCapture* mapcap_create(const char* romPath, const char* gameCode) {
 	}
 	mc->stateSize = emu_state_size(&mc->shadow);
 	mc->snapshot = malloc(mc->stateSize);
-	mc->cropPixels = (size_t) p->crop_w * p->crop_h;
+	mc->tight = tight && p->tight_w > 0;
+	if (mc->tight) {
+		mc->cx = p->tight_x, mc->cy = p->tight_y, mc->cw = p->tight_w, mc->ch = p->tight_h;
+	} else {
+		mc->cx = p->crop_x, mc->cy = p->crop_y, mc->cw = p->crop_w, mc->ch = p->crop_h;
+	}
+	mc->cropPixels = (size_t) mc->cw * mc->ch;
 	for (int i = 0; i < MAP_MAX_FRAMES; ++i) {
 		mc->work[i] = calloc(mc->cropPixels, sizeof(uint32_t));
 		mc->published[i] = calloc(mc->cropPixels, sizeof(uint32_t));
@@ -270,8 +329,8 @@ const char* mapcap_title(MapCapture* mc) {
 }
 
 void mapcap_size(MapCapture* mc, int* w, int* h) {
-	*w = mc->prof->crop_w;
-	*h = mc->prof->crop_h;
+	*w = mc->cw;
+	*h = mc->ch;
 }
 
 MapResult mapcap_capture_sync(MapCapture* mc, Emu* live) {
@@ -283,8 +342,8 @@ MapResult mapcap_capture_sync(MapCapture* mc, Emu* live) {
 	}
 	r.why = do_capture(mc, mc->snapshot);
 	r.ok = !r.why;
-	r.w = mc->prof->crop_w;
-	r.h = mc->prof->crop_h;
+	r.w = mc->cw;
+	r.h = mc->ch;
 	r.nFrames = mc->workFrames;
 	r.frameStep = mc->prof->animStep;
 	for (int i = 0; i < MAP_MAX_FRAMES; ++i) {
@@ -325,8 +384,8 @@ bool mapcap_poll(MapCapture* mc, uint32_t lastSerial, MapResult* out) {
 	if (fresh) {
 		out->ok = true;
 		out->why = NULL;
-		out->w = mc->prof->crop_w;
-		out->h = mc->prof->crop_h;
+		out->w = mc->cw;
+		out->h = mc->ch;
 		out->nFrames = mc->pubFrames;
 		out->frameStep = mc->prof->animStep;
 		for (int i = 0; i < MAP_MAX_FRAMES; ++i) {

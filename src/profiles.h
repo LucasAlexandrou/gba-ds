@@ -33,6 +33,14 @@ typedef struct MapProfile {
 	int maxDiff;       /* pixels allowed to change between quiet frames (blinking markers) */
 	int crop_x, crop_y, crop_w, crop_h;
 
+	/* Optional tighter crop that drops the screen's bezel and title bar
+	 * (used when map_crop is on), and rectangles (screen coords) to cover
+	 * with empty map-grid tiles, e.g. button prompts drawn over the map.
+	 * gridX/gridY/gridCell give the phase and size of the background grid. */
+	int tight_x, tight_y, tight_w, tight_h;
+	struct { int x, y, w, h; } masks[4];
+	int gridX, gridY, gridCell;
+
 	Probe probes[8];
 	int minProbes;    /* how many probes must match (0 = all) */
 	int tolerance;    /* per-channel colour tolerance */

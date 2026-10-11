@@ -15,6 +15,7 @@ void config_defaults(Config* c) {
 	strcpy(c->touchScreen, "second");
 	strcpy(c->touchMap, "window");
 	c->map = true;
+	c->mapCrop = true;
 	c->mapInterval = 90;
 	c->sway = true;
 	c->audioLatency = 64;
@@ -54,6 +55,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	INT("lcd_strength", lcdStrength)
 	BOOL("vsync", vsync)
 	BOOL("map", map)
+	BOOL("map_crop", mapCrop)
 	INT("map_interval", mapInterval)
 	BOOL("ab_swap", abSwap)
 	STR("hotkey", hotkey)

@@ -26,7 +26,8 @@ typedef struct MapResult {
 } MapResult;
 
 /* Returns NULL when no profile matches gameCode. */
-MapCapture* mapcap_create(const char* romPath, const char* gameCode);
+/* tight: use the profile's bezel-free crop and prompt masks when it has one. */
+MapCapture* mapcap_create(const char* romPath, const char* gameCode, bool tight);
 void mapcap_destroy(MapCapture* mc);
 const char* mapcap_title(MapCapture* mc);
 

@@ -277,7 +277,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	singleShowsMap = false;
 	menuOpen = false;
 	if (cfg->map) {
-		mc = mapcap_create(rom, emu.gameCode);
+		mc = mapcap_create(rom, emu.gameCode, cfg->mapCrop);
 		if (mc) {
 			fprintf(stderr, "map profile: %s\n", mapcap_title(mc));
 			mapcap_size(mc, &mapW, &mapH);
@@ -336,6 +336,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	int modBtn = hotkeyBack ? B_SELECT : B_HOME;
 	bool comboUsed = false;
 	int selectPulse = 0;
+	unsigned ffPhase = 0;
 	enum GameExit exitTo = GAME_QUIT_APP;
 	bool done = false;
 	bool wasMenu = false;
@@ -447,11 +448,32 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 
 		bool ff = btnNow[B_R2];
 		int runs = ff ? SDL_max(1, cfg->ffSpeed) : 1;
+		/* Audio keeps flowing during fast-forward: every runs-th sample is kept,
+		 * so the device gets real-time worth of (sped-up) sound. Starving it
+		 * makes PulseAudio/PipeWire grow their buffers after each underrun,
+		 * which is what made the lag worse every time. */
+		int queuedNow = audio ? (int) (SDL_GetQueuedAudioSize(audio) / 4) : 0;
+		bool dropAudio = queuedNow > targetQueued * 3; /* hard cap on drift */
+		if (debug && audio && frameCount % 30 == 0) {
+			fprintf(stderr, "audio queue %d ms%s\n", queuedNow * 1000 / want.freq, ff ? " (ff)" : "");
+		}
 		for (int i = 0; i < runs; ++i) {
 			emu_frame(&emu, keys);
 			size_t got;
 			while ((got = emu_audio_read(&emu, samples, 4096)) > 0) {
-				if (audio && !ff) SDL_QueueAudio(audio, samples, got * 4);
+				if (!audio || dropAudio) continue;
+				if (runs > 1) {
+					size_t outN = 0;
+					for (size_t f = 0; f < got; ++f) {
+						if (ffPhase++ % runs == 0) {
+							samples[outN * 2] = samples[f * 2];
+							samples[outN * 2 + 1] = samples[f * 2 + 1];
+							++outN;
+						}
+					}
+					got = outN;
+				}
+				if (got) SDL_QueueAudio(audio, samples, got * 4);
 			}
 		}
 		++frameCount;
@@ -500,10 +522,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			fpsFrames = 0;
 			fpsT0 = now;
 		}
-		if (ff) {
-			next = now;
-			continue;
-		}
+		/* fast-forward is paced too: ff_speed frames per real frame */
 		next += frameSec;
 		if (audio) {
 			int queued = (int) (SDL_GetQueuedAudioSize(audio) / 4);

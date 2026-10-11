@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 	fprintf(stderr, "game code %s\n", emu.gameCode);
-	MapCapture* mc = mapcap_create(argv[1], emu.gameCode);
+	MapCapture* mc = mapcap_create(argv[1], emu.gameCode, getenv("FULLMAP") == NULL);
 
 	char line[512];
 	while (fgets(line, sizeof(line), in)) {
