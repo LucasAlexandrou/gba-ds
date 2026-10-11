@@ -609,6 +609,12 @@ void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, c
 	SDL_RenderCopy(ren, target, NULL, &dst);
 }
 
+SDL_Rect ui_image_rect(int screen, int w, int h, const char* mode) {
+	SDL_Rect area = { 0, 0, screens[screen].rect.w, screens[screen].rect.h }, dst;
+	fit_rect(&area, w, h, mode, &dst);
+	return dst;
+}
+
 void ui_fill(int screen, SDL_Rect r, SDL_Color c) {
 	Screen* s = &screens[screen];
 	r.x += s->rect.x;

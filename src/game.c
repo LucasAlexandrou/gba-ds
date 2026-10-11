@@ -294,10 +294,16 @@ static void draw_game(void) {
 				ui_text(s, px * 4, r.h - px * 12, px, osd, C_TEXT);
 			}
 			if (cfg->showFps) {
+				/* sized to sit in the empty band above the picture */
 				char buf[48];
 				snprintf(buf, sizeof(buf), "%.1f FPS  %d%%", fps, (int) (speedPct + 0.5));
-				ui_text(s, px * 4 + 2, px * 4 + 2, px, buf, (SDL_Color) { 0, 0, 0, 255 });
-				ui_text(s, px * 4, px * 4, px, buf, C_TEXT);
+				SDL_Rect img = ui_image_rect(s, GBA_W, GBA_H, cfg->scale);
+				int gap = img.y;
+				int fpx = SDL_max(1, SDL_min(SDL_min(px - 1, 3), (gap - 6) / 7)); /* 7 rows tall, 3px margin each side */
+				int fy = gap >= 7 * fpx + 2 ? (gap - 7 * fpx) / 2 : fpx * 2;
+				int fx = img.x + fpx * 2;
+				ui_text(s, fx + 1, fy + 1, fpx, buf, (SDL_Color) { 0, 0, 0, 255 });
+				ui_text(s, fx, fy, fpx, buf, C_TEXT);
 			}
 			continue;
 		}
