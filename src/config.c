@@ -22,6 +22,7 @@ void config_defaults(Config* c) {
 	c->autoResume = true;
 	c->showAll = false;
 	c->homeButton = -1;
+	c->lcdStrength = 35;
 }
 
 static bool parse_bool(const char* v) {
@@ -49,6 +50,8 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	STR("scale", scale)
 	STR("map_scale", mapScale)
 	BOOL("smooth", smooth)
+	BOOL("lcd_grid", lcdGrid)
+	INT("lcd_strength", lcdStrength)
 	BOOL("vsync", vsync)
 	BOOL("map", map)
 	INT("map_interval", mapInterval)
@@ -151,7 +154,9 @@ void config_usage(const char* argv0) {
 	        "  --touch-map=window|screen     touch coordinates span the window or one screen\n"
 	        "  --scale=integer|fit|stretch      game scaling (integer)\n"
 	        "  --map-scale=integer|fit|stretch  map scaling (integer)\n"
-	        "  --smooth               linear filtering\n"
+	        "  --scale=fit            fill the screen width (keeps the aspect ratio)\n"
+	        "  --lcd-grid             LCD pixel grid on game and map (--lcd-strength=0..100)\n"
+	        "  --smooth               plain linear filtering\n"
 	        "  --vsync                sync presentation to the display\n"
 	        "  --no-map               disable the map screen\n"
 	        "  --map-interval=N       frames between map refreshes (90)\n"

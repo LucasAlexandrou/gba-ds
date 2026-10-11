@@ -31,12 +31,12 @@ static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_SWAP, M_SAVE, M_LOAD, M_LIBRARY, M_EXIT };
+enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_SAVE, M_LOAD, M_LIBRARY, M_EXIT };
 static const char* menuLabels[] = {
-	[M_RESUME] = "RESUME", [M_SWAP] = "SWAP SCREENS", [M_SAVE] = "SAVE STATE",
+	[M_RESUME] = "RESUME", [M_SWAP] = "SWAP SCREENS", [M_SAVE] = "SAVE STATE", [M_SCALE] = "", [M_LCD] = "",
 	[M_LOAD] = "LOAD STATE", [M_LIBRARY] = "EXIT TO EMULATOR", [M_EXIT] = "EXIT TO MAIN MENU",
 };
-static int menuItems[6], nMenuItems;
+static int menuItems[8], nMenuItems;
 static bool menuOpen;
 static int menuSel;
 static int menuPressed = -1;      /* item under a finger that went down in the menu */
@@ -57,7 +57,7 @@ static bool item_enabled(int item) {
 static SDL_Rect item_rect(int scr, int i) {
 	SDL_Rect r = screens[scr].rect;
 	int px = ui_px(scr);
-	int h = px * 17, gap = px * 4;
+	int h = px * 15, gap = px * 3;
 	int w = SDL_min(r.w - px * 16, ui_text_width("EXIT TO MAIN MENU", px) + px * 48);
 	int total = nMenuItems * h + (nMenuItems - 1) * gap;
 	int top = (r.h - total) / 2 + px * 6;
@@ -84,7 +84,10 @@ static void draw_menu(void) {
 		ui_fill(scr, (SDL_Rect) { r.x - px / 2, r.y - px / 2, r.w + px, r.h + px }, sel ? C_BTN_EDGE : C_BTN);
 		ui_fill(scr, r, sel ? C_BTN_SEL : C_BTN);
 		bool en = item_enabled(menuItems[i]);
-		ui_text_center(scr, r.x + r.w / 2, r.y + (r.h - px * 7) / 2, px, menuLabels[menuItems[i]], en ? C_TEXT : C_DIS);
+		const char* label = menuLabels[menuItems[i]];
+		if (menuItems[i] == M_SCALE) label = !strcmp(cfg->scale, "fit") ? "SCALE: FULL WIDTH" : !strcmp(cfg->scale, "stretch") ? "SCALE: STRETCH" : "SCALE: PIXEL PERFECT";
+		if (menuItems[i] == M_LCD) label = cfg->lcdGrid ? "LCD GRID: ON" : "LCD GRID: OFF";
+		ui_text_center(scr, r.x + r.w / 2, r.y + (r.h - px * 7) / 2, px, label, en ? C_TEXT : C_DIS);
 	}
 	if (menuNote[0]) {
 		SDL_Rect last = item_rect(scr, nMenuItems - 1);
@@ -145,20 +148,26 @@ static int game_screen(void) {
 	return cfg->swap ? 1 : 0;
 }
 
+/* Display choices made in the menu are remembered for next time. */
+static void save_prefs(void) {
+	char prefs[1100];
+	snprintf(prefs, sizeof(prefs), "%s/prefs.cfg", cfg->stateDir);
+	FILE* f = fopen(prefs, "w");
+	if (f) {
+		fprintf(f, "# written by gbadual's pause menu; overrides gbadual.cfg\n");
+		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\n", cfg->swap ? 1 : 0, cfg->scale,
+		        cfg->mapScale, cfg->lcdGrid ? 1 : 0);
+		fclose(f);
+	}
+}
+
 static void swap_screens(void) {
 	if (nScreens < 2) {
 		singleShowsMap = !singleShowsMap;
 		return;
 	}
 	cfg->swap = !cfg->swap;
-	/* remember the choice for next time */
-	char prefs[1100];
-	snprintf(prefs, sizeof(prefs), "%s/prefs.cfg", cfg->stateDir);
-	FILE* f = fopen(prefs, "w");
-	if (f) {
-		fprintf(f, "# written by gbadual when you swap screens\nswap = %d\n", cfg->swap ? 1 : 0);
-		fclose(f);
-	}
+	save_prefs();
 }
 
 static void draw_game(void) {
@@ -169,7 +178,7 @@ static void draw_game(void) {
 		SDL_Rect r = screens[s].rect;
 		if (showGame) {
 			if (nScreens == 2 && !mapOn && s != game_screen()) continue; /* no map: leave other screen black */
-			ui_image(s, gameTex, GBA_W, GBA_H, cfg->scale, NULL);
+			ui_image_pixels(s, gameTex, GBA_W, GBA_H, cfg->scale, cfg->lcdGrid);
 			const char* osd = ui_osd_text();
 			if (osd && !menuOpen) {
 				ui_text(s, px * 4 + 2, r.h - px * 12 + 2, px, osd, (SDL_Color) { 0, 0, 0, 255 });
@@ -181,7 +190,7 @@ static void draw_game(void) {
 				ui_text(s, px * 4, px * 4, px, buf, C_TEXT);
 			}
 		} else if (mapShownIdx >= 0) {
-			ui_image(s, mapTex, mapW, mapH, cfg->mapScale, NULL);
+			ui_image_pixels(s, mapTex, mapW, mapH, cfg->mapScale, cfg->lcdGrid);
 		} else if (logoTex[0] || logoTex[1]) {
 			/* no map yet (title screen, intro...): the game's logo on black */
 			SDL_Rect area = { r.w / 12, r.h / 6, r.w - r.w / 6, r.h - r.h / 3 };
@@ -206,6 +215,17 @@ static bool activate(int item, enum GameExit* exitTo) {
 	case M_SWAP:
 		swap_screens();
 		snprintf(menuNote, sizeof(menuNote), "SCREENS SWAPPED");
+		break;
+	case M_SCALE: {
+		const char* next = !strcmp(cfg->scale, "integer") ? "fit" : "integer";
+		snprintf(cfg->scale, sizeof(cfg->scale), "%s", next);
+		snprintf(cfg->mapScale, sizeof(cfg->mapScale), "%s", next);
+		save_prefs();
+		break;
+	}
+	case M_LCD:
+		cfg->lcdGrid = !cfg->lcdGrid;
+		save_prefs();
 		break;
 	case M_SAVE:
 		if (emu_state_save_file(&emu, gp.state)) {
@@ -279,6 +299,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	nMenuItems = 0;
 	menuItems[nMenuItems++] = M_RESUME;
 	menuItems[nMenuItems++] = M_SWAP;
+	menuItems[nMenuItems++] = M_SCALE;
+	menuItems[nMenuItems++] = M_LCD;
 	menuItems[nMenuItems++] = M_SAVE;
 	menuItems[nMenuItems++] = M_LOAD;
 	if (fromLibrary) menuItems[nMenuItems++] = M_LIBRARY;

@@ -69,6 +69,9 @@ void ui_present(void);
 SDL_Renderer* ui_ren(int screen);
 /* Draws a texture (one per view, indexed by view) letterboxed into a screen area. */
 void ui_image(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, const SDL_Rect* areaLocal);
+/* Pixel-art drawing for the game and map: whole-number prescale (sharp at any
+ * size), optional LCD grid, then filtered to the final size on the GPU. */
+void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, bool lcd);
 void ui_fill(int screen, SDL_Rect local, SDL_Color c);
 void ui_dim(int screen, Uint8 alpha);
 void ui_text(int screen, int x, int y, int px, const char* s, SDL_Color c);

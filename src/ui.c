@@ -20,6 +20,12 @@ static SDL_GameController* pads[8];
 static SDL_Joystick* rawJoys[8];
 static bool debug;
 
+/* per-view caches for the pixel pipeline */
+static SDL_Texture* pipeTarget[2];
+static int pipeTW[2], pipeTH[2];
+static SDL_Texture* pipeGrid[2];
+static int pipeGW[2], pipeGH[2], pipeGK[2], pipeGS[2];
+
 #define PQ 64
 static Pointer pq[PQ];
 static int pqHead, pqTail;
@@ -125,7 +131,8 @@ static bool create_view(View* v, int display, const char* title, bool fullscreen
 		fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError());
 		return false;
 	}
-	v->ren = SDL_CreateRenderer(v->win, -1, SDL_RENDERER_ACCELERATED | (cfg->vsync ? SDL_RENDERER_PRESENTVSYNC : 0));
+	v->ren = SDL_CreateRenderer(v->win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE |
+	                                            (cfg->vsync ? SDL_RENDERER_PRESENTVSYNC : 0));
 	if (!v->ren) v->ren = SDL_CreateRenderer(v->win, -1, 0);
 	if (!v->ren) {
 		fprintf(stderr, "SDL_CreateRenderer: %s\n", SDL_GetError());
@@ -192,6 +199,10 @@ bool ui_init(Config* c, bool wantDual) {
 }
 
 void ui_shutdown(void) {
+	for (int i = 0; i < 2; ++i) {
+		if (pipeTarget[i]) SDL_DestroyTexture(pipeTarget[i]);
+		if (pipeGrid[i]) SDL_DestroyTexture(pipeGrid[i]);
+	}
 	for (int i = 0; i < nViews; ++i) {
 		SDL_DestroyRenderer(views[i].ren);
 		SDL_DestroyWindow(views[i].win);
@@ -477,6 +488,90 @@ void ui_image(int screen, SDL_Texture* const* texPerView, int w, int h, const ch
 	SDL_Rect dst;
 	fit_rect(&area, w, h, mode, &dst);
 	SDL_RenderCopy(views[s->view].ren, texPerView[s->view], NULL, &dst);
+}
+
+
+static SDL_Texture* pipe_target(int v, int w, int h) {
+	if (pipeTarget[v] && pipeTW[v] == w && pipeTH[v] == h) return pipeTarget[v];
+	if (pipeTarget[v]) SDL_DestroyTexture(pipeTarget[v]);
+	pipeTarget[v] = SDL_CreateTexture(views[v].ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, w, h);
+	pipeTW[v] = w;
+	pipeTH[v] = h;
+	if (pipeTarget[v]) SDL_SetTextureBlendMode(pipeTarget[v], SDL_BLENDMODE_NONE);
+	return pipeTarget[v];
+}
+
+/* A multiply mask: each source pixel becomes a k x k cell whose right column
+ * and bottom row are darkened, like the gaps between LCD pixels. */
+static SDL_Texture* pipe_grid(int v, int w, int h, int k, int strength) {
+	if (pipeGrid[v] && pipeGW[v] == w && pipeGH[v] == h && pipeGK[v] == k && pipeGS[v] == strength) return pipeGrid[v];
+	if (pipeGrid[v]) SDL_DestroyTexture(pipeGrid[v]);
+	pipeGrid[v] = NULL;
+	SDL_Surface* s = SDL_CreateRGBSurfaceWithFormat(0, w * k, h * k, 32, SDL_PIXELFORMAT_ARGB8888);
+	if (!s) return NULL;
+	strength = strength < 0 ? 0 : strength > 100 ? 100 : strength;
+	Uint8 line = (Uint8) (255 * (100 - strength) / 100);
+	Uint8 soft = (Uint8) (255 * (100 - strength / 3) / 100); /* top/left edge: a lighter line for depth */
+	for (int y = 0; y < h * k; ++y) {
+		Uint32* row = (Uint32*) ((Uint8*) s->pixels + y * s->pitch);
+		int cy = y % k;
+		for (int x = 0; x < w * k; ++x) {
+			int cx = x % k;
+			Uint8 c = 255;
+			if (cx == k - 1 || cy == k - 1) c = line;
+			else if (k >= 5 && (cx == 0 || cy == 0)) c = soft;
+			row[x] = 0xFF000000u | (c << 16) | (c << 8) | c;
+		}
+	}
+	pipeGrid[v] = SDL_CreateTextureFromSurface(views[v].ren, s);
+	SDL_FreeSurface(s);
+	if (pipeGrid[v]) {
+		SDL_SetTextureBlendMode(pipeGrid[v], SDL_BLENDMODE_MOD);
+		SDL_SetTextureScaleMode(pipeGrid[v], SDL_ScaleModeNearest);
+	}
+	pipeGW[v] = w;
+	pipeGH[v] = h;
+	pipeGK[v] = k;
+	pipeGS[v] = strength;
+	return pipeGrid[v];
+}
+
+void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, bool lcd) {
+	Screen* s = &screens[screen];
+	int v = s->view;
+	SDL_Renderer* ren = views[v].ren;
+	SDL_Texture* src = texPerView[v];
+	SDL_Rect dst;
+	fit_rect(&s->rect, w, h, mode, &dst);
+	int k = SDL_max(1, SDL_min(dst.w / w, dst.h / h));
+	bool exact = dst.w == w * k && dst.h == h * k;
+	if (!lcd && (exact || cfg->smooth)) {
+		SDL_SetTextureScaleMode(src, cfg->smooth ? SDL_ScaleModeLinear : SDL_ScaleModeNearest);
+		SDL_RenderCopy(ren, src, NULL, &dst);
+		return;
+	}
+	if (lcd && k < 3) k = 3; /* a grid needs a few pixels per cell */
+	SDL_Texture* target = SDL_RenderTargetSupported(ren) ? pipe_target(v, w * k, h * k) : NULL;
+	if (!target) {
+		/* no render targets: draw directly, grid on top */
+		SDL_SetTextureScaleMode(src, SDL_ScaleModeNearest);
+		SDL_RenderCopy(ren, src, NULL, &dst);
+		if (lcd) {
+			SDL_Texture* grid = pipe_grid(v, w, h, k, cfg->lcdStrength);
+			if (grid) SDL_RenderCopy(ren, grid, NULL, &dst);
+		}
+		return;
+	}
+	SDL_SetRenderTarget(ren, target);
+	SDL_SetTextureScaleMode(src, SDL_ScaleModeNearest);
+	SDL_RenderCopy(ren, src, NULL, NULL);
+	if (lcd) {
+		SDL_Texture* grid = pipe_grid(v, w, h, k, cfg->lcdStrength);
+		if (grid) SDL_RenderCopy(ren, grid, NULL, NULL);
+	}
+	SDL_SetRenderTarget(ren, NULL);
+	SDL_SetTextureScaleMode(target, exact ? SDL_ScaleModeNearest : SDL_ScaleModeLinear);
+	SDL_RenderCopy(ren, target, NULL, &dst);
 }
 
 void ui_fill(int screen, SDL_Rect r, SDL_Color c) {

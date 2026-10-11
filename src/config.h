@@ -8,7 +8,9 @@ typedef struct Config {
 	bool swap;         /* map on the first (left/top) screen instead of the second */
 	char scale[16];    /* game: integer | fit | stretch */
 	char mapScale[16]; /* map:  integer | fit | stretch */
-	bool smooth;       /* linear filtering when scaling */
+	bool smooth;       /* plain linear filtering when scaling (blurry) */
+	bool lcdGrid;      /* draw an LCD pixel grid over game and map */
+	int lcdStrength;   /* grid darkness, 0..100 */
 	bool vsync;
 	bool map;          /* enable the second-screen map */
 	int mapInterval;   /* frames between periodic map refreshes */

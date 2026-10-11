@@ -43,7 +43,11 @@ If you used the earlier build, delete the old `... (Dual Screen).sh` entries fro
 - **Resume:** leaving a game saves its state automatically, and launching it again picks up exactly there. Turn this off with `auto_resume = 0`. Battery saves are written as usual too, so in-game saves are never at risk.
 - **Pause menu:** tap the touchscreen or press **HOME**. Both screens dim, the game and its sound pause, and the menu appears on the touchscreen:
   - Resume
-  - Swap screens (remembered for next time)
+  - Swap screens
+  - Scale: pixel perfect (4×) or full width (fills the screen width, keeps the shape)
+  - LCD grid on or off
+
+  Swap, scale and LCD grid choices are remembered for next time.
   - Save state
   - Load state (greyed out until you've saved one)
   - Exit to emulator (saves a resume point, then back to gbadual's game list)
@@ -101,6 +105,7 @@ Settings live in `gbadual.cfg` next to the binary. The file is commented. The op
   - `auto` is the default. On ROCKNIX's sway setup, gbadual asks sway to make its window full screen across both 1024×768 outputs and splits the window in half.
   - `dual` uses one window per display.
   - `single` uses one screen, and L2 flips between game and map.
+- `scale` / `map_scale`, `lcd_grid`, `lcd_strength`: the display options from the pause menu, plus `scale = stretch` and grid darkness. Full width keeps pixels sharp: the image is scaled up by a whole number on the GPU, then filtered down to the final size. The LCD grid is drawn over that same image, so it costs essentially no CPU.
 - `map_interval`: frames between periodic map refreshes (default 90). The map also refreshes after every room transition.
 
 Logs go to `/storage/roms/ports/gbadual/gbadual.log`. With `GBADUAL_DEBUG=1`, the log also records every button, key and touch.
