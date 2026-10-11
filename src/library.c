@@ -2,6 +2,7 @@
 #include "paths.h"
 #include "profiles.h"
 #include "ui.h"
+#include "logo.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -88,6 +89,12 @@ static void scan(Config* cfg) {
 	char* save;
 	for (char* d = strtok_r(dirs, ":", &save); d; d = strtok_r(NULL, ":", &save)) scan_dir(cfg, d, 0);
 	qsort(games, nGames, sizeof(*games), cmp_games);
+	for (int i = 0; i < nGames; ++i) {
+		SDL_Texture* t[2];
+		int w, h;
+		bool px;
+		if (ui_load_logo(cfg, games[i].path, games[i].code, t, &w, &h, &px)) ui_free_image(t);
+	}
 	fprintf(stderr, "library: %d game(s)\n", nGames);
 }
 
@@ -97,6 +104,8 @@ static SDL_Texture* thumbTex[2][2]; /* [game|map][view] */
 static int thumbFor = -2;
 static SDL_Texture* logoTex[2];
 static int logoW, logoH;
+static bool logoPixel;
+static uint32_t logoGen;
 
 static void free_thumbs(void) {
 	ui_free_image(logoTex);
@@ -115,9 +124,7 @@ static void load_thumbs(Config* cfg, int idx) {
 	if (idx < 0 || idx >= nGames) return;
 	GamePaths gp;
 	game_paths(cfg, games[idx].path, &gp);
-	char logo[1200];
-	ui_logo_path(cfg, games[idx].code, logo, sizeof(logo));
-	ui_load_image(logo, logoTex, &logoW, &logoH, true);
+	ui_load_logo(cfg, games[idx].path, games[idx].code, logoTex, &logoW, &logoH, &logoPixel);
 	const char* files[2] = { gp.thumb, gp.mapThumb };
 	for (int k = 0; k < 2; ++k) {
 		SDL_Surface* s = SDL_LoadBMP(files[k]);
@@ -165,7 +172,7 @@ static void draw_preview(Config* cfg, int scr, int sel) {
 		}
 	} else if (logoTex[0] || logoTex[1]) {
 		SDL_Rect a = { px * 12, y, r.w - px * 24, thumbH };
-		ui_image(scr, logoTex, logoW, logoH, "fit", &a);
+		ui_image(scr, logoTex, logoW, logoH, logoPixel ? "integer" : "fit", &a);
 	} else {
 		ui_text_center(scr, r.w / 2, y + thumbH / 2, px, "NOT PLAYED YET", C_DIM);
 	}
@@ -272,6 +279,10 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 	int repeat = 0;
 
 	while (!quit && chosen < 0) {
+		if (logo_generation() != logoGen) { /* a logo finished extracting */
+			logoGen = logo_generation();
+			thumbFor = -2;
+		}
 		if (!ui_events()) {
 			quit = true;
 			break;

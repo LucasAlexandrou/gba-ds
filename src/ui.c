@@ -1,5 +1,7 @@
 #include "ui.h"
 #include "font.h"
+#include "logo.h"
+#include "paths.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -682,14 +684,32 @@ void ui_free_image(SDL_Texture* tex[2]) {
 	}
 }
 
-void ui_logo_path(const Config* c, const char* code, char* out, size_t n) {
-	snprintf(out, n, "%s/logos/%.4s.png", c->assetDir, code);
-	FILE* f = fopen(out, "rb");
-	if (f) {
-		fclose(f);
-		return;
+static bool file_there(const char* p) {
+	FILE* f = fopen(p, "rb");
+	if (f) fclose(f);
+	return f != NULL;
+}
+
+bool ui_load_logo(const Config* c, const char* rom, const char* code, SDL_Texture* tex[2], int* w, int* h,
+                  bool* pixelArt) {
+	char path[1200];
+	/* a file the user supplied wins */
+	const char* exts[] = { "png", "bmp" };
+	for (int i = 0; i < 2; ++i) {
+		snprintf(path, sizeof(path), "%s/logos/%.4s.%s", c->assetDir, code, exts[i]);
+		if (file_there(path)) {
+			*pixelArt = false;
+			return ui_load_image(path, tex, w, h, true);
+		}
 	}
-	snprintf(out, n, "%s/logos/%.4s.bmp", c->assetDir, code);
+	/* otherwise the one extracted from the game's own title screen */
+	snprintf(path, sizeof(path), "%s/logos", c->stateDir);
+	mkdirs(path);
+	snprintf(path, sizeof(path), "%s/logos/%.4s.png", c->stateDir, code);
+	*pixelArt = true;
+	if (ui_load_image(path, tex, w, h, false)) return true;
+	if (rom) logo_request(rom, code, path);
+	return false;
 }
 
 void ui_screenshot(const char* path) {

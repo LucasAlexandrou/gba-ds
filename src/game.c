@@ -4,6 +4,7 @@
 #include "mapcap.h"
 #include "paths.h"
 #include "ui.h"
+#include "logo.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +25,7 @@ static SDL_Texture* overlayTex[2];
 static int overlayW, overlayH;
 static char overlayMode[16];
 static int logoW, logoH;
+static bool logoPixel;
 static MapResult mapRes;
 static int mapW = GBA_W, mapH = GBA_H;
 static int mapShownIdx = -1;
@@ -272,7 +274,7 @@ static void draw_game(void) {
 		} else if (logoTex[0] || logoTex[1]) {
 			/* no map yet (title screen, intro...): the game's logo on black */
 			SDL_Rect area = { r.w / 12, r.h / 6, r.w - r.w / 6, r.h - r.h / 3 };
-			ui_image(s, logoTex, logoW, logoH, "fit", &area);
+			ui_image(s, logoTex, logoW, logoH, logoPixel ? "integer" : "fit", &area);
 		}
 		if (mapShownIdx >= 0 && cfg->overlays) { /* overlays frame the map only, never the logo */
 			load_overlay();
@@ -400,9 +402,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	unsigned bc = (unsigned) strtoul(cfg->borderColor, NULL, 16);
 	borderColor = (SDL_Color) { (bc >> 16) & 0xFF, (bc >> 8) & 0xFF, bc & 0xFF, 255 };
 	overlayMode[0] = 0;
-	char logo[1200];
-	ui_logo_path(cfg, emu.gameCode, logo, sizeof(logo));
-	if (!ui_load_image(logo, logoTex, &logoW, &logoH, true)) fprintf(stderr, "no logo at %s\n", logo);
+	uint32_t logoGen = logo_generation();
+	ui_load_logo(cfg, rom, emu.gameCode, logoTex, &logoW, &logoH, &logoPixel);
 
 	pageLen[0] = pageLen[1] = 0;
 	pages[0][pageLen[0]++] = M_RESUME;
@@ -461,6 +462,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	int fpsFrames = 0;
 
 	while (!done) {
+		if (!logoTex[0] && !logoTex[1] && logo_generation() != logoGen) {
+			logoGen = logo_generation();
+			ui_load_logo(cfg, NULL, emu.gameCode, logoTex, &logoW, &logoH, &logoPixel);
+		}
 		if (!ui_events()) {
 			exitTo = GAME_QUIT_APP;
 			break;

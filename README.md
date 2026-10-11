@@ -79,7 +79,7 @@ If you used the earlier build, delete the old `... (Dual Screen).sh` entries fro
 | Battery saves | `Game.sav`, next to the ROM. On first launch an existing RetroArch `Game.srm` is copied to `Game.sav`; the `.srm` is left alone. |
 | Save states, resume points, library thumbnails | `/storage/roms/ports/gbadual/states/` |
 
-Until the first map is ready (title screen, intro, a fresh boot), the map screen shows the game's logo. Logos are `gbadual/logos/<GAME CODE>.bmp`, for example `A2CE.bmp` for Aria of Sorrow. Replace them with any BMP.
+Until the first map is ready (title screen, intro, a fresh boot), the map screen shows the game's logo. No logo files are shipped: the first time a game appears in the list, gbadual boots it silently in the background, runs it to its title screen, and renders just the background layer that holds the logo. It saves that as `gbadual/states/logos/<CODE>.png`, at the game's own resolution with transparency, and draws it at sharp whole-number scale. To use your own art instead, put `<CODE>.png` (or `.bmp`) in `gbadual/logos/`.
 
 ## Map screen overlays
 
@@ -97,7 +97,7 @@ Each overlay is 1024×768 and is drawn on top of the whole map screen, so leave 
 | Metroid: Zero Mission | x=80, y=120, 864×528 | x=0, y=71, 1024×625 |
 | Metroid Fusion | x=64, y=112, 896×544 | x=0, y=73, 1024×621 |
 
-`border_color` (hex, default `000000`) sets the colour behind the map where there's no overlay. Logos can also be PNG files (`logos/<CODE>.png`).
+`border_color` (hex, default `000000`) sets the colour behind the map where there's no overlay. 
 
 ## Settings
 

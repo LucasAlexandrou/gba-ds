@@ -17,6 +17,7 @@ static const MapProfile profiles[] = {
 		.minProbes = 3, .tolerance = 8,
 		.bgColor = 0x29007B, .minForeground = 12,
 		.mem = { { 0x03002C68, 0xFF, 0x02, 1 } },
+		.logo = { .wait = 1700, .layer = 1, .maxY = 160 },
 		.animFrames = 8, .animStep = 4,
 	},
 	{
@@ -29,6 +30,7 @@ static const MapProfile profiles[] = {
 		.minProbes = 3, .tolerance = 8,
 		.bgColor = 0x000000, .minForeground = 12,
 		.mem = { { 0x03002B28, 0xFF, 0x02, 1 } },
+		.logo = { .wait = 1700, .layer = 1, .maxY = 130 },
 		.animFrames = 8, .animStep = 3,
 	},
 	{
@@ -42,6 +44,7 @@ static const MapProfile profiles[] = {
 		.bgColor = 0x000000, .minForeground = 8,
 		.mem = { { 0x03000C80, 0xFF, 0x01, 1 } },
 		.live = { { 0x03000C80, 0xFF, 0x00, 1 } },
+		.logo = { .wait = 700, .layer = 0, .maxY = 120, .blackIsClear = true },
 		.animFrames = 8, .animStep = 4,
 	},
 	{
@@ -59,6 +62,7 @@ static const MapProfile profiles[] = {
 		.gridX = 4, .gridY = 4, .gridCell = 8,
 		.mem = { { 0x03000C70, 0xFF, 0x05, 1 } },
 		.live = { { 0x03000C70, 0xFF, 0x04, 1 } },
+		.logo = { .wait = 200, .pressStart = true, .wait2 = 200, .layer = 1, .maxY = 104 },
 		.animFrames = 8, .animStep = 4,
 	},
 	{
@@ -76,6 +80,7 @@ static const MapProfile profiles[] = {
 		.gridX = 0, .gridY = 0, .gridCell = 8,
 		.mem = { { 0x03000BDE, 0xFF, 0x03, 1 } },
 		.live = { { 0x03000BDE, 0xFF, 0x01, 1 } },
+		.logo = { .wait = 200, .pressStart = true, .wait2 = 300, .layer = 1, .maxY = 125 },
 		.animFrames = 8, .animStep = 4,
 	},
 };

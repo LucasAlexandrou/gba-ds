@@ -54,6 +54,14 @@ typedef struct MapProfile {
 	 * triggers an early capture. Only addr/size are used. */
 	MemProbe room[4];
 
+	/* Title-screen logo, pulled out of the running game: boot, wait, optionally
+	 * press Start (to skip an intro), wait again, then keep one BG layer
+	 * (0-3) above row maxY. blackIsClear: the layer has an opaque black fill. */
+	struct {
+		int wait, wait2, layer, maxY;
+		bool pressStart, blackIsClear;
+	} logo;
+
 	int animFrames; /* frames to record for the blinking/pulsing marker loop */
 	int animStep;   /* emulated frames between recorded frames */
 } MapProfile;

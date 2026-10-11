@@ -83,8 +83,12 @@ int ui_px(int screen);
 /* Loads a BMP into one texture per view. Returns false if missing. */
 bool ui_load_image(const char* path, SDL_Texture* out[2], int* w, int* h, bool smooth);
 void ui_free_image(SDL_Texture* tex[2]);
-/* Path of a game's logo: <asset_dir>/logos/<CODE>.png (or .bmp) */
-void ui_logo_path(const Config* cfg, const char* code, char* out, size_t n);
+/* A game's title logo: <asset_dir>/logos/<CODE>.png|.bmp if the user put one
+ * there, else the one extracted from the ROM (<state_dir>/logos/<CODE>.png),
+ * which is queued for extraction in the background if it doesn't exist yet
+ * (watch logo_generation() and call again). pixelArt: draw with "integer". */
+bool ui_load_logo(const Config* cfg, const char* rom, const char* code, SDL_Texture* tex[2], int* w, int* h,
+                  bool* pixelArt);
 
 void ui_screenshot(const char* path);
 void ui_osd(const char* fmt, ...);

@@ -14,6 +14,7 @@
  *   watch ADDR LEN       record bytes; 'diff' prints addresses that changed
  *   diff
  *   poke ADDR LEN VAL    fill memory
+ *   layershot NAME       per-layer renders of the next frame (transparent = magenta)
  *   dumpram NAME         write EWRAM+IWRAM to OUTDIR/NAME.ram
  */
 #include "../src/emu.h"
@@ -146,6 +147,37 @@ int main(int argc, char** argv) {
 		} else if (!strcmp(cmd, "poke")) {
 			uint32_t addr = strtoul(a1, NULL, 0), len = strtoul(a2, NULL, 0), val = strtoul(a3, NULL, 0);
 			for (uint32_t i = 0; i < len; ++i) emu.core->rawWrite8(emu.core, addr + i, -1, val);
+		} else if (!strcmp(cmd, "layershot")) {
+			/* For each layer (bg0-3, obj) alone: render the next frame twice with
+			 * different backdrop colours; pixels that differ are transparent
+			 * (written as magenta). Also writes NAME_all for reference. */
+			size_t sz = emu_state_size(&emu);
+			void* st = malloc(sz);
+			emu_state_save(&emu, st);
+			static uint32_t a[GBA_W * GBA_H], b[GBA_W * GBA_H];
+			/* b = backdrop only (all layers off) */
+			emu_state_load(&emu, st);
+			for (int i = 0; i < 5; ++i) emu.core->enableVideoLayer(emu.core, i, false);
+			emu_frame(&emu, 0);
+			memcpy(b, emu.fb, sizeof(b));
+			for (int L = -1; L < 5; ++L) {
+				emu_state_load(&emu, st);
+				for (int i = 0; i < 5; ++i) emu.core->enableVideoLayer(emu.core, i, L < 0 || i == L);
+				emu_frame(&emu, 0);
+				memcpy(a, emu.fb, sizeof(a));
+				if (L >= 0) {
+					for (int i = 0; i < GBA_W * GBA_H; ++i) {
+						if (a[i] == b[i]) a[i] = 0xFFFF00FF;
+					}
+				}
+				char path[512];
+				if (L < 0) snprintf(path, sizeof(path), "%s/%s_all.png", outdir, a1);
+				else snprintf(path, sizeof(path), "%s/%s_L%d.png", outdir, a1, L);
+				write_png(path, a, GBA_W, GBA_H, GBA_W);
+			}
+			for (int i = 0; i < 5; ++i) emu.core->enableVideoLayer(emu.core, i, true);
+			emu_state_load(&emu, st);
+			free(st);
 		} else if (!strcmp(cmd, "dumpram")) {
 			/* EWRAM (256K) followed by IWRAM (32K) */
 			char path[512];

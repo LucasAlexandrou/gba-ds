@@ -9,6 +9,7 @@
 #include "config.h"
 #include "game.h"
 #include "library.h"
+#include "logo.h"
 #include "paths.h"
 #include "ui.h"
 
@@ -74,6 +75,7 @@ int main(int argc, char** argv) {
 			if (game_run(&cfg, rom, true) == GAME_QUIT_APP) break;
 		}
 	}
+	logo_shutdown();
 	ui_shutdown();
 	return 0;
 }
