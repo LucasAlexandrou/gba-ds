@@ -33,8 +33,8 @@ You see the real in-game map with every detail the game draws (explored rooms, s
 
 The app opens on a game list:
 - The list is rebuilt from the ROM folder every time it opens, so games you add or remove show up with nothing to re-run.
-- Games with a map screen are tagged **MAP**. Other GBA games are listed too and play normally.
-- The top screen shows where each game will resume.
+- Only games with map support are listed. Set `show_all = 1` to list every `.gba`; games without map support play normally on one screen.
+- The top screen shows the game's logo, or where it will resume once you've played it.
 
 If you used the earlier build, delete the old `... (Dual Screen).sh` entries from `/storage/roms/ports/`.
 
@@ -46,8 +46,8 @@ If you used the earlier build, delete the old `... (Dual Screen).sh` entries fro
   - Swap screens (remembered for next time)
   - Save state
   - Load state (greyed out until you've saved one)
-  - Game list (saves a resume point, then back to the list)
-  - Exit emulator (saves a resume point, then quits to EmulationStation)
+  - Exit to emulator (saves a resume point, then back to gbadual's game list)
+  - Exit to main menu (saves a resume point, then quits to EmulationStation)
 
   The menu works by touch or with the D-pad and A. B, Start or HOME closes it.
 
@@ -82,6 +82,8 @@ If you used the earlier build, delete the old `... (Dual Screen).sh` entries fro
 |---|---|
 | Battery saves | `Game.sav`, next to the ROM. On first launch an existing RetroArch `Game.srm` is copied to `Game.sav`; the `.srm` is left alone. |
 | Save states, resume points, library thumbnails | `/storage/roms/ports/gbadual/states/` |
+
+Until the first map is ready (title screen, intro, a fresh boot), the map screen shows the game's logo. Logos are `gbadual/logos/<GAME CODE>.bmp`, for example `A2CE.bmp` for Aria of Sorrow. Replace them with any BMP.
 
 ## Settings
 

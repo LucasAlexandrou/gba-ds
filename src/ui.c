@@ -530,6 +530,31 @@ void ui_text_center(int screen, int cx, int y, int px, const char* s, SDL_Color 
 	ui_text(screen, cx - ui_text_width(s, px) / 2, y, px, s, c);
 }
 
+bool ui_load_image(const char* path, SDL_Texture* out[2], int* w, int* h, bool smooth) {
+	out[0] = out[1] = NULL;
+	SDL_Surface* s = SDL_LoadBMP(path);
+	if (!s) return false;
+	*w = s->w;
+	*h = s->h;
+	for (int v = 0; v < nViews; ++v) {
+		out[v] = SDL_CreateTextureFromSurface(views[v].ren, s);
+		if (out[v] && smooth) SDL_SetTextureScaleMode(out[v], SDL_ScaleModeLinear);
+	}
+	SDL_FreeSurface(s);
+	return true;
+}
+
+void ui_free_image(SDL_Texture* tex[2]) {
+	for (int v = 0; v < 2; ++v) {
+		if (tex[v]) SDL_DestroyTexture(tex[v]);
+		tex[v] = NULL;
+	}
+}
+
+void ui_logo_path(const Config* c, const char* code, char* out, size_t n) {
+	snprintf(out, n, "%s/logos/%.4s.bmp", c->assetDir, code);
+}
+
 void ui_screenshot(const char* path) {
 	View* v = &views[0];
 	int w, h;

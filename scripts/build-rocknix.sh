@@ -63,6 +63,7 @@ rm -rf "$ROOT/build/pkg"
 mkdir -p "$PKG"
 "${CROSS}strip" -o "$PKG/gbadual" build/aarch64/gbadual
 cp dist/launch.sh dist/gbadual.cfg "$PKG/"
+cp -r assets/logos "$PKG/logos"
 cp README.md "$PKG/README.md"
 cp "dist/GBA Dual Screen.sh" "$ROOT/build/pkg/"
 chmod +x "$PKG"/*.sh "$PKG/gbadual" "$ROOT/build/pkg/GBA Dual Screen.sh"

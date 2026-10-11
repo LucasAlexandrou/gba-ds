@@ -95,8 +95,11 @@ static void scan(Config* cfg) {
 
 static SDL_Texture* thumbTex[2][2]; /* [game|map][view] */
 static int thumbFor = -2;
+static SDL_Texture* logoTex[2];
+static int logoW, logoH;
 
 static void free_thumbs(void) {
+	ui_free_image(logoTex);
 	for (int k = 0; k < 2; ++k) {
 		for (int v = 0; v < 2; ++v) {
 			if (thumbTex[k][v]) SDL_DestroyTexture(thumbTex[k][v]);
@@ -112,6 +115,9 @@ static void load_thumbs(Config* cfg, int idx) {
 	if (idx < 0 || idx >= nGames) return;
 	GamePaths gp;
 	game_paths(cfg, games[idx].path, &gp);
+	char logo[1200];
+	ui_logo_path(cfg, games[idx].code, logo, sizeof(logo));
+	ui_load_image(logo, logoTex, &logoW, &logoH, true);
 	const char* files[2] = { gp.thumb, gp.mapThumb };
 	for (int k = 0; k < 2; ++k) {
 		SDL_Surface* s = SDL_LoadBMP(files[k]);
@@ -133,7 +139,7 @@ static void truncate_to(char* out, size_t outSize, const char* s, int maxChars) 
 static void draw_preview(Config* cfg, int scr, int sel) {
 	SDL_Rect r = screens[scr].rect;
 	int px = ui_px(scr);
-	ui_fill(scr, (SDL_Rect) { 0, 0, r.w, r.h }, C_BG);
+	ui_fill(scr, (SDL_Rect) { 0, 0, r.w, r.h }, (SDL_Color) { 0, 0, 0, 255 }); /* black, like the logos */
 	ui_text(scr, px * 6, px * 6, px, "GBA DUAL", C_GOLD);
 	if (nGames == 0 || sel < 0) {
 		ui_text_center(scr, r.w / 2, r.h / 2 - px * 4, px, "NO GAMES FOUND", C_TEXT);
@@ -143,8 +149,7 @@ static void draw_preview(Config* cfg, int scr, int sel) {
 	char line[200];
 	truncate_to(line, sizeof(line), g->name, (r.w - px * 12) / (px * 6));
 	ui_text(scr, px * 6, px * 20, px, line, C_TEXT);
-	ui_text(scr, px * 6, px * 31, px, g->supported ? "MAP SCREEN SUPPORTED" : "NO MAP SCREEN - PLAYS NORMALLY",
-	        g->supported ? C_GOLD : C_DIM);
+	if (!g->supported) ui_text(scr, px * 6, px * 31, px, "NO MAP SCREEN - PLAYS NORMALLY", C_DIM);
 
 	load_thumbs(cfg, sel);
 	int y = px * 58;
@@ -158,6 +163,9 @@ static void draw_preview(Config* cfg, int scr, int sel) {
 			SDL_Rect b = { px * 12 + thumbW, y, thumbW, thumbH };
 			ui_image(scr, thumbTex[1], GBA_W, GBA_H, "fit", &b);
 		}
+	} else if (logoTex[0] || logoTex[1]) {
+		SDL_Rect a = { px * 12, y, r.w - px * 24, thumbH };
+		ui_image(scr, logoTex, logoW, logoH, "fit", &a);
 	} else {
 		ui_text_center(scr, r.w / 2, y + thumbH / 2, px, "NOT PLAYED YET", C_DIM);
 	}
@@ -190,25 +198,25 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 	ListGeom g = list_geom(scr);
 	ui_fill(scr, (SDL_Rect) { 0, 0, r.w, r.h }, C_BG);
 	if (nGames == 0) {
-		ui_text_center(scr, r.w / 2, r.h / 2 - px * 12, px, "NO .GBA FILES IN", C_TEXT);
+		ui_text_center(scr, r.w / 2, r.h / 2 - px * 12, px, "NO SUPPORTED GAMES IN", C_TEXT);
 		char dir[200];
 		truncate_to(dir, sizeof(dir), cfg->romDir, r.w / (px * 6) - 2);
 		ui_text_center(scr, r.w / 2, r.h / 2, px, dir, C_GOLD);
-		ui_text_center(scr, r.w / 2, r.h / 2 + px * 12, px, "(ZIPPED ROMS AREN'T SUPPORTED YET)", C_DIM);
+		ui_text_center(scr, r.w / 2, r.h / 2 + px * 12, px, "(SUPPORTED GAMES ONLY, UNZIPPED)", C_DIM);
 	}
 	for (int i = 0; i < nGames; ++i) {
 		int y = g.headerH + i * g.rowH - scroll;
 		if (y + g.rowH <= g.headerH || y >= r.h) continue;
 		SDL_Color bg = i == sel ? C_SEL : (i & 1) ? C_ROW_ALT : C_ROW;
 		ui_fill(scr, (SDL_Rect) { 0, y, r.w, g.rowH - px }, bg);
-		int tagW = games[i].supported ? ui_text_width("MAP", px) + px * 6 : 0;
+		int tagW = games[i].supported || cfg->showAll == false ? 0 : ui_text_width("NO MAP", px) + px * 6;
 		char line[200];
 		truncate_to(line, sizeof(line), games[i].name, (r.w - px * 16 - tagW) / (px * 6));
 		ui_text(scr, px * 6, y + (g.rowH - px * 8) / 2, px, line, C_TEXT);
-		if (games[i].supported) {
+		if (tagW) {
 			SDL_Rect t = { r.w - tagW - px * 6, y + (g.rowH - px * 12) / 2, tagW, px * 11 };
 			ui_fill(scr, t, C_TAG);
-			ui_text(scr, t.x + px * 3, t.y + px * 2, px, "MAP", C_TEXT);
+			ui_text(scr, t.x + px * 3, t.y + px * 2, px, "NO MAP", C_TEXT);
 		}
 	}
 	/* header drawn last so rows scroll underneath it */

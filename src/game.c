@@ -19,6 +19,8 @@ static GamePaths gp;
 
 static SDL_Texture* gameTex[2];
 static SDL_Texture* mapTex[2];
+static SDL_Texture* logoTex[2];
+static int logoW, logoH;
 static MapResult mapRes;
 static int mapW = GBA_W, mapH = GBA_H;
 static int mapShownIdx = -1;
@@ -32,7 +34,7 @@ static bool debug;
 enum MenuItem { M_RESUME, M_SWAP, M_SAVE, M_LOAD, M_LIBRARY, M_EXIT };
 static const char* menuLabels[] = {
 	[M_RESUME] = "RESUME", [M_SWAP] = "SWAP SCREENS", [M_SAVE] = "SAVE STATE",
-	[M_LOAD] = "LOAD STATE", [M_LIBRARY] = "GAME LIST", [M_EXIT] = "EXIT EMULATOR",
+	[M_LOAD] = "LOAD STATE", [M_LIBRARY] = "EXIT TO EMULATOR", [M_EXIT] = "EXIT TO MAIN MENU",
 };
 static int menuItems[6], nMenuItems;
 static bool menuOpen;
@@ -56,7 +58,7 @@ static SDL_Rect item_rect(int scr, int i) {
 	SDL_Rect r = screens[scr].rect;
 	int px = ui_px(scr);
 	int h = px * 17, gap = px * 4;
-	int w = SDL_min(r.w - px * 16, ui_text_width("EXIT EMULATOR", px) + px * 60);
+	int w = SDL_min(r.w - px * 16, ui_text_width("EXIT TO MAIN MENU", px) + px * 48);
 	int total = nMenuItems * h + (nMenuItems - 1) * gap;
 	int top = (r.h - total) / 2 + px * 6;
 	return (SDL_Rect) { (r.w - w) / 2, top + i * (h + gap), w, h };
@@ -180,9 +182,10 @@ static void draw_game(void) {
 			}
 		} else if (mapShownIdx >= 0) {
 			ui_image(s, mapTex, mapW, mapH, cfg->mapScale, NULL);
-		} else {
-			ui_text_center(s, r.w / 2, r.h / 2 - px * 4, px, "MAP APPEARS ONCE YOU'RE IN GAME",
-			               (SDL_Color) { 90, 90, 110, 255 });
+		} else if (logoTex[0] || logoTex[1]) {
+			/* no map yet (title screen, intro...): the game's logo on black */
+			SDL_Rect area = { r.w / 12, r.h / 6, r.w - r.w / 6, r.h - r.h / 3 };
+			ui_image(s, logoTex, logoW, logoH, "fit", &area);
 		}
 	}
 }
@@ -268,6 +271,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		SDL_SetTextureBlendMode(gameTex[i], SDL_BLENDMODE_NONE);
 		SDL_SetTextureBlendMode(mapTex[i], SDL_BLENDMODE_NONE);
 	}
+
+	char logo[1200];
+	ui_logo_path(cfg, emu.gameCode, logo, sizeof(logo));
+	if (!ui_load_image(logo, logoTex, &logoW, &logoH, true)) fprintf(stderr, "no logo at %s\n", logo);
 
 	nMenuItems = 0;
 	menuItems[nMenuItems++] = M_RESUME;
@@ -504,5 +511,6 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		SDL_DestroyTexture(mapTex[i]);
 		gameTex[i] = mapTex[i] = NULL;
 	}
+	ui_free_image(logoTex);
 	return exitTo;
 }

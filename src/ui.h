@@ -77,6 +77,12 @@ void ui_text_center(int screen, int cx, int y, int px, const char* s, SDL_Color 
 /* Pixel size for text so that it is legible on this screen. */
 int ui_px(int screen);
 
+/* Loads a BMP into one texture per view. Returns false if missing. */
+bool ui_load_image(const char* path, SDL_Texture* out[2], int* w, int* h, bool smooth);
+void ui_free_image(SDL_Texture* tex[2]);
+/* Path of a game's logo: <asset_dir>/logos/<CODE>.bmp */
+void ui_logo_path(const Config* cfg, const char* code, char* out, size_t n);
+
 void ui_screenshot(const char* path);
 void ui_osd(const char* fmt, ...);
 const char* ui_osd_text(void); /* NULL when expired */

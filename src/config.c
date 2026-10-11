@@ -20,7 +20,7 @@ void config_defaults(Config* c) {
 	c->audioLatency = 64;
 	c->ffSpeed = 3;
 	c->autoResume = true;
-	c->showAll = true;
+	c->showAll = false;
 	c->homeButton = -1;
 }
 
@@ -62,6 +62,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	STR("save_dir", saveDir)
 	STR("state_dir", stateDir)
 	STR("rom_dir", romDir)
+	STR("asset_dir", assetDir)
 	STR("touch_screen", touchScreen)
 	STR("touch_map", touchMap)
 	BOOL("auto_resume", autoResume)

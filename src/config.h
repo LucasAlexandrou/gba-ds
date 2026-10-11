@@ -22,6 +22,7 @@ typedef struct Config {
 	char saveDir[512]; /* battery saves; default: next to the ROM */
 	char stateDir[512]; /* save states, thumbnails, prefs; default: <app>/states */
 	char romDir[1024]; /* library folders, ':'-separated */
+	char assetDir[512]; /* logos etc.; default: next to the binary */
 	char touchScreen[16]; /* first | second: which screen has the touch panel */
 	char touchMap[16];    /* window | screen: how touch coordinates map */
 	bool autoResume;      /* save state on exit, load it on launch */
