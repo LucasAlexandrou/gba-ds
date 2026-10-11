@@ -62,8 +62,9 @@ PKG="$ROOT/build/pkg/gbadual"
 rm -rf "$ROOT/build/pkg"
 mkdir -p "$PKG"
 "${CROSS}strip" -o "$PKG/gbadual" build/aarch64/gbadual
-cp dist/launch.sh dist/install-ports.sh dist/gbadual.cfg "$PKG/"
+cp dist/launch.sh dist/gbadual.cfg "$PKG/"
 cp README.md "$PKG/README.md"
-chmod +x "$PKG"/*.sh "$PKG/gbadual"
-(cd "$ROOT/build/pkg" && rm -f "$ROOT/dist/gbadual-rocknix-aarch64.zip" && zip -qr "$ROOT/dist/gbadual-rocknix-aarch64.zip" gbadual)
+cp "dist/GBA Dual Screen.sh" "$ROOT/build/pkg/"
+chmod +x "$PKG"/*.sh "$PKG/gbadual" "$ROOT/build/pkg/GBA Dual Screen.sh"
+(cd "$ROOT/build/pkg" && rm -f "$ROOT/dist/gbadual-rocknix-aarch64.zip" && zip -qr "$ROOT/dist/gbadual-rocknix-aarch64.zip" gbadual "GBA Dual Screen.sh")
 echo "built dist/gbadual-rocknix-aarch64.zip"

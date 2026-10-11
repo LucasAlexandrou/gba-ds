@@ -11,12 +11,17 @@ void config_defaults(Config* c) {
 	strcpy(c->scale, "integer");
 	strcpy(c->mapScale, "integer");
 	strcpy(c->hotkey, "guide");
+	strcpy(c->romDir, "/storage/roms/gba");
+	strcpy(c->touchScreen, "second");
+	strcpy(c->touchMap, "window");
 	c->map = true;
 	c->mapInterval = 90;
 	c->sway = true;
 	c->audioLatency = 64;
 	c->ffSpeed = 3;
-	c->shotFrame = -1;
+	c->autoResume = true;
+	c->showAll = true;
+	c->homeButton = -1;
 }
 
 static bool parse_bool(const char* v) {
@@ -49,24 +54,21 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	INT("map_interval", mapInterval)
 	BOOL("ab_swap", abSwap)
 	STR("hotkey", hotkey)
+	INT("home_button", homeButton)
 	BOOL("show_fps", showFps)
 	BOOL("sway", sway)
 	INT("audio_latency", audioLatency)
 	INT("ff_speed", ffSpeed)
 	STR("save_dir", saveDir)
+	STR("state_dir", stateDir)
+	STR("rom_dir", romDir)
+	STR("touch_screen", touchScreen)
+	STR("touch_map", touchMap)
+	BOOL("auto_resume", autoResume)
+	BOOL("show_all", showAll)
 	STR("load_state", loadState)
 	INT("quit_after", quitAfter)
 	STR("input_script", inputScript)
-	if (!strcmp(key, "screenshot")) {
-		/* FRAME:PATH */
-		const char* colon = strchr(val, ':');
-		if (!colon) {
-			return false;
-		}
-		c->shotFrame = atoi(val);
-		snprintf(c->shotPath, sizeof(c->shotPath), "%s", colon + 1);
-		return true;
-	}
 	return false;
 #undef STR
 #undef BOOL
@@ -131,16 +133,21 @@ bool config_parse_args(Config* c, int argc, char** argv) {
 			snprintf(c->rom, sizeof(c->rom), "%s", a);
 		}
 	}
-	return c->rom[0] != 0;
+	return true;
 }
 
 void config_usage(const char* argv0) {
 	fprintf(stderr,
-	        "usage: %s [options] game.gba\n"
+	        "usage: %s [options] [game.gba]\n"
+	        "\n"
+	        "Without a game, opens the game library (games found in --rom-dir).\n"
 	        "\n"
 	        "Options (also accepted as key=value lines in gbadual.cfg):\n"
+	        "  --rom-dir=DIR[:DIR]    library folders (/storage/roms/gba)\n"
 	        "  --layout=auto|span-h|span-v|dual|single   screen arrangement (auto)\n"
 	        "  --swap                 show the map on the first screen\n"
+	        "  --touch-screen=first|second   which screen has the touch panel (second)\n"
+	        "  --touch-map=window|screen     touch coordinates span the window or one screen\n"
 	        "  --scale=integer|fit|stretch      game scaling (integer)\n"
 	        "  --map-scale=integer|fit|stretch  map scaling (integer)\n"
 	        "  --smooth               linear filtering\n"
@@ -148,14 +155,18 @@ void config_usage(const char* argv0) {
 	        "  --no-map               disable the map screen\n"
 	        "  --map-interval=N       frames between map refreshes (90)\n"
 	        "  --ab-swap              GBA A on the bottom face button\n"
-	        "  --hotkey=guide|back    hotkey modifier button (guide)\n"
+	        "  --hotkey=guide|back    menu / hotkey button (guide = HOME)\n"
+	        "  --home-button=N        raw joystick button that acts as HOME (see GBADUAL_DEBUG=1 log)\n"
+	        "  --no-auto-resume       don't save on exit / resume on launch\n"
 	        "  --show-fps\n"
 	        "  --no-sway              don't ask sway to span both outputs\n"
 	        "  --audio-latency=MS     (64)\n"
 	        "  --ff-speed=N           fast-forward multiplier (3)\n"
-	        "  --save-dir=DIR         where .sav and states go (next to ROM)\n"
+	        "  --save-dir=DIR         battery saves (next to the ROM)\n"
+	        "  --state-dir=DIR        save states and thumbnails (<app>/states)\n"
 	        "\n"
-	        "Testing: --load-state=FILE --screenshot=FRAME:PATH.bmp --quit-after=FRAMES\n"
-	        "         --input-script=FILE (lines: FRAME KEYS, e.g. '120 START')\n",
+	        "Testing: --load-state=FILE --quit-after=TICKS --input-script=FILE\n"
+	        "  script lines: 'TICK TOKEN' with TOKEN a button combo held until the next\n"
+	        "  line (A+RIGHT, -), HOME, TAP:x,y (0..1 window coords), SHOT:file.bmp, QUIT\n",
 	        argv0);
 }

@@ -27,17 +27,31 @@ You see the real in-game map with every detail the game draws (explored rooms, s
 
 ## Install on ROCKNIX
 
-1. Unzip `gbadual-rocknix-aarch64.zip` into `/storage/roms/ports/`, so you have `/storage/roms/ports/gbadual/gbadual`.
-2. Put your **unzipped** `.gba` ROMs in `/storage/roms/gba/`. Zipped ROMs aren't supported yet.
-3. Over SSH, run `bash /storage/roms/ports/gbadual/install-ports.sh`. This adds entries like "Castlevania - Aria of Sorrow (Dual Screen)" under **Ports**.
-4. In EmulationStation, update the game lists and launch from Ports.
+1. Unzip `gbadual-rocknix-aarch64.zip` into `/storage/roms/ports/`. You'll get a `gbadual/` folder and a **GBA Dual Screen** entry.
+2. Keep your **unzipped** `.gba` ROMs in `/storage/roms/gba/` (subfolders are fine). Zipped ROMs aren't supported yet.
+3. In EmulationStation, update the game lists and launch **GBA Dual Screen** from Ports.
 
-Saves:
-- Battery saves are written next to the ROM as `Game.sav`.
-- On first launch, an existing RetroArch save (`Game.srm`) is copied to `Game.sav`, so you keep your progress. The `.srm` itself is left alone.
-- Save states are `Game.gbadual.ss0`.
+The app opens on a game list:
+- The list is rebuilt from the ROM folder every time it opens, so games you add or remove show up with nothing to re-run.
+- Games with a map screen are tagged **MAP**. Other GBA games are listed too and play normally.
+- The top screen shows where each game will resume.
 
-## Controls
+If you used the earlier build, delete the old `... (Dual Screen).sh` entries from `/storage/roms/ports/`.
+
+## Playing
+
+- **Resume:** leaving a game saves its state automatically, and launching it again picks up exactly there. Turn this off with `auto_resume = 0`. Battery saves are written as usual too, so in-game saves are never at risk.
+- **Pause menu:** tap the touchscreen or press **HOME**. Both screens dim, the game and its sound pause, and the menu appears on the touchscreen:
+  - Resume
+  - Swap screens (remembered for next time)
+  - Save state
+  - Load state (greyed out until you've saved one)
+  - Game list (saves a resume point, then back to the list)
+  - Exit emulator (saves a resume point, then quits to EmulationStation)
+
+  The menu works by touch or with the D-pad and A. B, Start or HOME closes it.
+
+### Buttons
 
 | Button | Action |
 |---|---|
@@ -46,36 +60,48 @@ Saves:
 | Bottom face button | GBA B |
 | L1 / R1 | GBA L / R |
 | Start / Select | Start / Select |
-| L2 | Swap screens (game ↔ map) |
+| HOME, or tap the touchscreen | Pause menu |
+| L2 | Swap screens |
 | R2 (hold) | Fast-forward |
-| Hotkey + Start | Quit (saves are flushed) |
-| Hotkey + R1 / L1 | Save / load state |
-| Hotkey + Y | Swap screens |
-| Hotkey + X | FPS counter |
+| HOME + R1 / L1 | Quick save / load state |
+| HOME + Start | Quit |
+| HOME + X | FPS counter |
 
-The hotkey is the function/home button (`hotkey = guide`). Set `hotkey = back` to use Select instead. A plain Select press still reaches the game when it isn't used in a combo.
+### Library
+
+| Input | Action |
+|---|---|
+| D-pad, L/R | Move, page up/down |
+| A / Start, or tap a game | Play |
+| Drag | Scroll the list |
+| B, HOME, or QUIT | Back to EmulationStation |
+
+### Where files go
+
+| File | Location |
+|---|---|
+| Battery saves | `Game.sav`, next to the ROM. On first launch an existing RetroArch `Game.srm` is copied to `Game.sav`; the `.srm` is left alone. |
+| Save states, resume points, library thumbnails | `/storage/roms/ports/gbadual/states/` |
 
 ## Settings
 
 Settings live in `gbadual.cfg` next to the binary. The file is commented. The options you're most likely to change:
 
-- `swap = 1`: puts the map on the other screen. Use this if the game comes up on the bottom screen. L2 swaps live.
+- `rom_dir`: folders to list. Separate several with `:`.
+- `swap = 1`: map on the other screen. Swapping from the menu or with L2 is saved to `states/prefs.cfg` and wins over this setting.
+- `touch_screen`: `first` or `second`, whichever screen has the touch panel. The menu and game list are drawn there.
+- `touch_map`: try `touch_map = screen` if taps land in the wrong place.
+- `home_button`: use this if HOME doesn't open the menu.
+  1. Start once with `GBADUAL_DEBUG=1` in `launch.sh`.
+  2. Press HOME.
+  3. Put the button number the log shows into `home_button`.
 - `layout`:
-  - `auto` (the default) works on ROCKNIX's sway setup, which gives the RG DS Plus's two panels as side-by-side 1024×768 outputs. gbadual asks sway to make its window full screen across both outputs (`fullscreen enable global`) and splits the window in half.
-  - `dual` uses one window per display instead. This is for systems without sway.
-  - `single` puts everything on one screen, and L2 flips between the game and the map.
-- `map_interval`: frames between periodic map refreshes. The default is 90 (≈1.5 s). Lower values update faster but use more CPU on the second core.
+  - `auto` is the default. On ROCKNIX's sway setup, gbadual asks sway to make its window full screen across both 1024×768 outputs and splits the window in half.
+  - `dual` uses one window per display.
+  - `single` uses one screen, and L2 flips between game and map.
+- `map_interval`: frames between periodic map refreshes (default 90). The map also refreshes after every room transition.
 
-Logs go to `/storage/roms/ports/gbadual/gbadual.log`.
-
-## Not yet verified on hardware
-
-This build was developed and tested on an x86 Linux host in a headless video mode, with the aarch64 binary cross-compiled. Things to check on the device first:
-
-- **Which screen is which.** If the game is on the bottom, set `swap = 1`.
-- **Only one screen is used.** If the window fills one screen instead of spanning both, check the log for `swaymsg global fullscreen failed`. Then try `layout = dual`, or report the output of `swaymsg -t get_outputs`.
-- **Button layout.** Face buttons are read through SDL's controller mapping (positional). If A and B feel wrong, set `ab_swap = 1`.
-- **Speed.** Host benchmarks suggest the RK3568 has plenty of headroom: one core for the game, part of a second for map captures. If audio crackles, raise `audio_latency` or `map_interval`.
+Logs go to `/storage/roms/ports/gbadual/gbadual.log`. With `GBADUAL_DEBUG=1`, the log also records every button, key and touch.
 
 ## Building
 
@@ -94,11 +120,11 @@ make MGBA_BUILD=../mgba/build-host SDL_PREFIX=../sdl-host   # build/host/gbadual
 make tools                                                  # build/host/harness (needs libpng)
 ```
 
-Run it headless and take a screenshot:
+Run it headless and drive it from a script (button combos, `HOME`, `TAP:x,y`, `SHOT:file.bmp`, `QUIT`; see `--help`):
 
 ```sh
 SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy GBADUAL_WINDOW=2048x768 \
-  build/host/gbadual --load-state=x.ss --screenshot=300:out.bmp --quit-after=301 game.gba
+  build/host/gbadual --rom-dir=roms --state-dir=/tmp/st --input-script=test.txt
 ```
 
 ## Adding a game

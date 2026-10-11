@@ -1,6 +1,8 @@
 #!/bin/bash
 # gbadual launcher for ROCKNIX.
-#   launch.sh /storage/roms/gba/Game.gba [--option=value ...]
+#   launch.sh                      open the game library
+#   launch.sh /path/Game.gba       play one game directly
+#   (any --option=value from gbadual.cfg can be appended)
 # Output goes to gbadual.log next to this script.
 
 . /etc/profile >/dev/null 2>&1

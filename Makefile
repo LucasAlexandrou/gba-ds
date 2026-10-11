@@ -22,7 +22,7 @@ LDFLAGS    += -L$(SDL_PREFIX)/lib -Wl,-rpath-link,$(SDL_PREFIX)/lib
 LIBS       := $(MGBA_BUILD)/libmgba.a -lSDL2 -lpthread -lm
 
 CORE_SRC   := src/emu.c src/mapcap.c src/profiles.c
-APP_SRC    := src/main.c src/config.c src/font.c $(CORE_SRC)
+APP_SRC    := src/main.c src/config.c src/font.c src/ui.c src/library.c src/game.c src/paths.c $(CORE_SRC)
 
 all: $(OUT)/gbadual
 
