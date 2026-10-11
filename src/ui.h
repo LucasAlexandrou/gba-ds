@@ -83,7 +83,7 @@ int ui_px(int screen);
 /* Loads a BMP into one texture per view. Returns false if missing. */
 bool ui_load_image(const char* path, SDL_Texture* out[2], int* w, int* h, bool smooth);
 void ui_free_image(SDL_Texture* tex[2]);
-/* Path of a game's logo: <asset_dir>/logos/<CODE>.bmp */
+/* Path of a game's logo: <asset_dir>/logos/<CODE>.png (or .bmp) */
 void ui_logo_path(const Config* cfg, const char* code, char* out, size_t n);
 
 void ui_screenshot(const char* path);

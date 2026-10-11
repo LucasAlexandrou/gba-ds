@@ -20,6 +20,9 @@ static GamePaths gp;
 static SDL_Texture* gameTex[2];
 static SDL_Texture* mapTex[2];
 static SDL_Texture* logoTex[2];
+static SDL_Texture* overlayTex[2];
+static int overlayW, overlayH;
+static char overlayMode[16];
 static int logoW, logoH;
 static MapResult mapRes;
 static int mapW = GBA_W, mapH = GBA_H;
@@ -31,12 +34,13 @@ static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_SAVE, M_LOAD, M_LIBRARY, M_EXIT };
+enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
 static const char* menuLabels[] = {
-	[M_RESUME] = "RESUME", [M_SWAP] = "SWAP SCREENS", [M_SAVE] = "SAVE STATE", [M_SCALE] = "", [M_LCD] = "",
+	[M_RESUME] = "RESUME", [M_SWAP] = "SWAP SCREENS", [M_SAVE] = "SAVE STATE", [M_SCALE] = "", [M_LCD] = "", [M_RESTART] = "RESTART GAME",
 	[M_LOAD] = "LOAD STATE", [M_LIBRARY] = "EXIT TO EMULATOR", [M_EXIT] = "EXIT TO MAIN MENU",
 };
-static int menuItems[8], nMenuItems;
+static int menuItems[9], nMenuItems;
+static bool restartArmed;
 static bool menuOpen;
 static int menuSel;
 static int menuPressed = -1;      /* item under a finger that went down in the menu */
@@ -57,7 +61,7 @@ static bool item_enabled(int item) {
 static SDL_Rect item_rect(int scr, int i) {
 	SDL_Rect r = screens[scr].rect;
 	int px = ui_px(scr);
-	int h = px * 15, gap = px * 3;
+	int h = px * 14, gap = px * 3;
 	int w = SDL_min(r.w - px * 16, ui_text_width("EXIT TO MAIN MENU", px) + px * 48);
 	int total = nMenuItems * h + (nMenuItems - 1) * gap;
 	int top = (r.h - total) / 2 + px * 6;
@@ -87,6 +91,7 @@ static void draw_menu(void) {
 		const char* label = menuLabels[menuItems[i]];
 		if (menuItems[i] == M_SCALE) label = !strcmp(cfg->scale, "fit") ? "SCALE: FULL WIDTH" : !strcmp(cfg->scale, "stretch") ? "SCALE: STRETCH" : "SCALE: PIXEL PERFECT";
 		if (menuItems[i] == M_LCD) label = cfg->lcdGrid ? "LCD GRID: ON" : "LCD GRID: OFF";
+		if (menuItems[i] == M_RESTART && restartArmed) label = "TAP AGAIN TO RESTART";
 		ui_text_center(scr, r.x + r.w / 2, r.y + (r.h - px * 7) / 2, px, label, en ? C_TEXT : C_DIS);
 	}
 	if (menuNote[0]) {
@@ -170,6 +175,22 @@ static void swap_screens(void) {
 	save_prefs();
 }
 
+static SDL_Color borderColor;
+
+/* <asset_dir>/overlays/<CODE>-<scale>.png, else <CODE>.png: drawn over the
+ * whole map screen (transparent where the map should show). */
+static void load_overlay(void) {
+	if (!strcmp(overlayMode, cfg->mapScale)) return;
+	snprintf(overlayMode, sizeof(overlayMode), "%s", cfg->mapScale);
+	ui_free_image(overlayTex);
+	char path[1200];
+	snprintf(path, sizeof(path), "%s/overlays/%.4s-%s.png", cfg->assetDir, emu.gameCode, cfg->mapScale);
+	if (!ui_load_image(path, overlayTex, &overlayW, &overlayH, true)) {
+		snprintf(path, sizeof(path), "%s/overlays/%.4s.png", cfg->assetDir, emu.gameCode);
+		ui_load_image(path, overlayTex, &overlayW, &overlayH, true);
+	}
+}
+
 static void draw_game(void) {
 	bool mapOn = mc && cfg->map;
 	for (int s = 0; s < nScreens; ++s) {
@@ -189,13 +210,19 @@ static void draw_game(void) {
 				snprintf(buf, sizeof(buf), "%.1f", fps);
 				ui_text(s, px * 4, px * 4, px, buf, C_TEXT);
 			}
-		} else if (mapShownIdx >= 0) {
+			continue;
+		}
+		/* the map screen */
+		if (mapShownIdx >= 0) {
+			ui_fill(s, (SDL_Rect) { 0, 0, r.w, r.h }, borderColor);
 			ui_image_pixels(s, mapTex, mapW, mapH, cfg->mapScale, cfg->lcdGrid);
 		} else if (logoTex[0] || logoTex[1]) {
 			/* no map yet (title screen, intro...): the game's logo on black */
 			SDL_Rect area = { r.w / 12, r.h / 6, r.w - r.w / 6, r.h - r.h / 3 };
 			ui_image(s, logoTex, logoW, logoH, "fit", &area);
 		}
+		load_overlay();
+		if (overlayTex[0] || overlayTex[1]) ui_image(s, overlayTex, overlayW, overlayH, "stretch", NULL);
 	}
 }
 
@@ -204,10 +231,12 @@ static void open_menu(void) {
 	menuSel = 0;
 	menuPressed = -1;
 	menuNote[0] = 0;
+	restartArmed = false;
 }
 
 /* Returns true if the session should end (*exitTo set). */
 static bool activate(int item, enum GameExit* exitTo) {
+	if (item != M_RESTART) restartArmed = false;
 	switch (item) {
 	case M_RESUME:
 		menuOpen = false;
@@ -245,6 +274,18 @@ static bool activate(int item, enum GameExit* exitTo) {
 		} else {
 			snprintf(menuNote, sizeof(menuNote), "LOAD FAILED");
 		}
+		break;
+	case M_RESTART:
+		if (!restartArmed) {
+			restartArmed = true;
+			snprintf(menuNote, sizeof(menuNote), "UNSAVED PROGRESS WILL BE LOST");
+			break;
+		}
+		emu_reset(&emu);
+		mapShownIdx = -1; /* back to the logo until the next map */
+		restartArmed = false;
+		menuOpen = false;
+		ui_osd("GAME RESTARTED");
 		break;
 	case M_LIBRARY:
 		*exitTo = GAME_TO_LIBRARY;
@@ -292,6 +333,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		SDL_SetTextureBlendMode(mapTex[i], SDL_BLENDMODE_NONE);
 	}
 
+	unsigned bc = (unsigned) strtoul(cfg->borderColor, NULL, 16);
+	borderColor = (SDL_Color) { (bc >> 16) & 0xFF, (bc >> 8) & 0xFF, bc & 0xFF, 255 };
+	overlayMode[0] = 0;
 	char logo[1200];
 	ui_logo_path(cfg, emu.gameCode, logo, sizeof(logo));
 	if (!ui_load_image(logo, logoTex, &logoW, &logoH, true)) fprintf(stderr, "no logo at %s\n", logo);
@@ -303,6 +347,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	menuItems[nMenuItems++] = M_LCD;
 	menuItems[nMenuItems++] = M_SAVE;
 	menuItems[nMenuItems++] = M_LOAD;
+	menuItems[nMenuItems++] = M_RESTART;
 	if (fromLibrary) menuItems[nMenuItems++] = M_LIBRARY;
 	menuItems[nMenuItems++] = M_EXIT;
 
@@ -553,5 +598,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		gameTex[i] = mapTex[i] = NULL;
 	}
 	ui_free_image(logoTex);
+	ui_free_image(overlayTex);
+	overlayMode[0] = 0;
 	return exitTo;
 }

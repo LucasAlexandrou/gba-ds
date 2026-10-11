@@ -50,6 +50,7 @@ If you used the earlier build, delete the old `... (Dual Screen).sh` entries fro
   Swap, scale and LCD grid choices are remembered for next time.
   - Save state
   - Load state (greyed out until you've saved one)
+  - Restart game (tap twice; unsaved progress is lost)
   - Exit to emulator (saves a resume point, then back to gbadual's game list)
   - Exit to main menu (saves a resume point, then quits to EmulationStation)
 
@@ -88,6 +89,24 @@ If you used the earlier build, delete the old `... (Dual Screen).sh` entries fro
 | Save states, resume points, library thumbnails | `/storage/roms/ports/gbadual/states/` |
 
 Until the first map is ready (title screen, intro, a fresh boot), the map screen shows the game's logo. Logos are `gbadual/logos/<GAME CODE>.bmp`, for example `A2CE.bmp` for Aria of Sorrow. Replace them with any BMP.
+
+## Map screen overlays
+
+You can frame the map screen with your own art. Put a PNG at `gbadual/overlays/<CODE>-<scale>.png`:
+
+- `<CODE>` is the game code: `A2CE` Aria of Sorrow, `AAME` Circle of the Moon, `ACHE` Harmony of Dissonance, `BMXE` Zero Mission, `AMTE` Fusion.
+- `<scale>` is `integer` (pixel perfect) or `fit` (full width).
+- `<CODE>.png` with no scale suffix is used for both modes.
+
+Each overlay is 1024×768 and is drawn on top of the whole map screen, so leave it transparent where the map should show. It also covers the logo screen. These are the map rectangles to keep clear:
+
+| Game | integer | fit |
+|---|---|---|
+| Castlevania (all three) | x=32, y=64, 960×640 | x=0, y=43, 1024×682 |
+| Metroid: Zero Mission | x=80, y=120, 864×528 | x=0, y=71, 1024×625 |
+| Metroid Fusion | x=64, y=112, 896×544 | x=0, y=73, 1024×621 |
+
+`border_color` (hex, default `000000`) sets the colour behind the map where there's no overlay. Logos can also be PNG files (`logos/<CODE>.png`).
 
 ## Settings
 

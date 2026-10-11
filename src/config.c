@@ -24,6 +24,7 @@ void config_defaults(Config* c) {
 	c->showAll = false;
 	c->homeButton = -1;
 	c->lcdStrength = 35;
+	strcpy(c->borderColor, "000000");
 }
 
 static bool parse_bool(const char* v) {
@@ -52,6 +53,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	STR("map_scale", mapScale)
 	BOOL("smooth", smooth)
 	BOOL("lcd_grid", lcdGrid)
+	STR("border_color", borderColor)
 	INT("lcd_strength", lcdStrength)
 	BOOL("vsync", vsync)
 	BOOL("map", map)

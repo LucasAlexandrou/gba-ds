@@ -64,6 +64,8 @@ mkdir -p "$PKG"
 "${CROSS}strip" -o "$PKG/gbadual" build/aarch64/gbadual
 cp dist/launch.sh dist/gbadual.cfg "$PKG/"
 cp -r assets/logos "$PKG/logos"
+mkdir -p "$PKG/overlays"
+printf "Put map-screen overlay PNGs here: <CODE>-integer.png, <CODE>-fit.png or <CODE>.png (see README).\n" > "$PKG/overlays/README.txt"
 cp README.md "$PKG/README.md"
 cp "dist/GBA Dual Screen.sh" "$ROOT/build/pkg/"
 chmod +x "$PKG"/*.sh "$PKG/gbadual" "$ROOT/build/pkg/GBA Dual Screen.sh"
