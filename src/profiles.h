@@ -40,7 +40,8 @@ typedef struct MapProfile {
 	int tight_x, tight_y, tight_w, tight_h;
 	struct { int x, y, w, h; } masks[8];
 	int gridX, gridY, gridCell;
-	/* Scroll arrows drawn on top of the map: inside these rects, pixels of the
+	/* (Unused: removing the Metroid scroll arrows glitched once the map grew
+	 * under them, so they're left in.) Scroll arrows drawn on top of the map: inside these rects, pixels of the
 	 * arrow's colours (arrowKey 1 = magenta, 2 = yellow/orange/red) are
 	 * replaced with the same pixel one or two grid cells to the side. */
 	struct { int x, y, w, h; } arrows[2];
