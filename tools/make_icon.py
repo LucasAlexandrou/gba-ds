@@ -18,6 +18,7 @@ PURPLE = (92, 72, 196, 255)
 WHITE = (255, 255, 255, 255)
 NAVY = (16, 32, 96, 255)
 BACKGROUND = (243, 239, 253, 255)  # very light purple
+BORDER = (160, 160, 168, 255)      # grey
 
 
 def k(v):
@@ -129,6 +130,8 @@ def main():
     place(img, word("GBA", futura, cap, 88), tuple(k(v) for v in top), fill=0.80)
     place(img, word("DS", gamecuben, cap, 88), tuple(k(v) for v in bot), fill=0.66)
 
+    # grey border around the edge of the image
+    ImageDraw.Draw(img).rectangle((0, 0, S - 1, S - 1), outline=BORDER, width=k(12))
     img = img.resize((1024, 1024), Image.LANCZOS).convert("RGB")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     img.save(out)
