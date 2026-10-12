@@ -3,6 +3,7 @@
 #include "profiles.h"
 #include "ui.h"
 #include "logo.h"
+#include "brand.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -105,38 +106,34 @@ static void scan(Config* cfg) {
 
 /* -------------------------------------------------------------- preview */
 
-static SDL_Texture* thumbTex[2][2]; /* [game|map][view] */
+static SDL_Texture* thumbTex[2]; /* resume screenshot, per view */
 static int thumbFor = -2;
 static SDL_Texture* logoTex[2];
 static int logoW, logoH;
 static bool logoPixel;
 static uint32_t logoGen;
 
-static void free_thumbs(void) {
-	ui_free_image(logoTex);
-	for (int k = 0; k < 2; ++k) {
-		for (int v = 0; v < 2; ++v) {
-			if (thumbTex[k][v]) SDL_DestroyTexture(thumbTex[k][v]);
-			thumbTex[k][v] = NULL;
-		}
+/* built-in images: our logo, button glyphs, "no save states yet!" */
+static SDL_Texture* brandTex[BRAND_COUNT][2];
+static int brandW[BRAND_COUNT], brandH[BRAND_COUNT];
+
+static void load_brand(void) {
+	for (int i = 0; i < BRAND_COUNT; ++i) {
+		if (!brandTex[i][0] && !brandTex[i][1]) ui_load_brand(i, brandTex[i], &brandW[i], &brandH[i]);
 	}
 }
 
-static void load_thumbs(Config* cfg, int idx) {
-	if (idx == thumbFor) return;
-	thumbFor = idx;
-	free_thumbs();
-	if (idx < 0 || idx >= nGames) return;
-	GamePaths gp;
-	game_paths(cfg, games[idx].path, &gp);
-	ui_load_logo(cfg, games[idx].path, games[idx].code, logoTex, &logoW, &logoH, &logoPixel);
-	const char* files[2] = { gp.thumb, gp.mapThumb };
-	for (int k = 0; k < 2; ++k) {
-		SDL_Surface* s = SDL_LoadBMP(files[k]);
-		if (!s) continue;
-		for (int v = 0; v < nViews; ++v) thumbTex[k][v] = SDL_CreateTextureFromSurface(views[v].ren, s);
-		SDL_FreeSurface(s);
-	}
+static void free_brand(void) {
+	for (int i = 0; i < BRAND_COUNT; ++i) ui_free_image(brandTex[i]);
+}
+
+/* Draws built-in image `id` at height h with its top-left at x, y; returns the width drawn. */
+static int draw_brand(int scr, int id, int x, int y, int h) {
+	if (!brandTex[id][0] && !brandTex[id][1]) return 0;
+	int w = brandW[id] * h / brandH[id];
+	SDL_Rect a = { x, y, w, h };
+	ui_image(scr, brandTex[id], brandW[id], brandH[id], "stretch", &a);
+	return w;
 }
 
 static void truncate_to(char* out, size_t outSize, const char* s, int maxChars) {
@@ -148,40 +145,76 @@ static void truncate_to(char* out, size_t outSize, const char* s, int maxChars) 
 	}
 }
 
+static void free_thumbs(void) {
+	ui_free_image(logoTex);
+	ui_free_image(thumbTex);
+}
+
+static void load_thumbs(Config* cfg, int idx) {
+	if (idx == thumbFor) return;
+	thumbFor = idx;
+	free_thumbs();
+	if (idx < 0 || idx >= nGames) return;
+	GamePaths gp;
+	game_paths(cfg, games[idx].path, &gp);
+	if (ui_load_logo(cfg, games[idx].path, games[idx].code, logoTex, &logoW, &logoH, &logoPixel)) {
+		/* drawn at a fixed height rather than a whole-number scale, so filter it */
+		for (int v = 0; v < 2; ++v) {
+			if (logoTex[v]) SDL_SetTextureScaleMode(logoTex[v], SDL_ScaleModeLinear);
+		}
+	}
+	SDL_Surface* s = SDL_LoadBMP(gp.thumb);
+	if (s) {
+		for (int v = 0; v < nViews; ++v) thumbTex[v] = SDL_CreateTextureFromSurface(views[v].ren, s);
+		SDL_FreeSurface(s);
+	}
+}
+
 static void draw_preview(Config* cfg, int scr, int sel) {
 	SDL_Rect r = screens[scr].rect;
 	int px = ui_px(scr);
 	ui_fill(scr, (SDL_Rect) { 0, 0, r.w, r.h }, (SDL_Color) { 0, 0, 0, 255 }); /* black, like the logos */
-	ui_text(scr, px * 6, px * 6, px, "GBA DUAL", C_GOLD);
+	load_brand();
+
+	/* our logo top left, the game's own logo top right, both the same height */
+	int m = px * 6;
+	int headH = px * 21;
+	int ourW = draw_brand(scr, BRAND_LOGO, m, m, headH);
+
+	/* button hints along the bottom */
+	int ty = r.h - px * 11, d = px * 10, bx = m;
+	int gy = ty + px * 7 / 2 - d / 2;
+	bx += draw_brand(scr, BRAND_BTN_A, bx, gy, d) + px * 3;
+	ui_text(scr, bx, ty, px, "PLAY", C_TEXT);
+	bx += ui_text_width("PLAY", px) + px * 10;
+	bx += draw_brand(scr, BRAND_BTN_B, bx, gy, d) + px * 3;
+	ui_text(scr, bx, ty, px, "QUIT", C_TEXT);
+
 	if (nGames == 0 || sel < 0) {
 		ui_text_center(scr, r.w / 2, r.h / 2 - px * 4, px, "NO GAMES FOUND", C_TEXT);
 		return;
 	}
 	GameEntry* g = &games[sel];
-	char line[200];
-	truncate_to(line, sizeof(line), g->name, (r.w - px * 12) / (px * 6));
-	ui_text(scr, px * 6, px * 20, px, line, C_TEXT);
-	if (!g->supported) ui_text(scr, px * 6, px * 31, px, "NO MAP SCREEN - PLAYS NORMALLY", C_DIM);
-
 	load_thumbs(cfg, sel);
-	int y = px * 58;
-	int thumbH = r.h - y - px * 18;
-	int thumbW = (r.w - px * 18) / 2;
-	if (thumbTex[0][0] || thumbTex[0][1]) {
-		ui_text(scr, px * 6, y - px * 11, px, "RESUMES FROM HERE", C_DIM);
-		SDL_Rect a = { px * 6, y, thumbW, thumbH };
-		ui_image(scr, thumbTex[0], GBA_W, GBA_H, "fit", &a);
-		if (thumbTex[1][0] || thumbTex[1][1]) {
-			SDL_Rect b = { px * 12 + thumbW, y, thumbW, thumbH };
-			ui_image(scr, thumbTex[1], GBA_W, GBA_H, "fit", &b);
-		}
-	} else if (logoTex[0] || logoTex[1]) {
-		SDL_Rect a = { px * 12, y, r.w - px * 24, thumbH };
-		ui_image(scr, logoTex, logoW, logoH, logoPixel ? "integer" : "fit", &a);
-	} else {
-		ui_text_center(scr, r.w / 2, y + thumbH / 2, px, "NOT PLAYED YET", C_DIM);
+	if (logoTex[0] || logoTex[1]) {
+		int maxW = r.w - ourW - m * 3;
+		int w = logoW * headH / logoH, h = headH;
+		if (w > maxW) w = maxW, h = logoH * maxW / logoW;
+		SDL_Rect a = { r.w - m - w, m + (headH - h) / 2, w, h };
+		ui_image(scr, logoTex, logoW, logoH, "stretch", &a);
 	}
-	ui_text(scr, px * 6, r.h - px * 11, px, "A PLAY    B QUIT    OR TAP A GAME", C_DIM);
+	if (!g->supported) ui_text(scr, m, m + headH + px * 4, px, "NO MAP SCREEN - PLAYS NORMALLY", C_DIM);
+
+	/* the resume point (the game screen only), or a note that there isn't one */
+	int y = px * 50;
+	SDL_Rect area = { m, y, r.w - m * 2, gy - px * 6 - y };
+	if (thumbTex[0] || thumbTex[1]) {
+		ui_image(scr, thumbTex, GBA_W, GBA_H, "fit", &area);
+	} else if (brandTex[BRAND_NO_SAVES][0] || brandTex[BRAND_NO_SAVES][1]) {
+		int h = px * 14;
+		int w = brandW[BRAND_NO_SAVES] * h / brandH[BRAND_NO_SAVES];
+		draw_brand(scr, BRAND_NO_SAVES, (r.w - w) / 2, area.y + (area.h - h) / 2, h);
+	}
 }
 
 /* -------------------------------------------------------------- list */
@@ -347,6 +380,7 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 		SDL_Delay(15);
 	}
 	free_thumbs();
+	free_brand();
 	if (chosen < 0) return false;
 	snprintf(outPath, outSize, "%s", games[chosen].path);
 	f = fopen(lastFile, "w");

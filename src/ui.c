@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "brand.h"
 #include "font.h"
 #include "logo.h"
 #include "paths.h"
@@ -668,9 +669,10 @@ void ui_text_center(int screen, int cx, int y, int px, const char* s, SDL_Color 
 
 SDL_Surface* image_load(const char* path); /* image.c */
 
-bool ui_load_image(const char* path, SDL_Texture* out[2], int* w, int* h, bool smooth) {
+SDL_Surface* image_load_mem(const unsigned char* data, size_t size); /* image.c */
+
+static bool textures_from(SDL_Surface* s, SDL_Texture* out[2], int* w, int* h, bool smooth) {
 	out[0] = out[1] = NULL;
-	SDL_Surface* s = image_load(path);
 	if (!s) return false;
 	*w = s->w;
 	*h = s->h;
@@ -681,6 +683,14 @@ bool ui_load_image(const char* path, SDL_Texture* out[2], int* w, int* h, bool s
 	}
 	SDL_FreeSurface(s);
 	return true;
+}
+
+bool ui_load_image(const char* path, SDL_Texture* out[2], int* w, int* h, bool smooth) {
+	return textures_from(image_load(path), out, w, h, smooth);
+}
+
+bool ui_load_brand(int id, SDL_Texture* out[2], int* w, int* h) {
+	return textures_from(image_load_mem(brandImages[id].png, brandImages[id].size), out, w, h, true);
 }
 
 void ui_free_image(SDL_Texture* tex[2]) {

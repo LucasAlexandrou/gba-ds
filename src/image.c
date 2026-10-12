@@ -26,3 +26,16 @@ SDL_Surface* image_load(const char* path) {
 	stbi_image_free(px);
 	return s;
 }
+
+/* Same, from a PNG held in memory. */
+SDL_Surface* image_load_mem(const unsigned char* data, size_t size) {
+	int w, h, n;
+	unsigned char* px = stbi_load_from_memory(data, (int) size, &w, &h, &n, 4);
+	if (!px) return NULL;
+	SDL_Surface* s = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_RGBA32);
+	if (s) {
+		for (int y = 0; y < h; ++y) memcpy((Uint8*) s->pixels + y * s->pitch, px + y * w * 4, w * 4);
+	}
+	stbi_image_free(px);
+	return s;
+}

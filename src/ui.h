@@ -84,6 +84,8 @@ int ui_px(int screen);
 
 /* Loads a BMP into one texture per view. Returns false if missing. */
 bool ui_load_image(const char* path, SDL_Texture* out[2], int* w, int* h, bool smooth);
+/* One of the built-in images (BRAND_* in brand.h), smooth-scaled. */
+bool ui_load_brand(int id, SDL_Texture* out[2], int* w, int* h);
 void ui_free_image(SDL_Texture* tex[2]);
 /* A game's title logo: <asset_dir>/logos/<CODE>.png|.bmp if the user put one
  * there, else the one extracted from the ROM (<state_dir>/logos/<CODE>.png),
