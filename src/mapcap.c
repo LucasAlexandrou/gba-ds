@@ -490,24 +490,39 @@ static bool grab_rate(MapCapture* mc, const void* state) {
 	const MapProfile* p = mc->prof;
 	Emu* s = &mc->shadow;
 	int w = p->rate.w, h = p->rate.h;
-	if (w * h > 256 * 16 || !emu_state_load(s, state)) return false;
+	if ((w + 2) * (h + 2) > 256 * 16 || !emu_state_load(s, state)) return false;
 	emu_frame(s, 0);
 	for (int i = 0; i < 4 && p->rate.open[i].frames; ++i) {
 		for (int f = 0; f < p->rate.open[i].frames; ++f) emu_frame(s, p->rate.open[i].keys);
 	}
 	for (int f = 0; f < p->rate.wait; ++f) emu_frame(s, 0);
-	uint32_t edge = to_fb(p->rate.edge);
-	/* sanity check: the label's top outline runs along its first row */
-	int run = 0;
-	for (int x = p->rate.x + w / 4; x < p->rate.x + w; ++x) run += (s->fb[p->rate.y * GBA_W + x] & 0xFFFFFF) == edge;
-	if (run < w / 2) return false;
+	uint32_t text = to_fb(p->rate.text);
+	/* the digits, plus a 1-pixel outline in the map's background colour */
+	int count = 0;
+	uint32_t bg = 0xFF000000 | to_fb(p->bgColor);
 	for (int y = 0; y < h; ++y) {
-		const uint32_t* row = &s->fb[(p->rate.y + y) * GBA_W + p->rate.x];
-		int first = 0;
-		while (first < w && (row[first] & 0xFFFFFF) != edge) ++first;
 		for (int x = 0; x < w; ++x) {
-			mc->rateBuf[y * w + x] = row[x];
-			mc->rateMask[y * w + x] = x >= first;
+			mc->rateMask[y * w + x] = false;
+			if ((s->fb[(p->rate.y + y) * GBA_W + p->rate.x + x] & 0xFFFFFF) == text) ++count;
+		}
+	}
+	if (count < 12) return false; /* the pause screen didn't come up */
+	/* stored with a 1px border all round for the outline */
+	int bw = w + 2, bh = h + 2;
+	for (int y = 0; y < bh; ++y) {
+		for (int x = 0; x < bw; ++x) {
+			bool isText = false, nearText = false;
+			for (int dy = -1; dy <= 1; ++dy) {
+				for (int dx = -1; dx <= 1; ++dx) {
+					int u = x - 1 + dx, v = y - 1 + dy;
+					if (u < 0 || v < 0 || u >= w || v >= h) continue;
+					bool t = (s->fb[(p->rate.y + v) * GBA_W + p->rate.x + u] & 0xFFFFFF) == text;
+					if (t && !dx && !dy) isText = true;
+					if (t) nearText = true;
+				}
+			}
+			mc->rateBuf[y * bw + x] = isText ? (0xFF000000 | text) : bg;
+			mc->rateMask[y * bw + x] = nearText;
 		}
 	}
 	return true;
@@ -517,21 +532,23 @@ static bool grab_rate(MapCapture* mc, const void* state) {
  * has no rooms (or the emptiest one). */
 static void place_rate(MapCapture* mc) {
 	const MapProfile* p = mc->prof;
-	int w = p->rate.w, h = p->rate.h;
-	if (w > mc->cw || h + 4 > mc->ch) return;
-	int ys[2] = { 2, mc->ch - h - 2 };
+	int w = p->rate.w + 2, h = p->rate.h + 2; /* with the outline */
+	if (w + 2 > mc->cw || h + 4 > mc->ch) return;
+	int ys[2] = { 1, mc->ch - h - 1 };
+	int x0 = mc->cw - w - 1;
+	uint32_t bg = to_fb(p->bgColor) & 0xFFFFFF;
 	int best = 0, bestCount = 1 << 30;
 	for (int c = 0; c < 2; ++c) {
 		int count = 0;
-		for (int y = IMAX(ys[c] - 1, 0); y < IMIN(ys[c] + h + 1, mc->ch); ++y) {
-			for (int x = mc->cw - w - 1; x < mc->cw; ++x) {
-				if (x >= 0 && (mc->work[0][y * mc->cw + x] & 0xFFFFFF) != (to_fb(p->bgColor) & 0xFFFFFF)) ++count;
+		for (int y = ys[c]; y < ys[c] + h; ++y) {
+			for (int x = x0; x < x0 + w; ++x) {
+				if ((mc->work[0][y * mc->cw + x] & 0xFFFFFF) != bg) ++count;
 			}
 		}
 		if (count < bestCount) bestCount = count, best = c;
 		if (!count) break;
 	}
-	int x0 = mc->cw - w, y0 = ys[best];
+	int y0 = ys[best];
 	for (int i = 0; i < mc->workFrames; ++i) {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {

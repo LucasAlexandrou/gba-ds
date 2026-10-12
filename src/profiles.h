@@ -94,16 +94,16 @@ typedef struct MapProfile {
 	/* Metroid: fill the map screen with the map's own empty grid tile. */
 	bool gridBackground;
 
-	/* A label to copy from another screen onto the map (Circle of the Moon's
-	 * map has no completion rate; its pause screen does): press `open` from
-	 * the live state, wait, then crop x/y/w/h. Pixels left of the label's
-	 * outline colour `edge` (its rounded end) are left out. The label goes in
+	/* Text to copy from another screen onto the map (Circle of the Moon's map
+	 * has no completion rate; its pause screen does): press `open` from the
+	 * live state, wait, then take the pixels of colour `text` inside x/y/w/h
+	 * (the digits only), outlined in the map's background colour. It goes in
 	 * the first corner of the map (top right, then bottom right) with no rooms. */
 	struct {
 		MacroStep open[4];
 		int wait;
 		int x, y, w, h;
-		uint32_t edge;
+		uint32_t text;
 	} rate;
 
 	/* HUD sprites to hide on the game screen while the map is shown (the

@@ -65,8 +65,9 @@ static const MapProfile profiles[] = {
 		/* the bevelled boxes of the file menu (same style as name entry) */
 		.frame = { .steps = { { 0, 600 }, { K_START, 3 }, { 0, 9 }, { K_START, 3 }, { 0, 400 } },
 		           .layer = 1, .t = 4, .p = 1, .x0 = 10, .y0 = 10, .x1 = 98, .y1 = 34 },
-		/* "RATE  x.x%" from the pause screen (fully drawn ~30 frames after Start) */
-		.rate = { .open = { { K_START, 4 } }, .wait = 40, .x = 130, .y = 23, .w = 110, .h = 11, .edge = 0xEFFFEF },
+		/* the "x.x%" after RATE on the pause screen (fully drawn ~30 frames after
+		 * Start); digits only, so it fits beside a fully explored castle */
+		.rate = { .open = { { K_START, 4 } }, .wait = 40, .x = 183, .y = 25, .w = 56, .h = 7, .text = 0xEFFFEF },
 		.animFrames = 8, .animStep = 4,
 	},
 	{
