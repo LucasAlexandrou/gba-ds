@@ -113,7 +113,7 @@ static int logoW, logoH;
 static bool logoPixel;
 static uint32_t logoGen;
 
-/* built-in images: our logo, button glyphs, "no save states yet!" */
+/* built-in images: our logo, button glyphs, "no save state yet!" */
 static SDL_Texture* brandTex[BRAND_COUNT][2];
 static int brandW[BRAND_COUNT], brandH[BRAND_COUNT];
 
@@ -197,17 +197,19 @@ static void draw_preview(Config* cfg, int scr, int sel) {
 	GameEntry* g = &games[sel];
 	load_thumbs(cfg, sel);
 	if (logoTex[0] || logoTex[1]) {
+		int gameH = headH * 2;
 		int maxW = r.w - ourW - m * 3;
-		int w = logoW * headH / logoH, h = headH;
+		int w = logoW * gameH / logoH, h = gameH;
 		if (w > maxW) w = maxW, h = logoH * maxW / logoW;
-		SDL_Rect a = { r.w - m - w, m + (headH - h) / 2, w, h };
+		SDL_Rect a = { r.w - m - w, m + (gameH - h) / 2, w, h };
 		ui_image(scr, logoTex, logoW, logoH, "stretch", &a);
 	}
 	if (!g->supported) ui_text(scr, m, m + headH + px * 4, px, "NO MAP SCREEN - PLAYS NORMALLY", C_DIM);
 
-	/* the resume point (the game screen only), or a note that there isn't one */
-	int y = px * 50;
-	SDL_Rect area = { m, y, r.w - m * 2, gy - px * 6 - y };
+	/* the resume point (the game screen only), or a note that there isn't one,
+	 * with clear space above (below the game's logo) and below (above the hints) */
+	int y = m + headH * 2 + px * 16;
+	SDL_Rect area = { m, y, r.w - m * 2, gy - px * 14 - y };
 	if (thumbTex[0] || thumbTex[1]) {
 		ui_image(scr, thumbTex, GBA_W, GBA_H, "fit", &area);
 	} else if (brandTex[BRAND_NO_SAVES][0] || brandTex[BRAND_NO_SAVES][1]) {
@@ -221,7 +223,6 @@ static void draw_preview(Config* cfg, int scr, int sel) {
 
 typedef struct {
 	int rowH, headerH, listH, visible;
-	SDL_Rect exitBtn;
 } ListGeom;
 
 static ListGeom list_geom(int scr) {
@@ -232,8 +233,6 @@ static ListGeom list_geom(int scr) {
 	g.headerH = px * 20;
 	g.listH = r.h - g.headerH;
 	g.visible = g.listH / g.rowH;
-	int bw = ui_text_width("QUIT", px) + px * 10;
-	g.exitBtn = (SDL_Rect) { r.w - bw - px * 4, px * 4, bw, g.headerH - px * 8 };
 	return g;
 }
 
@@ -269,8 +268,6 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 	char hdr[64];
 	snprintf(hdr, sizeof(hdr), "GAMES (%d)", nGames);
 	ui_text(scr, px * 6, (g.headerH - px * 7) / 2, px, hdr, C_GOLD);
-	ui_fill(scr, g.exitBtn, (SDL_Color) { 70, 40, 60, 255 });
-	ui_text(scr, g.exitBtn.x + px * 5, g.exitBtn.y + (g.exitBtn.h - px * 7) / 2, px, "QUIT", C_TEXT);
 }
 
 static int clamp_scroll(int scr, int scroll) {
@@ -286,10 +283,6 @@ static int keep_visible(int scr, int sel, int scroll) {
 	if (top < scroll) scroll = top;
 	if (top + g.rowH > scroll + g.listH) scroll = top + g.rowH - g.listH;
 	return clamp_scroll(scr, scroll);
-}
-
-static bool in_rect(int x, int y, SDL_Rect r) {
-	return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 }
 
 bool library_run(Config* cfg, char* outPath, size_t outSize) {
@@ -361,9 +354,7 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 			} else if (p.kind == 2 && pressed) {
 				pressed = false;
 				if (dragging) continue;
-				if (in_rect(p.x, p.y, g.exitBtn)) {
-					quit = true;
-				} else if (p.y >= g.headerH) {
+				if (p.y >= g.headerH) {
 					int i = (p.y - g.headerH + scroll) / g.rowH;
 					if (i >= 0 && i < nGames) {
 						sel = i;
