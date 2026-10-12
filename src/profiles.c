@@ -67,17 +67,20 @@ static const MapProfile profiles[] = {
 		.crop_x = 0, .crop_y = 0, .crop_w = 240, .crop_h = 160,
 		.probes = { { 0, 0, 0xCEDECE }, { 239, 0, 0xCEDECE }, { 2, 80, 0x212921 }, { 237, 80, 0x212921 } },
 		.tolerance = 8,
-		/* inner grid only: drops the top bar (L SLEEP / area name / STATUS R) and frame */
-		.tight_x = 12, .tight_y = 16, .tight_w = 216, .tight_h = 132,
-		/* two slivers of the frame's corners */
-		.masks = { { 12, 16, 16, 8 }, { 12, 24, 8, 8 }, { 212, 16, 16, 8 } },
-		/* the "A" on the button prompt beside the minimap (the button stays) */
-		.glyphs = { { 176, 140, 14, 12, 0x001831 } },
-		.gridX = 4, .gridY = 4, .gridCell = 8,
+		/* the whole pause screen, frame included; map_crop erases its lettering:
+		 * the L and R keys, SLEEP, the area name, STATUS, and the A on the
+		 * button beside the minimap (the keys, plates and button stay) */
+		.glyphs = { { 3, 3, 6, 5, 2, { 0x000000, 0x314231 }, true },     /* L */
+		            { 232, 3, 5, 5, 2, { 0x000000, 0x314231 }, true },   /* R */
+		            { 13, 2, 35, 7, 2, { 0xFFFF73, 0xFFBD00 }, true },         /* SLEEP */
+		            { 98, 3, 44, 8, -1, { 0xCE21D6 } },              /* area name (animates), */
+		            { 99, 3, 1, 8, -1, { 0xE742EF } },               /* with the plate's */
+		            { 140, 3, 1, 8, -1, { 0xE742EF } },              /* inner bevel */
+		            { 192, 2, 35, 7, 2, { 0xFFFF73, 0xFFBD00 }, true },        /* STATUS */
+		            { 176, 140, 14, 12, 1, { 0x001831 } } },       /* A */
 		.mem = { { 0x03000C70, 0xFF, 0x05, 1 } },
 		.live = { { 0x03000C70, 0xFF, 0x04, 1 } },
 		.logo = { .wait = 200, .pressStart = true, .wait2 = 200, .layer = 1, .maxY = 104 },
-		.gridBackground = true,
 		.animFrames = 8, .animStep = 4,
 	},
 	{

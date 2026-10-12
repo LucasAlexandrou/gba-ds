@@ -12,6 +12,7 @@ struct MapCapture {
 	size_t cropPixels;
 	int cx, cy, cw, ch; /* active crop */
 	bool tight;
+	bool clean; /* map_crop: also erase button-prompt lettering (profile glyphs) */
 	uint32_t tile[16 * 16]; /* empty grid cell used to paint over masks */
 	bool tileValid;
 
@@ -176,7 +177,7 @@ static void remove_arrows(MapCapture* mc, uint32_t* out) {
 	}
 }
 
-/* Erases button-prompt letters (profile glyphs): pixels of the letter's colour
+/* Erases button-prompt letters (profile glyphs): pixels of the letter's colours
  * are replaced, outside in, by the most common colour among their already-clean
  * 8 neighbours, so the letter takes on the button face around it. */
 #define IMAX(a, b) ((a) > (b) ? (a) : (b))
@@ -184,20 +185,65 @@ static void remove_arrows(MapCapture* mc, uint32_t* out) {
 
 static void remove_glyphs(MapCapture* mc, uint32_t* out) {
 	const MapProfile* p = mc->prof;
-	for (int g = 0; g < 2 && p->glyphs[g].w; ++g) {
-		uint32_t rgb = p->glyphs[g].rgb;
+	for (int g = 0; g < 8 && p->glyphs[g].w; ++g) {
 		/* framebuffer pixels are 0xAABBGGRR */
-		uint32_t key = ((rgb >> 16) & 0xFF) | (rgb & 0xFF00) | ((rgb & 0xFF) << 16);
+		uint32_t keys[3];
+		int nk = p->glyphs[g].n > 0 ? IMIN(p->glyphs[g].n, 3) : 1;
+		for (int i = 0; i < nk; ++i) {
+			uint32_t rgb = p->glyphs[g].rgb[i];
+			keys[i] = ((rgb >> 16) & 0xFF) | (rgb & 0xFF00) | ((rgb & 0xFF) << 16);
+		}
+#define IS_KEY(c) ((c & 0xFFFFFF) == keys[0] || (nk > 1 && (c & 0xFFFFFF) == keys[1]) || \
+                   (nk > 2 && (c & 0xFFFFFF) == keys[2]))
 		int x0 = IMAX(p->glyphs[g].x, mc->cx), x1 = IMIN(p->glyphs[g].x + p->glyphs[g].w, mc->cx + mc->cw);
 		int y0 = IMAX(p->glyphs[g].y, mc->cy), y1 = IMIN(p->glyphs[g].y + p->glyphs[g].h, mc->cy + mc->ch);
 		if (x0 >= x1 || y0 >= y1) continue;
+		if (p->glyphs[g].n < 0) {
+			for (int y = y0; y < y1; ++y) {
+				for (int x = x0; x < x1; ++x) {
+					uint32_t* px = &out[(y - mc->cy) * mc->cw + (x - mc->cx)];
+					*px = (*px & 0xFF000000) | keys[0];
+				}
+			}
+			continue;
+		}
+		if (p->glyphs[g].flat) {
+			/* a flat plate: paint the letters in the plate's main colour */
+			uint32_t cols[64];
+			int counts[64], ncols = 0;
+			for (int y = y0; y < y1; ++y) {
+				for (int x = x0; x < x1; ++x) {
+					uint32_t c = out[(y - mc->cy) * mc->cw + (x - mc->cx)];
+					if (IS_KEY(c)) continue;
+					int i = 0;
+					while (i < ncols && cols[i] != c) ++i;
+					if (i == ncols) {
+						if (ncols == 64) continue;
+						cols[ncols] = c, counts[ncols++] = 0;
+					}
+					++counts[i];
+				}
+			}
+			if (!ncols) continue;
+			int best = 0;
+			for (int i = 1; i < ncols; ++i) {
+				if (counts[i] > counts[best]) best = i;
+			}
+			for (int y = y0; y < y1; ++y) {
+				for (int x = x0; x < x1; ++x) {
+					uint32_t* px = &out[(y - mc->cy) * mc->cw + (x - mc->cx)];
+					if (IS_KEY(*px)) *px = cols[best];
+				}
+			}
+			continue;
+		}
 		bool changed = true;
 		for (int pass = 0; pass < 16 && changed; ++pass) {
 			changed = false;
 			for (int y = y0; y < y1; ++y) {
 				for (int x = x0; x < x1; ++x) {
 					uint32_t* px = &out[(y - mc->cy) * mc->cw + (x - mc->cx)];
-					if ((*px & 0xFFFFFF) != key) continue;
+					if (!IS_KEY(*px)) continue;
 					uint32_t cands[8];
 					int nc = 0;
 					for (int dy = -1; dy <= 1; ++dy) {
@@ -205,7 +251,7 @@ static void remove_glyphs(MapCapture* mc, uint32_t* out) {
 							int u = x + dx - mc->cx, v = y + dy - mc->cy;
 							if ((!dx && !dy) || u < 0 || v < 0 || u >= mc->cw || v >= mc->ch) continue;
 							uint32_t c = out[v * mc->cw + u];
-							if ((c & 0xFFFFFF) != key) cands[nc++] = c;
+							if (!IS_KEY(c)) cands[nc++] = c;
 						}
 					}
 					if (nc < 2) continue; /* deep inside the letter: wait for the next pass */
@@ -229,10 +275,10 @@ static void crop(MapCapture* mc, const uint32_t* fb, uint32_t* out) {
 	for (int y = 0; y < mc->ch; ++y) {
 		memcpy(&out[y * mc->cw], &fb[(mc->cy + y) * GBA_W + mc->cx], mc->cw * sizeof(uint32_t));
 	}
+	if (mc->clean && p->glyphs[0].w) remove_glyphs(mc, out);
 	if (!mc->tight || !p->masks[0].w) return;
 	if (!mc->tileValid) find_tile(mc, fb);
 	if (p->arrows[0].w) remove_arrows(mc, out);
-	if (p->glyphs[0].w) remove_glyphs(mc, out);
 	if (!mc->tileValid) return;
 	int k = p->gridCell;
 	for (int m = 0; m < 8 && p->masks[m].w; ++m) {
@@ -379,6 +425,7 @@ MapCapture* mapcap_create(const char* romPath, const char* gameCode, bool tight)
 	mc->stateSize = emu_state_size(&mc->shadow);
 	mc->snapshot = malloc(mc->stateSize);
 	mc->tight = tight && p->tight_w > 0;
+	mc->clean = tight;
 	if (mc->tight) {
 		mc->cx = p->tight_x, mc->cy = p->tight_y, mc->cw = p->tight_w, mc->ch = p->tight_h;
 	} else {
