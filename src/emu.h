@@ -25,6 +25,15 @@ enum {
 
 struct mCore;
 
+/* A sprite to leave out when drawing (e.g. a HUD mini-map): matches when its
+ * top-left corner is inside x0..x1 / y0..y1 (y may be negative), its tile
+ * number is within tileMin..tileMax and its priority equals prio. */
+typedef struct SpriteRule {
+	int x0, y0, x1, y1;
+	int tileMin, tileMax;
+	int prio;
+} SpriteRule;
+
 typedef struct Emu {
 	struct mCore* core;
 	uint32_t* fb; /* GBA_W * GBA_H, mGBA native 32-bit color (XBGR8888, i.e. bytes R,G,B,X) */
@@ -56,5 +65,9 @@ unsigned emu_audio_rate(Emu* e);
 
 /* tools/png.c (host tools only) */
 bool write_png(const char* path, const uint32_t* px, int w, int h, int stride);
+
+/* Hide sprites matching any of the n rules (n = 0 turns it off). Display only:
+ * the game's memory and state are untouched. One emulator at a time. */
+void emu_hide_sprites(Emu* e, const SpriteRule* rules, int n);
 
 #endif

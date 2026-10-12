@@ -88,6 +88,8 @@ Until the first map is ready (title screen, intro, a fresh boot), the map screen
 With **Overlays** on (Display page), the space around the map is filled with a surround generated from each game's own graphics. Nothing is shipped; like the logos, it's extracted from the ROM once in the background and cached in `gba-ds/states/frames/`.
 
 - **Metroid: Zero Mission / Fusion:** none. Both map screens are shown whole, with the game's own frame, so there's nothing to fill. The scroll arrows are left as the games draw them.
+
+With the full map always up, the small 3×3 mini-map in the top-right corner of the Metroid games is hidden. It's left out when the picture is drawn, so the game itself is unchanged; set `map = 0` and it comes back along with the normal one-screen view.
 - **Castlevania (all three):** the map's background colour, plus the border from the game's own menus:
   - Aria of Sorrow and Harmony of Dissonance use their name-entry frame.
   - Circle of the Moon uses the bevelled boxes from its file menu.

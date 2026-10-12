@@ -1,3 +1,9 @@
+/* mGBA's gba.h uses GBA_H as its include guard, which emu.h defines as the
+ * screen height: include it first, then let emu.h take the name over. */
+#include <mgba/flags.h>
+#include <mgba/internal/gba/gba.h>
+#include <mgba/internal/gba/renderers/video-software.h>
+#undef GBA_H
 #include "emu.h"
 
 #include <mgba/flags.h>
@@ -148,4 +154,56 @@ size_t emu_audio_read(Emu* e, int16_t* out, size_t maxFrames) {
 
 unsigned emu_audio_rate(Emu* e) {
 	return e->core->audioSampleRate(e->core);
+}
+
+/* ------------------------------------------------------------ sprite hiding */
+
+static SpriteRule hideRules[8];
+static int nHideRules;
+static void (*origDrawScanline)(struct GBAVideoRenderer* renderer, int y);
+
+static bool hidden(const struct GBAObj* obj) {
+	int x = (int) (GBAObjAttributesBGetX(obj->b) << 23) >> 23;
+	int y = GBAObjAttributesAGetY(obj->a);
+	if (y >= 160) y -= 256;
+	int tile = GBAObjAttributesCGetTile(obj->c);
+	int prio = GBAObjAttributesCGetPriority(obj->c);
+	for (int i = 0; i < nHideRules; ++i) {
+		const SpriteRule* r = &hideRules[i];
+		if (x >= r->x0 && x <= r->x1 && y >= r->y0 && y <= r->y1 && tile >= r->tileMin && tile <= r->tileMax &&
+		    prio == r->prio) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* Runs before the software renderer's own scanline code: when the sprite table
+ * has changed, build the renderer's sprite list the way it would, minus the
+ * hidden sprites, and mark it clean so the renderer uses ours. */
+static void filtered_draw_scanline(struct GBAVideoRenderer* renderer, int y) {
+	struct GBAVideoSoftwareRenderer* sw = (struct GBAVideoSoftwareRenderer*) renderer;
+	if (nHideRules && sw->oamDirty) {
+		int n = GBAVideoRendererCleanOAM(sw->d.oam->obj, sw->sprites, sw->objOffsetY);
+		int kept = 0;
+		for (int i = 0; i < n; ++i) {
+			if (!hidden(&sw->sprites[i].obj)) sw->sprites[kept++] = sw->sprites[i];
+		}
+		sw->oamMax = kept;
+		sw->oamDirty = false;
+	}
+	origDrawScanline(renderer, y);
+}
+
+void emu_hide_sprites(Emu* e, const SpriteRule* rules, int n) {
+	struct GBA* gba = e->core->board;
+	struct GBAVideoRenderer* r = gba->video.renderer;
+	if (!r) return;
+	nHideRules = n > 8 ? 8 : n;
+	if (nHideRules) memcpy(hideRules, rules, sizeof(*rules) * nHideRules);
+	if (r->drawScanline != filtered_draw_scanline) {
+		origDrawScanline = r->drawScanline;
+		r->drawScanline = filtered_draw_scanline;
+	}
+	((struct GBAVideoSoftwareRenderer*) r)->oamDirty = true;
 }

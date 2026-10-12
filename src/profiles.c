@@ -96,6 +96,9 @@ static const MapProfile profiles[] = {
 		.mem = { { 0x03000C70, 0xFF, 0x05, 1 } },
 		.live = { { 0x03000C70, 0xFF, 0x04, 1 } },
 		.logo = { .wait = 200, .pressStart = true, .wait2 = 200, .layer = 1, .maxY = 104 },
+		/* the HUD mini-map in the top-right corner: a 32x32 frame (tile 220)
+		 * and the blinking 8x8 position marker, both drawn on top (priority 0) */
+		.hideSprites = { { 200, -16, 239, 24, 160, 255, 0 } },
 		.animFrames = 8, .animStep = 4,
 	},
 	{
@@ -125,6 +128,9 @@ static const MapProfile profiles[] = {
 		.mem = { { 0x03000BDE, 0xFF, 0x03, 1 } },
 		.live = { { 0x03000BDE, 0xFF, 0x01, 1 } },
 		.logo = { .wait = 200, .pressStart = true, .wait2 = 300, .layer = 1, .maxY = 125 },
+		/* the HUD mini-map in the top-right corner: a 32x32 frame (tile 220)
+		 * and the blinking 8x8 position marker, both drawn on top (priority 0) */
+		.hideSprites = { { 200, -16, 239, 24, 160, 255, 0 } },
 		.animFrames = 8, .animStep = 4,
 	},
 };

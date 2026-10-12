@@ -94,6 +94,10 @@ typedef struct MapProfile {
 	/* Metroid: fill the map screen with the map's own empty grid tile. */
 	bool gridBackground;
 
+	/* HUD sprites to hide on the game screen while the map is shown (the
+	 * Metroids' corner mini-map). */
+	SpriteRule hideSprites[4];
+
 	int animFrames; /* frames to record for the blinking/pulsing marker loop */
 	int animStep;   /* emulated frames between recorded frames */
 } MapProfile;

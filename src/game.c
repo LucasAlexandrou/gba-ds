@@ -448,6 +448,11 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		if (mc) {
 			fprintf(stderr, "map profile: %s\n", mapcap_title(mc));
 			mapcap_size(mc, &mapW, &mapH);
+			/* the full map is always up, so hide the game's own corner mini-map */
+			const MapProfile* prof = profile_find(emu.gameCode);
+			int nRules = 0;
+			while (prof && nRules < 4 && prof->hideSprites[nRules].x1) ++nRules;
+			emu_hide_sprites(&emu, prof ? prof->hideSprites : NULL, nRules);
 		} else {
 			fprintf(stderr, "no map profile for %s\n", emu.gameCode);
 		}
