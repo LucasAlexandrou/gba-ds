@@ -17,6 +17,12 @@ struct MapCapture {
 	bool tight;
 	bool clean; /* map_crop: also erase button-prompt lettering (profile glyphs) */
 	int failures; /* consecutive failed captures (guarded by lock) */
+	/* profile.rate: the label copied from the pause screen (worker thread only) */
+	uint32_t rateBuf[256 * 16];
+	bool rateMask[256 * 16];
+	bool rateValid;
+	uint32_t* rateRef; /* map (frame 0) when the label was last refreshed */
+	int captures;
 	uint32_t tile[16 * 16]; /* empty grid cell used to paint over masks */
 	bool tileValid;
 
@@ -389,6 +395,9 @@ static bool map_up(const MapProfile* p, Emu* s) {
 
 /* Runs the shadow core from `state`; returns NULL on success or a reason.
  * Fills mc->work[0..workFrames). */
+static bool grab_rate(MapCapture* mc, const void* state);
+static void place_rate(MapCapture* mc);
+
 static const char* do_capture(MapCapture* mc, const void* state) {
 	const MapProfile* p = mc->prof;
 	Emu* s = &mc->shadow;
@@ -455,7 +464,81 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 	if (!animated) {
 		mc->workFrames = 1;
 	}
+	if (p->rate.w) {
+		/* refresh the label when the map gained pixels (a new room, or the
+		 * marker moved to another one), and now and then regardless */
+		int grown = 0;
+		if (mc->rateValid) {
+			for (size_t i = 0; i < n && grown < 4; ++i) {
+				grown += (mc->rateRef[i] & 0xFFFFFF) != (mc->work[0][i] & 0xFFFFFF) &&
+				         (mc->rateRef[i] & 0xFFFFFF) == (to_fb(p->bgColor) & 0xFFFFFF);
+			}
+		}
+		if (!mc->rateValid || grown >= 4 || ++mc->captures % 8 == 0) {
+			if (grab_rate(mc, state)) {
+				mc->rateValid = true;
+				memcpy(mc->rateRef, mc->work[0], n * sizeof(uint32_t));
+			}
+		}
+		if (mc->rateValid) place_rate(mc);
+	}
 	return NULL;
+}
+
+/* Opens the pause screen in the shadow core and copies the rate label. */
+static bool grab_rate(MapCapture* mc, const void* state) {
+	const MapProfile* p = mc->prof;
+	Emu* s = &mc->shadow;
+	int w = p->rate.w, h = p->rate.h;
+	if (w * h > 256 * 16 || !emu_state_load(s, state)) return false;
+	emu_frame(s, 0);
+	for (int i = 0; i < 4 && p->rate.open[i].frames; ++i) {
+		for (int f = 0; f < p->rate.open[i].frames; ++f) emu_frame(s, p->rate.open[i].keys);
+	}
+	for (int f = 0; f < p->rate.wait; ++f) emu_frame(s, 0);
+	uint32_t edge = to_fb(p->rate.edge);
+	/* sanity check: the label's top outline runs along its first row */
+	int run = 0;
+	for (int x = p->rate.x + w / 4; x < p->rate.x + w; ++x) run += (s->fb[p->rate.y * GBA_W + x] & 0xFFFFFF) == edge;
+	if (run < w / 2) return false;
+	for (int y = 0; y < h; ++y) {
+		const uint32_t* row = &s->fb[(p->rate.y + y) * GBA_W + p->rate.x];
+		int first = 0;
+		while (first < w && (row[first] & 0xFFFFFF) != edge) ++first;
+		for (int x = 0; x < w; ++x) {
+			mc->rateBuf[y * w + x] = row[x];
+			mc->rateMask[y * w + x] = x >= first;
+		}
+	}
+	return true;
+}
+
+/* Puts the rate label into every captured frame, in the first corner that
+ * has no rooms (or the emptiest one). */
+static void place_rate(MapCapture* mc) {
+	const MapProfile* p = mc->prof;
+	int w = p->rate.w, h = p->rate.h;
+	if (w > mc->cw || h + 4 > mc->ch) return;
+	int ys[2] = { 2, mc->ch - h - 2 };
+	int best = 0, bestCount = 1 << 30;
+	for (int c = 0; c < 2; ++c) {
+		int count = 0;
+		for (int y = IMAX(ys[c] - 1, 0); y < IMIN(ys[c] + h + 1, mc->ch); ++y) {
+			for (int x = mc->cw - w - 1; x < mc->cw; ++x) {
+				if (x >= 0 && (mc->work[0][y * mc->cw + x] & 0xFFFFFF) != (to_fb(p->bgColor) & 0xFFFFFF)) ++count;
+			}
+		}
+		if (count < bestCount) bestCount = count, best = c;
+		if (!count) break;
+	}
+	int x0 = mc->cw - w, y0 = ys[best];
+	for (int i = 0; i < mc->workFrames; ++i) {
+		for (int y = 0; y < h; ++y) {
+			for (int x = 0; x < w; ++x) {
+				if (mc->rateMask[y * w + x]) mc->work[i][(y0 + y) * mc->cw + x0 + x] = mc->rateBuf[y * w + x];
+			}
+		}
+	}
 }
 
 static void* worker(void* arg) {
@@ -521,6 +604,7 @@ MapCapture* mapcap_create(const char* romPath, const char* gameCode, bool tight)
 		mc->published[i] = calloc(mc->cropPixels, sizeof(uint32_t));
 	}
 	mc->prev = calloc(mc->cropPixels, sizeof(uint32_t));
+	mc->rateRef = calloc(mc->cropPixels, sizeof(uint32_t));
 	pthread_mutex_init(&mc->lock, NULL);
 	pthread_cond_init(&mc->cond, NULL);
 	return mc;
@@ -550,6 +634,7 @@ void mapcap_destroy(MapCapture* mc) {
 		free(mc->published[i]);
 	}
 	free(mc->prev);
+	free(mc->rateRef);
 	free(mc->snapshot);
 	pthread_mutex_destroy(&mc->lock);
 	pthread_cond_destroy(&mc->cond);
