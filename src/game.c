@@ -41,7 +41,7 @@ static bool debug;
 enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
 static const char* menuLabels[] = {
 	[M_RESUME] = "RESUME", [M_SWAP] = "SWAP SCREENS", [M_SAVE] = "SAVE STATE", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_OVERLAY] = "", [M_RESTART] = "RESTART GAME",
-	[M_LOAD] = "LOAD STATE", [M_LIBRARY] = "EXIT TO EMULATOR", [M_EXIT] = "EXIT TO MAIN MENU",
+	[M_LOAD] = "LOAD STATE", [M_LIBRARY] = "CLOSE GAME", [M_EXIT] = "CLOSE GBA DS",
 };
 static int menuItems[9], nMenuItems;
 /* two pages, switched with L1/R1 or the tabs */
@@ -75,7 +75,7 @@ static bool item_enabled(int item) {
 
 static int menu_width(int scr) {
 	int px = ui_px(scr);
-	return SDL_min(screens[scr].rect.w - px * 16, ui_text_width("EXIT TO MAIN MENU", px) + px * 48);
+	return SDL_min(screens[scr].rect.w - px * 16, ui_text_width("XXXXXXXXXXXXXXXXX", px) /* menu width: 17 characters */ + px * 48);
 }
 
 static SDL_Rect item_rect(int scr, int i) {
@@ -479,19 +479,29 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		ui_osd("TAP THE SCREEN OR PRESS HOME FOR MENU");
 	}
 
+	/* The device runs at a fixed rate. The GBA's own rate follows the game's
+	 * sound settings (32768 Hz at power-on, 65536 Hz once Zero Mission is
+	 * running...) and can change at any moment, so samples go through a
+	 * converter that is rebuilt whenever it does. Opening the device at the
+	 * rate of the moment made resumed games starve and fresh boots overflow. */
 	SDL_AudioSpec want = { 0 }, have;
-	want.freq = (int) emu_audio_rate(&emu);
+	want.freq = 48000;
 	want.format = AUDIO_S16SYS;
 	want.channels = 2;
-	want.samples = 512;
+	/* GBADS_AUDIO_SAMPLES: testing only (SDL's dummy driver keeps exact time
+	 * only when the buffer is a whole number of milliseconds, e.g. 480) */
+	want.samples = getenv("GBADS_AUDIO_SAMPLES") ? atoi(getenv("GBADS_AUDIO_SAMPLES")) : 512;
 	SDL_AudioDeviceID audio = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
 	if (audio) SDL_PauseAudioDevice(audio, 0);
 	else fprintf(stderr, "no audio: %s\n", SDL_GetError());
+	SDL_AudioStream* audioConv = NULL;
+	int convFrom = 0;
 	const int targetQueued = want.freq * cfg->audioLatency / 1000;
 
 	static int16_t samples[4096 * 2];
 	uint32_t lastRoomKey = 0;
 	int sinceMapRequest = 1 << 20;
+	int lastFails = 0;
 	bool forceMap = true, wasDark = false;
 	long refreshAt = -1;
 	bool hotkeyBack = !strcmp(cfg->hotkey, "back");
@@ -647,6 +657,27 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		 * which is what made the lag worse every time. */
 		int queuedNow = audio ? (int) (SDL_GetQueuedAudioSize(audio) / 4) : 0;
 		bool dropAudio = queuedNow > targetQueued * 3; /* hard cap on drift */
+		/* Health report (always on, every 5 s when something went wrong): audio
+		 * underruns (the queue ran dry = a crackle), slow loop iterations, and
+		 * how often the background map capture was running. */
+		{
+			static int underruns, slow, captureBusy, n;
+			static Uint64 lastIter;
+			Uint64 nowT = SDL_GetPerformanceCounter();
+			if (lastIter && !ff && (nowT - lastIter) * 1000 / SDL_GetPerformanceFrequency() > 25) ++slow;
+			lastIter = nowT;
+			if (audio && frameCount > 120 && queuedNow == 0 && !ff) ++underruns;
+			if (mc && mapcap_busy(mc)) ++captureBusy;
+			if (++n >= 300) {
+				if (underruns || slow || debug) {
+					fprintf(stderr, "frame %llu: last 5 s: %d audio underrun(s), %d slow frame(s), map capture busy %d%%, "
+					                "audio queue %d ms\n",
+					        (unsigned long long) frameCount, underruns, slow, captureBusy * 100 / n,
+					        queuedNow * 1000 / want.freq);
+				}
+				underruns = slow = captureBusy = n = 0;
+			}
+		}
 		if (debug && audio && frameCount % 30 == 0) {
 			fprintf(stderr, "audio queue %d ms%s\n", queuedNow * 1000 / want.freq, ff ? " (ff)" : "");
 		}
@@ -666,7 +697,19 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 					}
 					got = outN;
 				}
-				if (got) SDL_QueueAudio(audio, samples, got * 4);
+				if (!got) continue;
+				int rate = (int) emu_audio_rate(&emu);
+				if (rate != convFrom || !audioConv) {
+					if (audioConv) SDL_FreeAudioStream(audioConv);
+					audioConv = SDL_NewAudioStream(AUDIO_S16SYS, 2, rate, AUDIO_S16SYS, 2, want.freq);
+					if (debug || convFrom) fprintf(stderr, "frame %llu: game audio rate %d Hz\n", (unsigned long long) frameCount, rate);
+					convFrom = rate;
+				}
+				if (!audioConv) continue;
+				SDL_AudioStreamPut(audioConv, samples, (int) got * 4);
+				static int16_t conv[8192 * 2];
+				int bytes;
+				while ((bytes = SDL_AudioStreamGet(audioConv, conv, sizeof(conv))) > 0) SDL_QueueAudio(audio, conv, bytes);
 			}
 		}
 		++frameCount;
@@ -684,7 +727,20 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			}
 			uint32_t rk = mapcap_room_key(mc, &emu);
 			bool roomChanged = rk && rk != lastRoomKey;
-			if ((forceMap || roomChanged || sinceMapRequest >= cfg->mapInterval) && mapcap_live_ok(mc, &emu)) {
+			/* Back off while captures keep failing (e.g. the game says "playing"
+			 * but the map can't open: intro cutscenes, briefings). Each failed
+			 * attempt emulates a few seconds in the background, which starves
+			 * the game and its audio on slower devices. */
+			const char* why = NULL;
+			int fails = mapcap_failures(mc, &why);
+			if (fails != lastFails) {
+				if (debug && fails) fprintf(stderr, "frame %llu: map capture failed (%d in a row): %s\n",
+				                            (unsigned long long) frameCount, fails, why ? why : "?");
+				lastFails = fails;
+			}
+			int interval = cfg->mapInterval << SDL_min(fails, 3);
+			bool due = sinceMapRequest >= interval || (!fails && (forceMap || roomChanged));
+			if (due && !mapcap_busy(mc) && mapcap_live_ok(mc, &emu)) {
 				if (mapcap_request(mc, &emu)) {
 					sinceMapRequest = 0;
 					lastRoomKey = rk;
@@ -737,6 +793,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	fprintf(stderr, "leaving game after %llu frames\n", (unsigned long long) frameCount);
 	auto_save();
 	if (audio) SDL_CloseAudioDevice(audio);
+	if (audioConv) SDL_FreeAudioStream(audioConv);
 	mapcap_destroy(mc);
 	mc = NULL;
 	emu_close(&emu); /* flushes the battery save */

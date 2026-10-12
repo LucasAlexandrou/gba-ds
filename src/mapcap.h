@@ -46,6 +46,8 @@ MapResult mapcap_capture_sync(MapCapture* mc, Emu* live);
 bool mapcap_request(MapCapture* mc, Emu* live);
 bool mapcap_busy(MapCapture* mc);
 bool mapcap_poll(MapCapture* mc, uint32_t lastSerial, MapResult* out);
+/* Consecutive failed captures since the last success (and the last reason). */
+int mapcap_failures(MapCapture* mc, const char** why);
 
 /* Cheap check on the live core: is this a moment where capturing makes sense?
  * (in gameplay, not in a menu). Profiles without a check return true. */

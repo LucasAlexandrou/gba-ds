@@ -44,7 +44,7 @@ The app opens on a game list:
 
 - **Resume:** leaving a game saves its state automatically, and launching it again picks up exactly there. Turn this off with `auto_resume = 0`. Battery saves are written as usual too, so in-game saves are never at risk.
 - **Pause menu:** tap the touchscreen or press **HOME**. Both screens dim, the game and its sound pause, and the menu appears on the touchscreen. It has two pages. Switch between them with **L1/R1** or by tapping the tabs at the top.
-  - **Game:** Resume · Restart game (tap twice; unsaved progress is lost) · Save state · Load state (greyed out until you've saved one) · Exit to emulator (back to the game list) · Exit to main menu (back to EmulationStation). Both exits save a resume point first.
+  - **Game:** Resume · Restart game (tap twice; unsaved progress is lost) · Save state · Load state (greyed out until you've saved one) · Close game (back to the game list) · Close GBA DS (back to EmulationStation). Both save a resume point first.
   - **Display:** Swap screens · Scale (pixel perfect / full width) · LCD grid · Overlays (on/off) · Show FPS (frames per second and % of full speed).
 
   Display choices are remembered for next time. The menu works by touch or with the D-pad and A; B, Start or HOME closes it.
@@ -133,7 +133,7 @@ Settings live in `gba-ds.cfg` next to the binary. The file is commented. The opt
   - Fusion also keeps its whole pause screen. The L and R key letters, SLEEP, the area name and STATUS are erased, and the plates (which cycle through four colours) are recoloured to the frame's greys. The "A OBJECTIVE" prompt is removed and the map grid behind it rebuilt, inside two small boxes around the button and the word.
 - `map_interval`: frames between periodic map refreshes (default 90). The map also refreshes after every room transition.
 
-Logs go to `/storage/roms/ports/gba-ds/gba-ds.log`. With `GBADS_DEBUG=1`, the log also records every button, key and touch.
+Logs go to `/storage/roms/ports/gba-ds/gba-ds.log`. If the sound ever crackles, the log says so: every 5 seconds with a problem it reports audio underruns, slow frames and how busy the background map capture was. With `GBADS_DEBUG=1`, the log also records every button, key and touch.
 
 ## Building
 

@@ -2,6 +2,9 @@
 #include "profiles.h"
 
 #include <pthread.h>
+#include <sys/resource.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -13,6 +16,7 @@ struct MapCapture {
 	int cx, cy, cw, ch; /* active crop */
 	bool tight;
 	bool clean; /* map_crop: also erase button-prompt lettering (profile glyphs) */
+	int failures; /* consecutive failed captures (guarded by lock) */
 	uint32_t tile[16 * 16]; /* empty grid cell used to paint over masks */
 	bool tileValid;
 
@@ -457,6 +461,8 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 static void* worker(void* arg) {
 	MapCapture* mc = arg;
 	size_t n = mc->cropPixels;
+	/* the live game (and its audio) gets the CPU first */
+	setpriority(PRIO_PROCESS, (id_t) syscall(SYS_gettid), 10);
 	pthread_mutex_lock(&mc->lock);
 	while (mc->running) {
 		if (!mc->pending) {
@@ -471,6 +477,7 @@ static void* worker(void* arg) {
 
 		pthread_mutex_lock(&mc->lock);
 		mc->lastError = err;
+		mc->failures = err ? mc->failures + 1 : 0;
 		if (!err) {
 			for (int i = 0; i < mc->workFrames; ++i) {
 				memcpy(mc->published[i], mc->work[i], n * sizeof(uint32_t));
@@ -634,6 +641,14 @@ bool mapcap_poll(MapCapture* mc, uint32_t lastSerial, MapResult* out) {
 	}
 	pthread_mutex_unlock(&mc->lock);
 	return fresh;
+}
+
+int mapcap_failures(MapCapture* mc, const char** why) {
+	pthread_mutex_lock(&mc->lock);
+	int f = mc->failures;
+	if (why) *why = mc->lastError;
+	pthread_mutex_unlock(&mc->lock);
+	return f;
 }
 
 bool mapcap_live_ok(MapCapture* mc, Emu* live) {
