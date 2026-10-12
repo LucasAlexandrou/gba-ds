@@ -279,27 +279,44 @@ static void load_overlay(void) {
 	}
 }
 
+/* Text size for the FPS counter and messages: fits the empty band (gap px tall)
+ * above or below the picture, even in full-width scaling. */
+static int small_text_px(int s, int gap) {
+	return SDL_max(1, SDL_min(SDL_min(ui_px(s) - 1, 3), (gap - 6) / 7)); /* 7 rows tall, 3px margin each side */
+}
+
+/* Messages ("RESUMED", "STATE SAVED"...): bottom left of the touchscreen (the
+ * bottom screen), in the band below the picture, at the FPS counter's size. */
+static void draw_osd(void) {
+	const char* osd = ui_osd_text();
+	if (!osd || menuOpen) return;
+	int s = ui_touch_screen();
+	SDL_Rect r = screens[s].rect;
+	bool gameHere = nScreens == 1 || s == game_screen() || !(mc && cfg->map);
+	SDL_Rect img = ui_image_rect(s, GBA_W, GBA_H, gameHere ? cfg->scale : cfg->mapScale);
+	int gap = r.h - (img.y + img.h);
+	int fpx = small_text_px(s, img.y < gap ? img.y : gap);
+	int fy = gap >= 7 * fpx + 2 ? img.y + img.h + (gap - 7 * fpx) / 2 : r.h - fpx * 9;
+	int fx = img.x + fpx * 2;
+	ui_text(s, fx + 1, fy + 1, fpx, osd, (SDL_Color) { 0, 0, 0, 255 });
+	ui_text(s, fx, fy, fpx, osd, C_TEXT);
+}
+
 static void draw_game(void) {
 	bool mapOn = mc && cfg->map;
 	for (int s = 0; s < nScreens; ++s) {
 		bool showGame = nScreens == 1 ? !(singleShowsMap && mapOn) : (s == game_screen() || !mapOn);
-		int px = ui_px(s);
 		SDL_Rect r = screens[s].rect;
 		if (showGame) {
 			if (nScreens == 2 && !mapOn && s != game_screen()) continue; /* no map: leave other screen black */
 			ui_image_pixels(s, gameTex, GBA_W, GBA_H, cfg->scale, cfg->lcdGrid);
-			const char* osd = ui_osd_text();
-			if (osd && !menuOpen) {
-				ui_text(s, px * 4 + 2, r.h - px * 12 + 2, px, osd, (SDL_Color) { 0, 0, 0, 255 });
-				ui_text(s, px * 4, r.h - px * 12, px, osd, C_TEXT);
-			}
 			if (cfg->showFps) {
 				/* sized to sit in the empty band above the picture */
 				char buf[48];
 				snprintf(buf, sizeof(buf), "%.1f FPS  %d%%", fps, (int) (speedPct + 0.5));
 				SDL_Rect img = ui_image_rect(s, GBA_W, GBA_H, cfg->scale);
 				int gap = img.y;
-				int fpx = SDL_max(1, SDL_min(SDL_min(px - 1, 3), (gap - 6) / 7)); /* 7 rows tall, 3px margin each side */
+				int fpx = small_text_px(s, gap);
 				int fy = gap >= 7 * fpx + 2 ? (gap - 7 * fpx) / 2 : fpx * 2;
 				int fx = img.x + fpx * 2;
 				ui_text(s, fx + 1, fy + 1, fpx, buf, (SDL_Color) { 0, 0, 0, 255 });
@@ -323,6 +340,7 @@ static void draw_game(void) {
 			if (overlayTex[0] || overlayTex[1]) ui_image(s, overlayTex, overlayW, overlayH, "stretch", NULL);
 		}
 	}
+	draw_osd();
 }
 
 static void open_menu(void) {
