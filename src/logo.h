@@ -24,6 +24,9 @@ void logo_request(const char* romPath, const char* gameCode, const char* outPng)
 void frame_request(const char* romPath, const char* gameCode, const char* outPng);
 /* Changes every time a queued logo finishes; compare to know when to reload. */
 uint32_t logo_generation(void);
+/* Background work done / total (queued + running + done) since the queue was
+ * last idle; done == total when there's nothing left to do. */
+void logo_progress(int* done, int* total);
 void logo_shutdown(void);
 
 #endif

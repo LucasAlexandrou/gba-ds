@@ -4,7 +4,7 @@ sheen, lettered in the logo's style (GBA on the top screen, DS on the bottom).
 
     tools/make_icon.py FUTURA_BOLD_ITALIC.otf GAMECUBEN.ttf [OUT.png]
 
-Default output: assets/brand/gba-ds-icon.png (1024x1024, white background). Needs Pillow.
+Default output: assets/brand/gba-ds-icon.png (1024x1024, very light purple background). Needs Pillow.
 """
 import os
 import sys
@@ -17,6 +17,7 @@ S = 1024 * K
 PURPLE = (92, 72, 196, 255)
 WHITE = (255, 255, 255, 255)
 NAVY = (16, 32, 96, 255)
+BACKGROUND = (243, 239, 253, 255)  # very light purple
 
 
 def k(v):
@@ -115,7 +116,7 @@ def main():
     futura, gamecuben = sys.argv[1], sys.argv[2]
     out = sys.argv[3] if len(sys.argv) > 3 else os.path.join(ROOT, "assets", "brand", "gba-ds-icon.png")
 
-    img = Image.new("RGBA", (S, S), WHITE)
+    img = Image.new("RGBA", (S, S), BACKGROUND)
     # two 3:2 screens stacked, filling the square
     m, gap = 72, 44   # margin to the edge of the image, gap between screens
     sh = (1024 - 2 * m - gap) / 2

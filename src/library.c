@@ -270,6 +270,23 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 	ui_text(scr, px * 6, (g.headerH - px * 7) / 2, px, hdr, C_GOLD);
 }
 
+/* "Preparing games" over a dimmed screen, with a progress bar. */
+static void draw_wait(int scr, int done, int total) {
+	SDL_Rect r = screens[scr].rect;
+	int px = ui_px(scr);
+	ui_dim(scr, 235);
+	int cy = r.h / 2;
+	ui_text_center(scr, r.w / 2, cy - px * 16, px, "PREPARING GAMES...", C_TEXT);
+	int bw = r.w / 2, bh = px * 4;
+	SDL_Rect bar = { (r.w - bw) / 2, cy - bh / 2, bw, bh };
+	ui_fill(scr, bar, C_ROW);
+	if (total > 0) ui_fill(scr, (SDL_Rect) { bar.x, bar.y, bw * done / total, bh }, C_SEL);
+	char line[64];
+	snprintf(line, sizeof(line), "%d OF %d", done, total);
+	ui_text_center(scr, r.w / 2, cy + px * 8, px, line, C_DIM);
+	ui_text_center(scr, r.w / 2, cy + px * 20, px, "FIRST RUN ONLY.  B: BACK", C_DIM);
+}
+
 static int clamp_scroll(int scr, int scroll) {
 	ListGeom g = list_geom(scr);
 	int max = nGames * g.rowH - g.listH;
@@ -306,6 +323,7 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 	bool dragging = false, pressed = false;
 	int pressY = 0, pressScroll = 0;
 	int chosen = -1;
+	int waiting = -1; /* chosen, but the background extraction isn't done yet */
 	bool quit = false;
 	int repeat = 0;
 
@@ -322,6 +340,30 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 		ui_read_buttons();
 		ls = ui_touch_screen();
 		ListGeom g = list_geom(ls);
+
+		/* The first time games are listed, their logos and map borders are
+		 * pulled out of the ROMs in the background. Wait for that before
+		 * starting a game so the game doesn't compete with it for the CPU
+		 * (which made the audio crackle on the first launch). */
+		if (waiting >= 0) {
+			int done, total;
+			logo_progress(&done, &total);
+			if (done >= total) {
+				chosen = waiting;
+				break;
+			}
+			Pointer p;
+			while (ui_next_pointer(&p)) {
+			}
+			if (btn_pressed(B_B) || btn_released(B_HOME)) waiting = -1;
+			ui_clear();
+			draw_list(cfg, ls, sel, scroll);
+			if (nScreens > 1) draw_preview(cfg, ui_other_screen(), sel);
+			for (int s = 0; s < nScreens; ++s) draw_wait(s, done, total);
+			ui_present();
+			SDL_Delay(15);
+			continue;
+		}
 
 		if (nGames) {
 			int dir = 0;
@@ -362,6 +404,12 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 					}
 				}
 			}
+		}
+
+		if (chosen >= 0) {
+			int done, total;
+			logo_progress(&done, &total);
+			if (done < total) waiting = chosen, chosen = -1;
 		}
 
 		ui_clear();

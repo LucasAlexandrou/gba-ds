@@ -9,7 +9,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wall"
@@ -240,6 +243,7 @@ static Job* queue;
 static bool running, stopping;
 static pthread_t thread;
 static volatile uint32_t generation;
+static int pending, finished; /* jobs queued or running / done since the queue last went idle */
 
 static bool exists(const char* p) {
 	struct stat st;
@@ -248,6 +252,8 @@ static bool exists(const char* p) {
 
 static void* worker(void* arg) {
 	(void) arg;
+	/* background work: let the game (and its audio) have the CPU first */
+	setpriority(PRIO_PROCESS, (id_t) syscall(SYS_gettid), 19);
 	pthread_mutex_lock(&qlock);
 	while (!stopping) {
 		Job* j = queue;
@@ -264,6 +270,8 @@ static void* worker(void* arg) {
 		free(j);
 		__atomic_add_fetch(&generation, 1, __ATOMIC_SEQ_CST);
 		pthread_mutex_lock(&qlock);
+		--pending;
+		++finished;
 	}
 	pthread_mutex_unlock(&qlock);
 	return NULL;
@@ -282,6 +290,8 @@ static void enqueue(const char* romPath, const char* gameCode, const char* outPn
 	snprintf(j->code, sizeof(j->code), "%.4s", gameCode);
 	snprintf(j->out, sizeof(j->out), "%s", outPng);
 	j->frame = frame;
+	if (!pending) finished = 0;
+	++pending;
 	Job** tail = &queue;
 	while (*tail) tail = &(*tail)->next;
 	*tail = j;
@@ -307,6 +317,13 @@ void frame_request(const char* romPath, const char* gameCode, const char* outPng
 	enqueue(romPath, gameCode, outPng, true);
 }
 
+void logo_progress(int* done, int* total) {
+	pthread_mutex_lock(&qlock);
+	*done = finished;
+	*total = finished + pending;
+	pthread_mutex_unlock(&qlock);
+}
+
 uint32_t logo_generation(void) {
 	return __atomic_load_n(&generation, __ATOMIC_SEQ_CST);
 }
@@ -320,6 +337,7 @@ void logo_shutdown(void) {
 		queue = j->next;
 		free(j);
 	}
+	pending = 0;
 	pthread_cond_signal(&qcond);
 	pthread_mutex_unlock(&qlock);
 	if (running) pthread_join(thread, NULL);
