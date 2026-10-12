@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Renders the square GBA DS icon: a purple horizontal handheld silhouette with a
-second screen rising above the first, white screens and buttons, and the logo's
-lettering (GBA on the top screen, DS on the bottom).
+"""Renders the square GBA DS icon: two stacked rounded screens with a glass
+sheen, lettered in the logo's style (GBA on the top screen, DS on the bottom).
 
     tools/make_icon.py FUTURA_BOLD_ITALIC.otf GAMECUBEN.ttf [OUT.png]
 
@@ -24,9 +23,53 @@ def k(v):
     return int(round(v * K))
 
 
-def smooth_mask(mask, r):
-    """Round off concave corners (fillets) and convex ones a little: blur, threshold."""
-    return mask.filter(ImageFilter.GaussianBlur(k(r))).point(lambda v: 255 if v >= 128 else 0)
+def rounded(box, r):
+    m = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(m).rounded_rectangle(tuple(k(v) for v in box), radius=k(r), fill=255)
+    return m
+
+
+def gradient(top, bottom):
+    """Vertical gradient across the whole canvas."""
+    g = Image.new("RGBA", (1, 256))
+    for y in range(256):
+        t = y / 255
+        g.putpixel((0, y), tuple(round(a + (b - a) * t) for a, b in zip(top, bottom)) + (255,))
+    return g.resize((S, S), Image.BILINEAR)
+
+
+def screen(img, box):
+    """One screen: navy rim, purple glass with a gradient, and a diagonal sheen."""
+    x0, y0, x1, y1 = box
+    rim, r = 22, 78
+    img.paste(Image.new("RGBA", (S, S), NAVY), (0, 0), rounded(box, r))
+    inner = (x0 + rim, y0 + rim, x1 - rim, y1 - rim)
+    glass = rounded(inner, r - rim)
+    h = y1 - y0
+    grad = gradient((122, 104, 236), (58, 42, 156))
+    # gradient spans this screen only
+    band = grad.crop((0, 0, S, S)).resize((S, k(h)), Image.BILINEAR)
+    layer = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    layer.paste(band, (0, k(y0)))
+    img.paste(layer, (0, 0), glass)
+
+    sheen = Image.new("L", (S, S), 0)
+    d = ImageDraw.Draw(sheen)
+    w = x1 - x0
+    # broad soft highlight over the top half
+    d.rounded_rectangle(tuple(k(v) for v in (x0 + rim, y0 + rim, x1 - rim, y0 + h * 0.48)),
+                        radius=k(r - rim), fill=40)
+    # two diagonal glints
+    for off, width, a in ((0.18, 0.16, 70), (0.40, 0.06, 55)):
+        bx = x0 + w * off
+        d.polygon([(k(bx), k(y1)), (k(bx + w * width), k(y1)),
+                   (k(bx + w * width + h * 0.9), k(y0)), (k(bx + h * 0.9), k(y0))], fill=a)
+    sheen = Image.composite(sheen, Image.new("L", (S, S), 0), glass)
+    white = Image.new("RGBA", (S, S), WHITE)
+    white.putalpha(sheen)
+    img.alpha_composite(white)
+    return inner
+
 
 
 def sized(path, cap):
@@ -72,62 +115,22 @@ def main():
     futura, gamecuben = sys.argv[1], sys.argv[2]
     out = sys.argv[3] if len(sys.argv) > 3 else os.path.join(ROOT, "assets", "brand", "gba-ds-icon.png")
 
-    # ---- body: the usual wide handheld, plus a housing for the second screen above
-    body = Image.new("L", (S, S), 0)
-    d = ImageDraw.Draw(body)
-    bx0, by0, bx1, by1 = 56, 500, 968, 884
-    d.rounded_rectangle((k(bx0), k(by0 + 24), k(bx1), k(by1)), radius=k(176), fill=255)   # grips
-    d.rounded_rectangle((k(200), k(by0), k(824), k(by1)), radius=k(60), fill=255)         # centre
-    # shoulders: the grips rise slightly above the centre section
-    d.ellipse((k(bx0 + 20), k(by0 - 6), k(bx0 + 300), k(by0 + 200)), fill=255)
-    d.ellipse((k(bx1 - 300), k(by0 - 6), k(bx1 - 20), k(by0 + 200)), fill=255)
-    hx0, hx1, hy0 = 240, 784, 120                                                          # top-screen housing
-    d.rounded_rectangle((k(hx0), k(hy0), k(hx1), k(by0 + 80)), radius=k(64), fill=255)
-    body = smooth_mask(body, 10)
-
     img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    img.paste(Image.new("RGBA", (S, S), PURPLE), (0, 0), body)
+    # two 3:2 screens stacked, filling the square
+    m, gap = 40, 44
+    sh = (1024 - 2 * m - gap) / 2
+    sw = sh * 1.5
+    x0 = (1024 - sw) / 2
+    top = screen(img, (x0, m, x0 + sw, m + sh))
+    bot = screen(img, (x0, m + sh + gap, x0 + sw, 1024 - m))
 
-    # ---- white parts
-    w = Image.new("L", (S, S), 0)
-    d = ImageDraw.Draw(w)
-    sw_, sh_ = 372, 248                       # screens, 3:2
-    sx0 = 512 - sw_ // 2
-    top_scr = (sx0, 180, sx0 + sw_, 180 + sh_)
-    bot_scr = (sx0, 560, sx0 + sw_, 560 + sh_)
-    for r in (top_scr, bot_scr):
-        d.rounded_rectangle(tuple(k(v) for v in r), radius=k(14), fill=255)
-    # d-pad
-    cx, cy, arm, th = 170, 676, 66, 40
-    d.rounded_rectangle((k(cx - arm), k(cy - th / 2), k(cx + arm), k(cy + th / 2)), radius=k(8), fill=255)
-    d.rounded_rectangle((k(cx - th / 2), k(cy - arm), k(cx + th / 2), k(cy + arm)), radius=k(8), fill=255)
-    # A / B
-    for (x, y) in ((806, 708), (880, 650)):
-        d.ellipse((k(x - 36), k(y - 36), k(x + 36), k(y + 36)), fill=255)
-    # start / select
-    for y in (790, 832):
-        d.ellipse((k(250 - 13), k(y - 13), k(250 + 13), k(y + 13)), fill=255)
-    # power light
-    d.ellipse((k(878 - 9), k(566 - 9), k(878 + 9), k(566 + 9)), fill=255)
-    # speaker slits
-    for i in range(5):
-        x = 802 + i * 22
-        d.rounded_rectangle((k(x), k(782 + i * 4), k(x + 8), k(842 - (4 - i) * 0)), radius=k(4), fill=255)
-    img.paste(Image.new("RGBA", (S, S), WHITE), (0, 0), w)
-
-    # ---- lettering in the logo's style
     cap = 400
-    place(img, word("GBA", futura, cap, 88), tuple(k(v) for v in top_scr))
-    place(img, word("DS", gamecuben, cap, 88), tuple(k(v) for v in bot_scr), fill=0.62)
+    place(img, word("GBA", futura, cap, 88), tuple(k(v) for v in top), fill=0.80)
+    place(img, word("DS", gamecuben, cap, 88), tuple(k(v) for v in bot), fill=0.66)
 
-    img = img.crop(img.getbbox())
-    # centre on a square canvas with a small margin
-    side = max(img.width, img.height) + k(48)
-    sq = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-    sq.alpha_composite(img, ((side - img.width) // 2, (side - img.height) // 2))
-    sq = sq.resize((1024, 1024), Image.LANCZOS)
+    img = img.resize((1024, 1024), Image.LANCZOS)
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    sq.save(out)
+    img.save(out)
     print(out)
 
 
