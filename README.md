@@ -129,7 +129,7 @@ Settings live in `gba-ds.cfg` next to the binary. The file is commented. The opt
   - `single` uses one screen, and L2 flips between game and map.
 - `scale` / `map_scale`, `lcd_grid`, `lcd_strength`: the display options from the pause menu, plus `scale = stretch` and grid darkness. Full width keeps pixels sharp: the image is scaled up by a whole number on the GPU, then filtered down to the final size. The LCD grid is drawn over that same image, so it costs essentially no CPU.
 - `map_crop`: on by default. It tidies the Metroid map screens. Set it to 0 to show the pause screen exactly as the game draws it.
-  - Zero Mission keeps its whole pause screen, frame included, and only the lettering is erased: the L and R key letters, SLEEP, the area name, STATUS, and the A on the button beside the minimap. The keys, plates and button stay.
+  - Zero Mission keeps its whole pause screen, frame included, and only the lettering is erased: the L and R key letters, SLEEP, the area name, STATUS, and the A on the button beside the minimap. The keys, plates and button stay; the blank plates are recoloured from magenta to the dark grey-green of the curved pieces beside them so they don't stand out.
   - Fusion is cropped to the grid itself, without the frame or the animated title bar, and its "A OBJECTIVE" prompt is covered with empty grid tiles.
 - `map_interval`: frames between periodic map refreshes (default 90). The map also refreshes after every room transition.
 

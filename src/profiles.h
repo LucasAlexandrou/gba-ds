@@ -53,6 +53,9 @@ typedef struct MapProfile {
 	 * common other colour in the rect), which leaves the button or plate they
 	 * sit on untouched. */
 	struct { int x, y, w, h; int n; uint32_t rgb[3]; bool flat; } glyphs[8];
+	/* Recolouring (when map_crop is on, after glyphs): inside the rect, each
+	 * colour from[i] becomes to[i] (0xRRGGBB, n pairs). */
+	struct { int x, y, w, h; int n; uint32_t from[4], to[4]; } recolor[4];
 
 	Probe probes[8];
 	int minProbes;    /* how many probes must match (0 = all) */

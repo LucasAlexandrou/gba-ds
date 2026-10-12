@@ -270,12 +270,37 @@ static void remove_glyphs(MapCapture* mc, uint32_t* out) {
 	}
 }
 
+static uint32_t to_fb(uint32_t rgb) { /* 0xRRGGBB -> framebuffer 0xBBGGRR */
+	return ((rgb >> 16) & 0xFF) | (rgb & 0xFF00) | ((rgb & 0xFF) << 16);
+}
+
+static void recolor(MapCapture* mc, uint32_t* out) {
+	const MapProfile* p = mc->prof;
+	for (int r = 0; r < 4 && p->recolor[r].w; ++r) {
+		int x0 = IMAX(p->recolor[r].x, mc->cx), x1 = IMIN(p->recolor[r].x + p->recolor[r].w, mc->cx + mc->cw);
+		int y0 = IMAX(p->recolor[r].y, mc->cy), y1 = IMIN(p->recolor[r].y + p->recolor[r].h, mc->cy + mc->ch);
+		int n = IMIN(p->recolor[r].n, 4);
+		for (int y = y0; y < y1; ++y) {
+			for (int x = x0; x < x1; ++x) {
+				uint32_t* px = &out[(y - mc->cy) * mc->cw + (x - mc->cx)];
+				for (int i = 0; i < n; ++i) {
+					if ((*px & 0xFFFFFF) == to_fb(p->recolor[r].from[i])) {
+						*px = (*px & 0xFF000000) | to_fb(p->recolor[r].to[i]);
+						break;
+					}
+				}
+			}
+		}
+	}
+}
+
 static void crop(MapCapture* mc, const uint32_t* fb, uint32_t* out) {
 	const MapProfile* p = mc->prof;
 	for (int y = 0; y < mc->ch; ++y) {
 		memcpy(&out[y * mc->cw], &fb[(mc->cy + y) * GBA_W + mc->cx], mc->cw * sizeof(uint32_t));
 	}
 	if (mc->clean && p->glyphs[0].w) remove_glyphs(mc, out);
+	if (mc->clean && p->recolor[0].w) recolor(mc, out);
 	if (!mc->tight || !p->masks[0].w) return;
 	if (!mc->tileValid) find_tile(mc, fb);
 	if (p->arrows[0].w) remove_arrows(mc, out);
