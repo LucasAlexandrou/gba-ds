@@ -30,6 +30,7 @@ You see the real in-game map with every detail the game draws (explored rooms, s
 1. Unzip `gba-ds-rocknix-aarch64.zip` into `/storage/roms/ports/`. You'll get a `gba-ds/` folder and a **GBA DS** entry.
 2. Keep your **unzipped** `.gba` ROMs in `/storage/roms/gba/` (subfolders are fine). Zipped ROMs aren't supported yet.
 3. In EmulationStation, update the game lists and launch **GBA DS** from Ports.
+4. Optional: the zip also puts an icon at `/storage/roms/ports/images/GBA DS.png`. To show it, select **GBA DS** in Ports, open the game options (usually **SELECT**), choose **Edit this game's metadata**, and set **Image** to that file.
 
 The app opens on a game list:
 - The list is rebuilt from the ROM folder every time it opens, so games you add or remove show up with nothing to re-run.

@@ -69,6 +69,9 @@ mkdir -p "$PKG/overlays"
 printf "Put map-screen overlay PNGs here: <CODE>-integer.png, <CODE>-fit.png or <CODE>.png (see README).\n" > "$PKG/overlays/README.txt"
 cp README.md "$PKG/README.md"
 cp "dist/GBA DS.sh" "$ROOT/build/pkg/"
+# EmulationStation artwork for the Ports entry
+mkdir -p "$ROOT/build/pkg/images"
+cp assets/brand/gba-ds-icon.png "$ROOT/build/pkg/images/GBA DS.png"
 chmod +x "$PKG"/*.sh "$PKG/gba-ds" "$ROOT/build/pkg/GBA DS.sh"
-(cd "$ROOT/build/pkg" && rm -f "$ROOT/dist/gba-ds-rocknix-aarch64.zip" && zip -qr "$ROOT/dist/gba-ds-rocknix-aarch64.zip" gba-ds "GBA DS.sh")
+(cd "$ROOT/build/pkg" && rm -f "$ROOT/dist/gba-ds-rocknix-aarch64.zip" && zip -qr "$ROOT/dist/gba-ds-rocknix-aarch64.zip" gba-ds "GBA DS.sh" images)
 echo "built dist/gba-ds-rocknix-aarch64.zip"
