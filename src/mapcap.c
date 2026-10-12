@@ -176,6 +176,54 @@ static void remove_arrows(MapCapture* mc, uint32_t* out) {
 	}
 }
 
+/* Erases button-prompt letters (profile glyphs): pixels of the letter's colour
+ * are replaced, outside in, by the most common colour among their already-clean
+ * 8 neighbours, so the letter takes on the button face around it. */
+#define IMAX(a, b) ((a) > (b) ? (a) : (b))
+#define IMIN(a, b) ((a) < (b) ? (a) : (b))
+
+static void remove_glyphs(MapCapture* mc, uint32_t* out) {
+	const MapProfile* p = mc->prof;
+	for (int g = 0; g < 2 && p->glyphs[g].w; ++g) {
+		uint32_t rgb = p->glyphs[g].rgb;
+		/* framebuffer pixels are 0xAABBGGRR */
+		uint32_t key = ((rgb >> 16) & 0xFF) | (rgb & 0xFF00) | ((rgb & 0xFF) << 16);
+		int x0 = IMAX(p->glyphs[g].x, mc->cx), x1 = IMIN(p->glyphs[g].x + p->glyphs[g].w, mc->cx + mc->cw);
+		int y0 = IMAX(p->glyphs[g].y, mc->cy), y1 = IMIN(p->glyphs[g].y + p->glyphs[g].h, mc->cy + mc->ch);
+		if (x0 >= x1 || y0 >= y1) continue;
+		bool changed = true;
+		for (int pass = 0; pass < 16 && changed; ++pass) {
+			changed = false;
+			for (int y = y0; y < y1; ++y) {
+				for (int x = x0; x < x1; ++x) {
+					uint32_t* px = &out[(y - mc->cy) * mc->cw + (x - mc->cx)];
+					if ((*px & 0xFFFFFF) != key) continue;
+					uint32_t cands[8];
+					int nc = 0;
+					for (int dy = -1; dy <= 1; ++dy) {
+						for (int dx = -1; dx <= 1; ++dx) {
+							int u = x + dx - mc->cx, v = y + dy - mc->cy;
+							if ((!dx && !dy) || u < 0 || v < 0 || u >= mc->cw || v >= mc->ch) continue;
+							uint32_t c = out[v * mc->cw + u];
+							if ((c & 0xFFFFFF) != key) cands[nc++] = c;
+						}
+					}
+					if (nc < 2) continue; /* deep inside the letter: wait for the next pass */
+					uint32_t rep = cands[0];
+					int bestN = 0;
+					for (int i = 0; i < nc; ++i) {
+						int n = 0;
+						for (int j = 0; j < nc; ++j) n += cands[j] == cands[i];
+						if (n > bestN) bestN = n, rep = cands[i];
+					}
+					*px = rep;
+					changed = true;
+				}
+			}
+		}
+	}
+}
+
 static void crop(MapCapture* mc, const uint32_t* fb, uint32_t* out) {
 	const MapProfile* p = mc->prof;
 	for (int y = 0; y < mc->ch; ++y) {
@@ -184,6 +232,7 @@ static void crop(MapCapture* mc, const uint32_t* fb, uint32_t* out) {
 	if (!mc->tight || !p->masks[0].w) return;
 	if (!mc->tileValid) find_tile(mc, fb);
 	if (p->arrows[0].w) remove_arrows(mc, out);
+	if (p->glyphs[0].w) remove_glyphs(mc, out);
 	if (!mc->tileValid) return;
 	int k = p->gridCell;
 	for (int m = 0; m < 8 && p->masks[m].w; ++m) {

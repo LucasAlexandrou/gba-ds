@@ -69,8 +69,10 @@ static const MapProfile profiles[] = {
 		.tolerance = 8,
 		/* inner grid only: drops the top bar (L SLEEP / area name / STATUS R) and frame */
 		.tight_x = 12, .tight_y = 16, .tight_w = 216, .tight_h = 132,
-		/* the "A" prompt beside the minimap, and two slivers of the frame's corners */
-		.masks = { { 172, 132, 24, 24 }, { 12, 16, 16, 8 }, { 12, 24, 8, 8 }, { 212, 16, 16, 8 } },
+		/* two slivers of the frame's corners */
+		.masks = { { 12, 16, 16, 8 }, { 12, 24, 8, 8 }, { 212, 16, 16, 8 } },
+		/* the "A" on the button prompt beside the minimap (the button stays) */
+		.glyphs = { { 176, 140, 14, 12, 0x001831 } },
 		.arrows = { { 104, 14, 32, 12 }, { 104, 136, 32, 12 } }, .arrowKey = 1, /* top/bottom centre */
 		.gridX = 4, .gridY = 4, .gridCell = 8,
 		.mem = { { 0x03000C70, 0xFF, 0x05, 1 } },

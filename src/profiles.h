@@ -45,6 +45,10 @@ typedef struct MapProfile {
 	 * replaced with the same pixel one or two grid cells to the side. */
 	struct { int x, y, w, h; } arrows[2];
 	int arrowKey;
+	/* A letter drawn on top of a button prompt: inside the rect (screen coords),
+	 * pixels of exactly this colour are filled in from the pixels around them,
+	 * which leaves the button itself (and anything else) untouched. */
+	struct { int x, y, w, h; uint32_t rgb; } glyphs[2];
 
 	Probe probes[8];
 	int minProbes;    /* how many probes must match (0 = all) */
