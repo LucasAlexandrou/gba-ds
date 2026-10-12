@@ -1,5 +1,5 @@
-#ifndef GBADUAL_PATHS_H
-#define GBADUAL_PATHS_H
+#ifndef GBADS_PATHS_H
+#define GBADS_PATHS_H
 
 #include "config.h"
 

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Reproducible cross-build of gbadual for ROCKNIX (aarch64) on an x86_64 Linux host.
-# Produces dist/gbadual-rocknix-aarch64.zip.
+# Reproducible cross-build of GBA DS for ROCKNIX (aarch64) on an x86_64 Linux host.
+# Produces dist/gba-ds-rocknix-aarch64.zip.
 #
 # Needs: git, cmake, make, zip, an x86_64 host. Everything else is fetched into ./deps.
 # Set AARCH64_TOOLCHAIN_BIN to use your own aarch64-linux-gnu-gcc instead.
@@ -25,8 +25,8 @@ if [ -z "${AARCH64_TOOLCHAIN_BIN:-}" ]; then
 		done
 		# ...and its limits.h doesn't chain to glibc's (PATH_MAX etc. missing).
 		L=$(echo "$TC"/lib/gcc/aarch64-linux-gnu/*/include-fixed/limits.h)
-		if ! grep -q gbadual "$L"; then
-			{ printf '/* gbadual: chain to glibc limits.h */\n#ifndef _GCC_LIMITS_H_\n#define _GCC_LIMITS_H_\n#include_next <limits.h>\n#endif\n'; cat "$L"; } > "$L.tmp" && mv "$L.tmp" "$L"
+		if ! grep -qE "gbadual|gba-ds" "$L"; then  # already patched (by either name)
+			{ printf '/* gba-ds: chain to glibc limits.h */\n#ifndef _GCC_LIMITS_H_\n#define _GCC_LIMITS_H_\n#include_next <limits.h>\n#endif\n'; cat "$L"; } > "$L.tmp" && mv "$L.tmp" "$L"
 		fi
 	fi
 	export AARCH64_TOOLCHAIN_BIN="$TC/bin"
@@ -53,22 +53,22 @@ cmake -S "$DEPS/SDL2" -B "$DEPS/SDL2/build-aarch64" -DCMAKE_TOOLCHAIN_FILE="$ROO
 	-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$DEPS/sdl-aarch64" -DSDL_STATIC=OFF -DSDL_TEST=OFF
 make -C "$DEPS/SDL2/build-aarch64" -j"$(nproc)" install
 
-# --- gbadual ---------------------------------------------------------------
+# --- gba-ds ---------------------------------------------------------------
 make CROSS="$CROSS" MGBA_SRC="$DEPS/mgba" MGBA_BUILD="$DEPS/mgba/build-aarch64" \
 	SDL_PREFIX="$DEPS/sdl-aarch64" OUT=build/aarch64 OPTFLAGS="-O2 -mcpu=cortex-a55"
 
 # --- package ---------------------------------------------------------------
-PKG="$ROOT/build/pkg/gbadual"
+PKG="$ROOT/build/pkg/gba-ds"
 rm -rf "$ROOT/build/pkg"
 mkdir -p "$PKG"
-"${CROSS}strip" -o "$PKG/gbadual" build/aarch64/gbadual
-cp dist/launch.sh dist/gbadual.cfg "$PKG/"
+"${CROSS}strip" -o "$PKG/gba-ds" build/aarch64/gba-ds
+cp dist/launch.sh dist/gba-ds.cfg "$PKG/"
 mkdir -p "$PKG/logos"
 printf "Optional: your own logo images (<CODE>.png or .bmp) override the ones extracted from the games.\n" > "$PKG/logos/README.txt"
 mkdir -p "$PKG/overlays"
 printf "Put map-screen overlay PNGs here: <CODE>-integer.png, <CODE>-fit.png or <CODE>.png (see README).\n" > "$PKG/overlays/README.txt"
 cp README.md "$PKG/README.md"
-cp "dist/GBA Dual Screen.sh" "$ROOT/build/pkg/"
-chmod +x "$PKG"/*.sh "$PKG/gbadual" "$ROOT/build/pkg/GBA Dual Screen.sh"
-(cd "$ROOT/build/pkg" && rm -f "$ROOT/dist/gbadual-rocknix-aarch64.zip" && zip -qr "$ROOT/dist/gbadual-rocknix-aarch64.zip" gbadual "GBA Dual Screen.sh")
-echo "built dist/gbadual-rocknix-aarch64.zip"
+cp "dist/GBA DS.sh" "$ROOT/build/pkg/"
+chmod +x "$PKG"/*.sh "$PKG/gba-ds" "$ROOT/build/pkg/GBA DS.sh"
+(cd "$ROOT/build/pkg" && rm -f "$ROOT/dist/gba-ds-rocknix-aarch64.zip" && zip -qr "$ROOT/dist/gba-ds-rocknix-aarch64.zip" gba-ds "GBA DS.sh")
+echo "built dist/gba-ds-rocknix-aarch64.zip"

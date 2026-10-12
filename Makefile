@@ -1,4 +1,4 @@
-# gbadual build
+# GBA DS build
 #
 #   make                      host build (needs MGBA_BUILD and SDL2 via sdl2-config or SDL_PREFIX)
 #   make CROSS=aarch64-linux-gnu- MGBA_BUILD=../mgba/build-aarch64 SDL_PREFIX=../sdl-aarch64
@@ -24,9 +24,9 @@ LIBS       := $(MGBA_BUILD)/libmgba.a -lSDL2 -lpthread -lm
 CORE_SRC   := src/emu.c src/mapcap.c src/profiles.c
 APP_SRC    := src/main.c src/config.c src/font.c src/ui.c src/library.c src/game.c src/paths.c src/image.c src/brand_data.c src/logo.c src/mapframe.c $(CORE_SRC)
 
-all: $(OUT)/gbadual
+all: $(OUT)/gba-ds
 
-$(OUT)/gbadual: $(APP_SRC) src/*.h $(MGBA_BUILD)/libmgba.a
+$(OUT)/gba-ds: $(APP_SRC) src/*.h $(MGBA_BUILD)/libmgba.a
 	@mkdir -p $(OUT)
 	$(CC) $(CFLAGS) -o $@ $(APP_SRC) $(LDFLAGS) $(LIBS)
 

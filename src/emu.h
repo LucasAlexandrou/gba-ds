@@ -1,6 +1,6 @@
 /* Thin wrapper around a libmgba core. */
-#ifndef GBADUAL_EMU_H
-#define GBADUAL_EMU_H
+#ifndef GBADS_EMU_H
+#define GBADS_EMU_H
 
 #include <stdbool.h>
 #include <stddef.h>

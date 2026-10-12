@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Renders the gbadual branding images and embeds them in src/brand_data.c.
+"""Renders the GBA DS branding images and embeds them in src/brand_data.c.
 
     tools/make_brand.py FUTURA_BOLD_ITALIC.otf GAMECUBEN.ttf
 

@@ -1,5 +1,5 @@
-#ifndef GBADUAL_LIBRARY_H
-#define GBADUAL_LIBRARY_H
+#ifndef GBADS_LIBRARY_H
+#define GBADS_LIBRARY_H
 
 #include "config.h"
 

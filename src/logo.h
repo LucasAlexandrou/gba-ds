@@ -4,8 +4,8 @@
  * the background layer holding the logo is rendered on its own; pixels that
  * match a backdrop-only render are transparent. The result is cropped and
  * cached as a PNG, so this only happens once per game. */
-#ifndef GBADUAL_LOGO_H
-#define GBADUAL_LOGO_H
+#ifndef GBADS_LOGO_H
+#define GBADS_LOGO_H
 
 #include <stdbool.h>
 #include <stdint.h>

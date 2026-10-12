@@ -1,6 +1,6 @@
 /* Windows, physical screens, input and drawing shared by the library and the game. */
-#ifndef GBADUAL_UI_H
-#define GBADUAL_UI_H
+#ifndef GBADS_UI_H
+#define GBADS_UI_H
 
 #include "config.h"
 

@@ -63,7 +63,7 @@ void game_paths(const Config* cfg, const char* rom, GamePaths* o) {
 		snprintf(srm, sizeof(srm), "%s/%s.srm", saveDir, o->base);
 		if (copy_file(srm, o->sav)) fprintf(stderr, "imported %s -> %s\n", srm, o->sav);
 	}
-	/* Older gbadual builds kept the manual state next to the ROM */
+	/* Older builds (when the app was called gbadual) kept the manual state next to the ROM */
 	if (!file_exists(o->state)) {
 		char old[1100];
 		snprintf(old, sizeof(old), "%s/%s.gbadual.ss0", saveDir, o->base);

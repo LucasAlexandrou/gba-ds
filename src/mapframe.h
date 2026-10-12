@@ -6,8 +6,8 @@
  * the map's own background colour plus a border taken from one of the game's
  * menus (Castlevania), or the map's own empty grid tile continued past the
  * edges (Metroid). */
-#ifndef GBADUAL_MAPFRAME_H
-#define GBADUAL_MAPFRAME_H
+#ifndef GBADS_MAPFRAME_H
+#define GBADS_MAPFRAME_H
 
 #include "profiles.h"
 

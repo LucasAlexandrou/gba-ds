@@ -1,4 +1,4 @@
-# gbadual
+# GBA DS
 
 A Game Boy Advance emulator for dual-screen handhelds (built for the Anbernic RG DS Plus on ROCKNIX). The game runs on one screen, and the game's own map stays up on the other screen and keeps itself current as you explore, the way the DS Castlevanias work.
 
@@ -17,7 +17,7 @@ Any other GBA game also runs; it just gets no map screen.
 
 ## How it works
 
-Emulation is [libmgba](https://mgba.io). gbadual runs a second, silent copy of the emulator next to the real one. About every 1.5 seconds, and right after each room transition (detected as a fade to black), it does the following:
+Emulation is [libmgba](https://mgba.io). GBA DS runs a second, silent copy of the emulator next to the real one. About every 1.5 seconds, and right after each room transition (detected as a fade to black), it does the following:
 
 1. It copies the live game's state into the silent copy. The game you're playing is never paused or touched.
 2. It presses the map button there, waits for the map screen to appear and settle, then records a short loop of frames so the blinking or pulsing player marker still animates.
@@ -27,16 +27,16 @@ You see the real in-game map with every detail the game draws (explored rooms, s
 
 ## Install on ROCKNIX
 
-1. Unzip `gbadual-rocknix-aarch64.zip` into `/storage/roms/ports/`. You'll get a `gbadual/` folder and a **GBA Dual Screen** entry.
+1. Unzip `gba-ds-rocknix-aarch64.zip` into `/storage/roms/ports/`. You'll get a `gba-ds/` folder and a **GBA DS** entry.
 2. Keep your **unzipped** `.gba` ROMs in `/storage/roms/gba/` (subfolders are fine). Zipped ROMs aren't supported yet.
-3. In EmulationStation, update the game lists and launch **GBA Dual Screen** from Ports.
+3. In EmulationStation, update the game lists and launch **GBA DS** from Ports.
 
 The app opens on a game list:
 - The list is rebuilt from the ROM folder every time it opens, so games you add or remove show up with nothing to re-run.
 - Only games with map support are listed. Set `show_all = 1` to list every `.gba`; games without map support play normally on one screen.
 - The top screen shows the game's logo, or where it will resume once you've played it.
 
-If you used the earlier build, delete the old `... (Dual Screen).sh` entries from `/storage/roms/ports/`.
+**Upgrading from gbadual** (this app's old name): unzip as above, then launch **GBA DS** once. On that first run it copies your save states, resume points, menu settings and any custom logos or overlays from the old `gbadual/` folder. After that, delete the old `gbadual/` folder and the **GBA Dual Screen** entry (`GBA Dual Screen.sh`) from `/storage/roms/ports/`. If you had edited `gbadual.cfg`, copy your changes into `gba-ds/gba-ds.cfg`; battery saves (`.sav`) stay next to your ROMs and aren't affected.
 
 ## Playing
 
@@ -77,13 +77,13 @@ If you used the earlier build, delete the old `... (Dual Screen).sh` entries fro
 | File | Location |
 |---|---|
 | Battery saves | `Game.sav`, next to the ROM. On first launch an existing RetroArch `Game.srm` is copied to `Game.sav`; the `.srm` is left alone. |
-| Save states, resume points, library thumbnails | `/storage/roms/ports/gbadual/states/` |
+| Save states, resume points, library thumbnails | `/storage/roms/ports/gba-ds/states/` |
 
-Until the first map is ready (title screen, intro, a fresh boot), the map screen shows the game's logo. No logo files are shipped: the first time a game appears in the list, gbadual boots it silently in the background, runs it to its title screen, and renders just the background layer that holds the logo. It saves that as `gbadual/states/logos/<CODE>.png`, at the game's own resolution with transparency, and draws it at sharp whole-number scale. To use your own art instead, put `<CODE>.png` (or `.bmp`) in `gbadual/logos/`.
+Until the first map is ready (title screen, intro, a fresh boot), the map screen shows the game's logo. No logo files are shipped: the first time a game appears in the list, GBA DS boots it silently in the background, runs it to its title screen, and renders just the background layer that holds the logo. It saves that as `gba-ds/states/logos/<CODE>.png`, at the game's own resolution with transparency, and draws it at sharp whole-number scale. To use your own art instead, put `<CODE>.png` (or `.bmp`) in `gba-ds/logos/`.
 
 ## Map screen surrounds and overlays
 
-With **Overlays** on (Display page), the space around the map is filled with a surround generated from each game's own graphics. Nothing is shipped; like the logos, it's extracted from the ROM once in the background and cached in `gbadual/states/frames/`.
+With **Overlays** on (Display page), the space around the map is filled with a surround generated from each game's own graphics. Nothing is shipped; like the logos, it's extracted from the ROM once in the background and cached in `gba-ds/states/frames/`.
 
 - **Metroid: Zero Mission / Fusion:** the map's own empty grid tile, continued to the screen edges in step with the map's grid. The scroll arrows at the top and bottom centre are removed, and what they covered is rebuilt from the neighbouring grid cells.
 - **Castlevania (all three):** the map's background colour, plus the border from the game's own menus:
@@ -94,7 +94,7 @@ With **Overlays** on (Display page), the space around the map is filled with a s
 
 The surround is assembled in the game's own pixel space and scaled together with the map, so it lines up exactly and the LCD grid covers it too.
 
-You can still add your own art on top: put a PNG at `gbadual/overlays/<CODE>-<scale>.png`.
+You can still add your own art on top: put a PNG at `gba-ds/overlays/<CODE>-<scale>.png`.
 - `<CODE>` is the game code: `A2CE` Aria of Sorrow, `AAME` Circle of the Moon, `ACHE` Harmony of Dissonance, `BMXE` Zero Mission, `AMTE` Fusion.
 - `<scale>` is `integer` (pixel perfect) or `fit` (full width).
 - `<CODE>.png` with no scale suffix is used for both modes.
@@ -111,32 +111,32 @@ Each overlay is 1024×768 and is drawn over the whole map screen, so leave it tr
 
 ## Settings
 
-Settings live in `gbadual.cfg` next to the binary. The file is commented. The options you're most likely to change:
+Settings live in `gba-ds.cfg` next to the binary. The file is commented. The options you're most likely to change:
 
 - `rom_dir`: folders to list. Separate several with `:`.
 - `swap = 1`: map on the other screen. Swapping from the menu or with L2 is saved to `states/prefs.cfg` and wins over this setting.
 - `touch_screen`: `first` or `second`, whichever screen has the touch panel. The menu and game list are drawn there.
 - `touch_map`: try `touch_map = screen` if taps land in the wrong place.
 - `home_button`: use this if HOME doesn't open the menu.
-  1. Start once with `GBADUAL_DEBUG=1` in `launch.sh`.
+  1. Start once with `GBADS_DEBUG=1` in `launch.sh`.
   2. Press HOME.
   3. Put the button number the log shows into `home_button`.
 - `layout`:
-  - `auto` is the default. On ROCKNIX's sway setup, gbadual asks sway to make its window full screen across both 1024×768 outputs and splits the window in half.
+  - `auto` is the default. On ROCKNIX's sway setup, GBA DS asks sway to make its window full screen across both 1024×768 outputs and splits the window in half.
   - `dual` uses one window per display.
   - `single` uses one screen, and L2 flips between game and map.
 - `scale` / `map_scale`, `lcd_grid`, `lcd_strength`: the display options from the pause menu, plus `scale = stretch` and grid darkness. Full width keeps pixels sharp: the image is scaled up by a whole number on the GPU, then filtered down to the final size. The LCD grid is drawn over that same image, so it costs essentially no CPU.
 - `map_crop`: on by default. For the Metroid games, this crops the map to the grid itself, without the frame or the animated title bar, and paints over the "A" / "A OBJECTIVE" prompts with empty grid tiles. Set it to 0 to show the whole pause screen.
 - `map_interval`: frames between periodic map refreshes (default 90). The map also refreshes after every room transition.
 
-Logs go to `/storage/roms/ports/gbadual/gbadual.log`. With `GBADUAL_DEBUG=1`, the log also records every button, key and touch.
+Logs go to `/storage/roms/ports/gba-ds/gba-ds.log`. With `GBADS_DEBUG=1`, the log also records every button, key and touch.
 
 ## Building
 
 On an x86_64 Linux host with git, cmake, make, and zip, run:
 
 ```sh
-scripts/build-rocknix.sh            # -> dist/gbadual-rocknix-aarch64.zip
+scripts/build-rocknix.sh            # -> dist/gba-ds-rocknix-aarch64.zip
 ```
 
 The script fetches a GCC aarch64 toolchain, mGBA (pinned commit), and SDL2 into `deps/`.
@@ -144,15 +144,15 @@ The script fetches a GCC aarch64 toolchain, mGBA (pinned commit), and SDL2 into 
 To build for the host so you can develop and test:
 
 ```sh
-make MGBA_BUILD=../mgba/build-host SDL_PREFIX=../sdl-host   # build/host/gbadual
+make MGBA_BUILD=../mgba/build-host SDL_PREFIX=../sdl-host   # build/host/gba-ds
 make tools                                                  # build/host/harness (needs libpng)
 ```
 
 Run it headless and drive it from a script (button combos, `HOME`, `TAP:x,y`, `SHOT:file.bmp`, `QUIT`; see `--help`):
 
 ```sh
-SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy GBADUAL_WINDOW=2048x768 \
-  build/host/gbadual --rom-dir=roms --state-dir=/tmp/st --input-script=test.txt
+SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy GBADS_WINDOW=2048x768 \
+  build/host/gba-ds --rom-dir=roms --state-dir=/tmp/st --input-script=test.txt
 ```
 
 ## Adding a game
@@ -173,4 +173,4 @@ The tools in `tools/` are for finding these values:
 
 ## Licence
 
-gbadual statically links libmgba, which is © Jeffrey Pfau and licensed under MPL-2.0. The mGBA source is at <https://github.com/mgba-emu/mgba> (pinned commit in `scripts/build-rocknix.sh`).
+GBA DS statically links libmgba, which is © Jeffrey Pfau and licensed under MPL-2.0. The mGBA source is at <https://github.com/mgba-emu/mgba> (pinned commit in `scripts/build-rocknix.sh`).

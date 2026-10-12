@@ -246,7 +246,7 @@ static void save_prefs(void) {
 	snprintf(prefs, sizeof(prefs), "%s/prefs.cfg", cfg->stateDir);
 	FILE* f = fopen(prefs, "w");
 	if (f) {
-		fprintf(f, "# written by gbadual's pause menu; overrides gbadual.cfg\n");
+		fprintf(f, "# written by gba-ds's pause menu; overrides gba-ds.cfg\n");
 		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %d\n",
 		        cfg->swap ? 1 : 0, cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0,
 		        cfg->overlays ? 1 : 0);
@@ -409,7 +409,7 @@ static bool activate(int item, enum GameExit* exitTo) {
 
 enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	cfg = c;
-	debug = getenv("GBADUAL_DEBUG") != NULL;
+	debug = getenv("GBADS_DEBUG") != NULL;
 	game_paths(cfg, rom, &gp);
 	if (!emu_open(&emu, rom, gp.sav, true)) {
 		ui_osd("COULD NOT LOAD GAME");
@@ -499,7 +499,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	bool comboUsed = false;
 	int selectPulse = 0;
 	unsigned ffPhase = 0;
-	bool noPace = getenv("GBADUAL_NOPACE") != NULL;
+	bool noPace = getenv("GBADS_NOPACE") != NULL;
 	enum GameExit exitTo = GAME_QUIT_APP;
 	bool done = false;
 	bool wasMenu = false;

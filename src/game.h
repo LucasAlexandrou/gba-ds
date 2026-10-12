@@ -1,5 +1,5 @@
-#ifndef GBADUAL_GAME_H
-#define GBADUAL_GAME_H
+#ifndef GBADS_GAME_H
+#define GBADS_GAME_H
 
 #include "config.h"
 

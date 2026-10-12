@@ -133,7 +133,7 @@ static void run_script(void) {
 static bool create_view(View* v, int display, const char* title, bool fullscreen, int ww, int wh) {
 	Uint32 flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
 	if (fullscreen) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
-	if (getenv("GBADUAL_WINDOW")) sscanf(getenv("GBADUAL_WINDOW"), "%dx%d", &ww, &wh);
+	if (getenv("GBADS_WINDOW")) sscanf(getenv("GBADS_WINDOW"), "%dx%d", &ww, &wh);
 	v->win = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED_DISPLAY(display), SDL_WINDOWPOS_CENTERED_DISPLAY(display),
 	                          ww, wh, flags);
 	if (!v->win) {
@@ -168,10 +168,10 @@ static void open_pads(void) {
 
 bool ui_init(Config* c, bool wantDual) {
 	cfg = c;
-	debug = getenv("GBADUAL_DEBUG") != NULL;
-	SDL_SetHint(SDL_HINT_APP_NAME, "gbadual");
+	debug = getenv("GBADS_DEBUG") != NULL;
+	SDL_SetHint(SDL_HINT_APP_NAME, "GBA DS");
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, cfg->smooth ? "linear" : "nearest");
-	setenv("SDL_VIDEO_WAYLAND_WMCLASS", "gbadual", 0);
+	setenv("SDL_VIDEO_WAYLAND_WMCLASS", "gba-ds", 0);
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS) != 0) {
 		fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
 		return false;
@@ -189,19 +189,19 @@ bool ui_init(Config* c, bool wantDual) {
 	bool dual = !strcmp(cfg->layout, "dual") ||
 	            (wantDual && !strcmp(cfg->layout, "auto") && displays >= 2 && !underSway);
 	bool fullscreen = strcmp(driver, "offscreen") && strcmp(driver, "dummy") && strcmp(driver, "x11") &&
-	                  strcmp(driver, "windows") && strcmp(driver, "cocoa") && !getenv("GBADUAL_WINDOWED");
+	                  strcmp(driver, "windows") && strcmp(driver, "cocoa") && !getenv("GBADS_WINDOWED");
 	fprintf(stderr, "video driver %s, %d display(s)%s -> %s\n", driver, displays, underSway ? ", sway" : "",
 	        dual && displays >= 2 ? "two windows" : "one window");
 	if (dual && displays >= 2) {
 		nViews = 2;
-		if (!create_view(&views[0], 0, "gbadual", true, 720, 480) ||
-		    !create_view(&views[1], 1, "gbadual map", true, 720, 480)) {
+		if (!create_view(&views[0], 0, "GBA DS", true, 720, 480) ||
+		    !create_view(&views[1], 1, "GBA DS map", true, 720, 480)) {
 			return false;
 		}
 	} else {
 		nViews = 1;
 		bool single = !strcmp(cfg->layout, "single");
-		if (!create_view(&views[0], 0, "gbadual", fullscreen, single ? 720 : 1440, 480)) return false;
+		if (!create_view(&views[0], 0, "GBA DS", fullscreen, single ? 720 : 1440, 480)) return false;
 	}
 	ui_layout();
 	return true;

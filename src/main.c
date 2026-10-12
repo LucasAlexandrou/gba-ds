@@ -1,4 +1,4 @@
-/* gbadual: a GBA emulator for dual-screen handhelds that keeps the game's own
+/* GBA DS: a GBA emulator for dual-screen handhelds that keeps the game's own
  * map on the second screen.
  *
  *   library.c  game list (rescans the ROM folder every time it opens)
@@ -37,15 +37,15 @@ int main(int argc, char** argv) {
 		snprintf(exeDir, sizeof(exeDir), "%s", dirname(exe));
 	}
 
-	/* defaults < gbadual.cfg < states/prefs.cfg (choices made in the menu) < command line */
+	/* defaults < gba-ds.cfg < states/prefs.cfg (choices made in the menu) < command line */
 	char path[1100];
-	if (getenv("GBADUAL_CONFIG")) {
-		config_load_file(&cfg, getenv("GBADUAL_CONFIG"));
+	if (getenv("GBADS_CONFIG")) {
+		config_load_file(&cfg, getenv("GBADS_CONFIG"));
 	} else {
-		snprintf(path, sizeof(path), "%s/gbadual.cfg", exeDir);
+		snprintf(path, sizeof(path), "%s/gba-ds.cfg", exeDir);
 		config_load_file(&cfg, path);
 		if (getenv("HOME")) {
-			snprintf(path, sizeof(path), "%s/.config/gbadual/gbadual.cfg", getenv("HOME"));
+			snprintf(path, sizeof(path), "%s/.config/gba-ds/gba-ds.cfg", getenv("HOME"));
 			config_load_file(&cfg, path);
 		}
 	}

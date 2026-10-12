@@ -1,6 +1,6 @@
 /* Per-game knowledge: how to open the map and how to recognise it. */
-#ifndef GBADUAL_PROFILES_H
-#define GBADUAL_PROFILES_H
+#ifndef GBADS_PROFILES_H
+#define GBADS_PROFILES_H
 
 #include "emu.h"
 

@@ -5,8 +5,8 @@
  * screen is up and stable. The map area is cropped out and handed back.
  * The live game is never paused or touched.
  */
-#ifndef GBADUAL_MAPCAP_H
-#define GBADUAL_MAPCAP_H
+#ifndef GBADS_MAPCAP_H
+#define GBADS_MAPCAP_H
 
 #include "emu.h"
 

@@ -1,5 +1,5 @@
-#ifndef GBADUAL_CONFIG_H
-#define GBADUAL_CONFIG_H
+#ifndef GBADS_CONFIG_H
+#define GBADS_CONFIG_H
 
 #include <stdbool.h>
 
