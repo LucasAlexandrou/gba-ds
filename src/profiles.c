@@ -78,11 +78,13 @@ static const MapProfile profiles[] = {
 		            { 140, 3, 1, 8, -1, { 0xE742EF } },              /* inner bevel */
 		            { 192, 2, 35, 7, 2, { 0xFFFF73, 0xFFBD00 }, true },        /* STATUS */
 		            { 176, 140, 14, 12, 1, { 0x001831 } } },       /* A */
-		/* the now-blank magenta plates, in the grey-green of the curved pieces
-		 * beside the area name: edge, body, bevel */
+		/* the now-blank magenta plates and orange L/R keys, in the grey-green of
+		 * the curved pieces beside the area name: edge/shade, body, bevel/highlight */
 		.recolor = { { 13, 2, 35, 7, 3, { 0xAD18B5, 0xCE21D6, 0xE742EF }, { 0x212921, 0x314231, 0x637363 } },
 		             { 97, 2, 46, 10, 3, { 0xAD18B5, 0xCE21D6, 0xE742EF }, { 0x212921, 0x314231, 0x637363 } },
-		             { 192, 2, 35, 7, 3, { 0xAD18B5, 0xCE21D6, 0xE742EF }, { 0x212921, 0x314231, 0x637363 } } },
+		             { 192, 2, 35, 7, 3, { 0xAD18B5, 0xCE21D6, 0xE742EF }, { 0x212921, 0x314231, 0x637363 } },
+		             { 2, 2, 8, 7, 4, { 0xFF7B00, 0xFFBD00, 0xFFFF73, 0xFFFFFF }, { 0x212921, 0x314231, 0x637363, 0x94A594 } },
+		             { 230, 2, 8, 7, 4, { 0xFF7B00, 0xFFBD00, 0xFFFF73, 0xFFFFFF }, { 0x212921, 0x314231, 0x637363, 0x94A594 } } },
 		.mem = { { 0x03000C70, 0xFF, 0x05, 1 } },
 		.live = { { 0x03000C70, 0xFF, 0x04, 1 } },
 		.logo = { .wait = 200, .pressStart = true, .wait2 = 200, .layer = 1, .maxY = 104 },

@@ -276,7 +276,7 @@ static uint32_t to_fb(uint32_t rgb) { /* 0xRRGGBB -> framebuffer 0xBBGGRR */
 
 static void recolor(MapCapture* mc, uint32_t* out) {
 	const MapProfile* p = mc->prof;
-	for (int r = 0; r < 4 && p->recolor[r].w; ++r) {
+	for (int r = 0; r < 6 && p->recolor[r].w; ++r) {
 		int x0 = IMAX(p->recolor[r].x, mc->cx), x1 = IMIN(p->recolor[r].x + p->recolor[r].w, mc->cx + mc->cw);
 		int y0 = IMAX(p->recolor[r].y, mc->cy), y1 = IMIN(p->recolor[r].y + p->recolor[r].h, mc->cy + mc->ch);
 		int n = IMIN(p->recolor[r].n, 4);
