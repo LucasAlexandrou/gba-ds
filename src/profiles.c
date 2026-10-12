@@ -5,6 +5,14 @@
 /* Values below were found with tools/harness + tools/ramdiff.py against the
  * USA releases. Each profile describes how to bring up the in-game map and
  * how to tell, from memory and from the picture, that it is really showing. */
+/* Metroid Fusion's SLEEP / STATUS plates cycle through four palettes
+ * (green, teal, blue, bright blue): body, edge, lettering. */
+#define PLATE_TEXT { 0x10FF84, 0x31FFAD, 0x52FFD6, 0x7BFFFF, 0x10B55A, 0x18B594, 0x29ADCE, 0x39A5FF }
+#define PLATE_FROM { 0x086B31, 0x106B73, 0x1863BD, 0x2963FF, 0x10B55A, 0x18B594, 0x29ADCE, 0x39A5FF, \
+                     0x10FF84, 0x31FFAD, 0x52FFD6, 0x7BFFFF, 0x21214A }
+#define PLATE_TO   { 0xADC6BD, 0xADC6BD, 0xADC6BD, 0xADC6BD, 0xC6DED6, 0xC6DED6, 0xC6DED6, 0xC6DED6, \
+                     0xDEF7EF, 0xDEF7EF, 0xDEF7EF, 0xDEF7EF, 0x5A5A5A }
+
 static const MapProfile profiles[] = {
 	{
 		.codes = { "A2CE" },
@@ -99,14 +107,24 @@ static const MapProfile profiles[] = {
 		.probes = { { 0, 0, 0x9C9C9C }, { 239, 0, 0x9C9C9C }, { 0, 159, 0x9C9C9C }, { 239, 159, 0x9C9C9C },
 		            { 2, 80, 0xFFFFFF }, { 237, 80, 0xFFFFFF } },
 		.tolerance = 8,
-		/* inner grid only: drops the top bar (L SLEEP / area name / STATUS R) and frame */
-		.tight_x = 8, .tight_y = 16, .tight_w = 224, .tight_h = 136,
-		.masks = { { 168, 136, 64, 16 } }, /* "A OBJECTIVE" prompt */
+		/* the whole pause screen, frame included; map_crop erases its lettering
+		 * (the L and R key letters, SLEEP, the area name, STATUS) and the
+		 * "A OBJECTIVE" prompt, which also blanks the grid behind it */
+		.glyphs = { { 4, 3, 5, 6, 1, { 0x21214A }, true },                      /* L */
+		            { 231, 3, 5, 6, 1, { 0x21214A }, true },                    /* R */
+		            { 13, 4, 22, 5, 8, PLATE_TEXT, true },                      /* SLEEP */
+		            { 203, 4, 26, 5, 8, PLATE_TEXT, true },                     /* STATUS */
+		            { 97, 0, 46, 7, -1, { 0xADC6BD } },                         /* area name */
+		            { 169, 141, 14, 11, .grid = true },                         /* A button */
+		            { 172, 143, 62, 7, .grid = true } },                        /* OBJECTIVE */
+		/* the blank plates and keys, in the bezel's greys */
+		.recolor = { { 2, 1, 42, 10, 13, PLATE_FROM, PLATE_TO },
+		             { 196, 1, 42, 10, 13, PLATE_FROM, PLATE_TO },
+		             { 96, 0, 48, 8, 1, { 0x21214A }, { 0x5A5A5A } } },
 		.gridX = 0, .gridY = 0, .gridCell = 8,
 		.mem = { { 0x03000BDE, 0xFF, 0x03, 1 } },
 		.live = { { 0x03000BDE, 0xFF, 0x01, 1 } },
 		.logo = { .wait = 200, .pressStart = true, .wait2 = 300, .layer = 1, .maxY = 125 },
-		.gridBackground = true,
 		.animFrames = 8, .animStep = 4,
 	},
 };

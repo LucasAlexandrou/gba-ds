@@ -183,21 +183,73 @@ static void remove_arrows(MapCapture* mc, uint32_t* out) {
 #define IMAX(a, b) ((a) > (b) ? (a) : (b))
 #define IMIN(a, b) ((a) < (b) ? (a) : (b))
 
+static bool in_grid_glyph(const MapProfile* p, int x, int y) {
+	for (int g = 0; g < 10 && p->glyphs[g].w; ++g) {
+		if (p->glyphs[g].grid && x >= p->glyphs[g].x && x < p->glyphs[g].x + p->glyphs[g].w &&
+		    y >= p->glyphs[g].y && y < p->glyphs[g].y + p->glyphs[g].h) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* Rebuilds a patch of the map grid: each pixel becomes the most common value
+ * of the same pixel 1-3 cells above and to either side (never below: the
+ * prompts sit just above the frame), skipping spots inside any grid rect. */
+static void rebuild_grid(MapCapture* mc, uint32_t* out, int x0, int y0, int x1, int y1) {
+	const MapProfile* p = mc->prof;
+	int k = p->gridCell > 0 ? p->gridCell : 8;
+	for (int y = y0; y < y1; ++y) {
+		for (int x = x0; x < x1; ++x) {
+			uint32_t cands[9];
+			int nc = 0;
+			static const int dirs[3][2] = { { 0, -1 }, { -1, 0 }, { 1, 0 } };
+			for (int d = 0; d < 3; ++d) {
+				for (int s = 1; s <= 3; ++s) {
+					int u = x + dirs[d][0] * s * k, v = y + dirs[d][1] * s * k;
+					if (u < mc->cx || v < mc->cy || u >= mc->cx + mc->cw || v >= mc->cy + mc->ch) continue;
+					if (in_grid_glyph(p, u, v)) continue;
+					cands[nc++] = out[(v - mc->cy) * mc->cw + (u - mc->cx)];
+				}
+			}
+			if (!nc) continue;
+			uint32_t rep = cands[0];
+			int bestN = 0;
+			for (int i = 0; i < nc; ++i) {
+				int n = 0;
+				for (int j = 0; j < nc; ++j) n += cands[j] == cands[i];
+				if (n > bestN) bestN = n, rep = cands[i];
+			}
+			out[(y - mc->cy) * mc->cw + (x - mc->cx)] = rep;
+		}
+	}
+}
+
+static bool is_key(const uint32_t* keys, int nk, uint32_t c) {
+	for (int i = 0; i < nk; ++i) {
+		if ((c & 0xFFFFFF) == keys[i]) return true;
+	}
+	return false;
+}
+
 static void remove_glyphs(MapCapture* mc, uint32_t* out) {
 	const MapProfile* p = mc->prof;
-	for (int g = 0; g < 8 && p->glyphs[g].w; ++g) {
+	for (int g = 0; g < 10 && p->glyphs[g].w; ++g) {
 		/* framebuffer pixels are 0xAABBGGRR */
-		uint32_t keys[3];
-		int nk = p->glyphs[g].n > 0 ? IMIN(p->glyphs[g].n, 3) : 1;
+		uint32_t keys[8];
+		int nk = p->glyphs[g].n > 0 ? IMIN(p->glyphs[g].n, 8) : 1;
 		for (int i = 0; i < nk; ++i) {
 			uint32_t rgb = p->glyphs[g].rgb[i];
 			keys[i] = ((rgb >> 16) & 0xFF) | (rgb & 0xFF00) | ((rgb & 0xFF) << 16);
 		}
-#define IS_KEY(c) ((c & 0xFFFFFF) == keys[0] || (nk > 1 && (c & 0xFFFFFF) == keys[1]) || \
-                   (nk > 2 && (c & 0xFFFFFF) == keys[2]))
+#define IS_KEY(c) is_key(keys, nk, c)
 		int x0 = IMAX(p->glyphs[g].x, mc->cx), x1 = IMIN(p->glyphs[g].x + p->glyphs[g].w, mc->cx + mc->cw);
 		int y0 = IMAX(p->glyphs[g].y, mc->cy), y1 = IMIN(p->glyphs[g].y + p->glyphs[g].h, mc->cy + mc->ch);
 		if (x0 >= x1 || y0 >= y1) continue;
+		if (p->glyphs[g].grid) {
+			rebuild_grid(mc, out, x0, y0, x1, y1);
+			continue;
+		}
 		if (p->glyphs[g].n < 0) {
 			for (int y = y0; y < y1; ++y) {
 				for (int x = x0; x < x1; ++x) {
@@ -279,7 +331,7 @@ static void recolor(MapCapture* mc, uint32_t* out) {
 	for (int r = 0; r < 6 && p->recolor[r].w; ++r) {
 		int x0 = IMAX(p->recolor[r].x, mc->cx), x1 = IMIN(p->recolor[r].x + p->recolor[r].w, mc->cx + mc->cw);
 		int y0 = IMAX(p->recolor[r].y, mc->cy), y1 = IMIN(p->recolor[r].y + p->recolor[r].h, mc->cy + mc->ch);
-		int n = IMIN(p->recolor[r].n, 4);
+		int n = IMIN(p->recolor[r].n, 16);
 		for (int y = y0; y < y1; ++y) {
 			for (int x = x0; x < x1; ++x) {
 				uint32_t* px = &out[(y - mc->cy) * mc->cw + (x - mc->cx)];

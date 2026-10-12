@@ -51,11 +51,13 @@ typedef struct MapProfile {
 	 * paints the whole rect in rgb[0], for text that animates) are
 	 * filled in from the pixels around them (or, with flat, all set to the most
 	 * common other colour in the rect), which leaves the button or plate they
-	 * sit on untouched. */
-	struct { int x, y, w, h; int n; uint32_t rgb[3]; bool flat; } glyphs[8];
+	 * sit on untouched. With grid, every pixel in the rect is rebuilt from the
+	 * same spot 1-3 grid cells (gridCell) above and to the sides, outside any
+	 * grid rect: for prompts that also clear the map grid behind them. */
+	struct { int x, y, w, h; int n; uint32_t rgb[8]; bool flat, grid; } glyphs[10];
 	/* Recolouring (when map_crop is on, after glyphs): inside the rect, each
 	 * colour from[i] becomes to[i] (0xRRGGBB, n pairs). */
-	struct { int x, y, w, h; int n; uint32_t from[4], to[4]; } recolor[6];
+	struct { int x, y, w, h; int n; uint32_t from[16], to[16]; } recolor[6];
 
 	Probe probes[8];
 	int minProbes;    /* how many probes must match (0 = all) */

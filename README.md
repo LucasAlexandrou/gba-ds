@@ -87,8 +87,7 @@ Until the first map is ready (title screen, intro, a fresh boot), the map screen
 
 With **Overlays** on (Display page), the space around the map is filled with a surround generated from each game's own graphics. Nothing is shipped; like the logos, it's extracted from the ROM once in the background and cached in `gba-ds/states/frames/`.
 
-- **Metroid: Zero Mission:** none. The map screen is shown whole, with the game's own frame, so there's nothing to fill.
-- **Metroid Fusion:** the map's own empty grid tile, continued to the screen edges in step with the map's grid. The scroll arrows at the top and bottom centre are left as the game draws them: once the map grows under them, painting them out caused more glitches than it fixed.
+- **Metroid: Zero Mission / Fusion:** none. Both map screens are shown whole, with the game's own frame, so there's nothing to fill. The scroll arrows are left as the games draw them.
 - **Castlevania (all three):** the map's background colour, plus the border from the game's own menus:
   - Aria of Sorrow and Harmony of Dissonance use their name-entry frame.
   - Circle of the Moon uses the bevelled boxes from its file menu.
@@ -108,7 +107,7 @@ Each overlay is 1024×768 and is drawn over the whole map screen, so leave it tr
 |---|---|---|
 | Castlevania (all three) | x=32, y=64, 960×640 | x=0, y=43, 1024×682 |
 | Metroid: Zero Mission | x=32, y=64, 960×640 | x=0, y=43, 1024×682 |
-| Metroid Fusion | x=64, y=112, 896×544 | x=0, y=73, 1024×621 |
+| Metroid Fusion | x=32, y=64, 960×640 | x=0, y=43, 1024×682 |
 
 `border_color` (hex, default `000000`) sets the colour behind the map where there's no overlay. 
 
@@ -131,7 +130,7 @@ Settings live in `gba-ds.cfg` next to the binary. The file is commented. The opt
 - `scale` / `map_scale`, `lcd_grid`, `lcd_strength`: the display options from the pause menu, plus `scale = stretch` and grid darkness. Full width keeps pixels sharp: the image is scaled up by a whole number on the GPU, then filtered down to the final size. The LCD grid is drawn over that same image, so it costs essentially no CPU.
 - `map_crop`: on by default. It tidies the Metroid map screens. Set it to 0 to show the pause screen exactly as the game draws it.
   - Zero Mission keeps its whole pause screen, frame included, and only the lettering is erased: the L and R key letters, SLEEP, the area name, STATUS, and the A on the button beside the minimap. The keys, plates and button stay; the blank plates (magenta) and L/R keys (orange) are recoloured to the dark grey-green of the curved pieces beside the area name so they don't stand out.
-  - Fusion is cropped to the grid itself, without the frame or the animated title bar, and its "A OBJECTIVE" prompt is covered with empty grid tiles.
+  - Fusion also keeps its whole pause screen. The L and R key letters, SLEEP, the area name and STATUS are erased, and the plates (which cycle through four colours) are recoloured to the frame's greys. The "A OBJECTIVE" prompt is removed and the map grid behind it rebuilt, inside two small boxes around the button and the word.
 - `map_interval`: frames between periodic map refreshes (default 90). The map also refreshes after every room transition.
 
 Logs go to `/storage/roms/ports/gba-ds/gba-ds.log`. With `GBADS_DEBUG=1`, the log also records every button, key and touch.
