@@ -197,6 +197,10 @@ The tools in `tools/` are for finding these values:
 - **`ramdiff.py`**: given RAM dumps taken with the map open and closed, lists the addresses that cleanly separate them.
 - **`sheet.py`**: tiles screenshots into a contact sheet.
 
+## AI Disclosure
+
+Claude is doing the lion's share of coding here. I am testing each iteration on real hardware before moving it into a release.
+
 ## Licence
 
 GBA DS statically links libmgba, which is © Jeffrey Pfau and licensed under MPL-2.0. The mGBA source is at <https://github.com/mgba-emu/mgba> (pinned commit in `scripts/build-rocknix.sh`).
