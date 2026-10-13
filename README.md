@@ -44,11 +44,11 @@ You see the real in-game map with every detail the game draws (explored rooms, s
 3. In EmulationStation, update the game lists and launch **GBA DS** from Ports.
 4. Optional: the zip also puts an icon at `/storage/roms/ports/images/GBA DS.png`. To show it, select **GBA DS** in Ports, open the game options (usually **SELECT**), choose **Edit this game's metadata**, and set **Image** to that file.
 
-The app opens on a game list:
+The app opens on a game list: two columns of tiles on the touchscreen, each showing the game's own logo. Tap a tile to play, or move with the D-pad (L/R jump a screenful) and press A.
 - The list is rebuilt from the ROM folder every time it opens, so games you add or remove show up with nothing to re-run.
 - Only games with map support are listed. Set `show_all = 1` to list every `.gba`; games without map support play normally on one screen.
 - The top screen shows the game's logo, or where it will resume once you've played it.
-- The first time the list opens, each game's logo and map border art are pulled out of the ROMs in the background (about a minute on the RG DS Plus). If you pick a game before that's done, a "Preparing games" screen waits for it, so the game doesn't start with crackling audio. This only happens once; the results are kept in `gba-ds/states/`.
+- The first time the list opens, each game's logo and map border art are pulled out of the ROMs in the background (about a minute on the RG DS Plus); tiles say "Loading thumbnail..." until their logo is ready. If you pick a game before that's done, a "Preparing games" screen waits for it, so the game doesn't start with crackling audio. This only happens once; the results are kept in `gba-ds/states/`.
 
 **Upgrading from gbadual** (this app's old name): unzip as above, then launch **GBA DS** once. On that first run it copies your save states, resume points, menu settings and any custom logos or overlays from the old `gbadual/` folder. After that, delete the old `gbadual/` folder and the **GBA Dual Screen** entry (`GBA Dual Screen.sh`) from `/storage/roms/ports/`. If you had edited `gbadual.cfg`, copy your changes into `gba-ds/gba-ds.cfg`; battery saves (`.sav`) stay next to your ROMs and aren't affected.
 

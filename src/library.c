@@ -26,7 +26,6 @@ static int nGames;
 static const SDL_Color C_BG = { 14, 14, 26, 255 };
 static const SDL_Color C_HEADER = { 30, 26, 52, 255 };
 static const SDL_Color C_ROW = { 22, 22, 38, 255 };
-static const SDL_Color C_ROW_ALT = { 18, 18, 31, 255 };
 static const SDL_Color C_SEL = { 92, 52, 140, 255 };
 static const SDL_Color C_TEXT = { 236, 236, 244, 255 };
 static const SDL_Color C_DIM = { 140, 140, 172, 255 };
@@ -186,11 +185,12 @@ static void draw_preview(Config* cfg, int scr, int sel) {
 	/* button hints along the bottom */
 	int ty = r.h - px * 11, d = px * 10, bx = m;
 	int gy = ty + px * 7 / 2 - d / 2;
-	bx += draw_brand(scr, BRAND_BTN_A, bx, gy, d) + px * 3;
-	ui_text(scr, bx, ty, px, "PLAY", C_TEXT);
-	bx += ui_text_width("PLAY", px) + px * 10;
-	bx += draw_brand(scr, BRAND_BTN_B, bx, gy, d) + px * 3;
-	ui_text(scr, bx, ty, px, "QUIT", C_TEXT);
+	int cap = px * 5, cy = gy + d / 2, wordW = px * 18;
+	bx += draw_brand(scr, BRAND_BTN_A, bx, gy, d) + px * 2;
+	ui_label(scr, bx + wordW / 2, cy, cap, "Play", C_TEXT);
+	bx += wordW + px * 8;
+	bx += draw_brand(scr, BRAND_BTN_B, bx, gy, d) + px * 2;
+	ui_label(scr, bx + wordW / 2, cy, cap, "Quit", C_TEXT);
 
 	if (nGames == 0 || sel < 0) {
 		ui_text_center(scr, r.w / 2, r.h / 2 - px * 4, px, "NO GAMES FOUND", C_TEXT);
@@ -221,21 +221,45 @@ static void draw_preview(Config* cfg, int scr, int sel) {
 	}
 }
 
-/* -------------------------------------------------------------- list */
+/* -------------------------------------------------------------- list: a grid of logos */
+
+static const SDL_Color C_EDGE = { 150, 120, 210, 255 };
 
 typedef struct {
-	int rowH, headerH, listH, visible;
+	int headerH, listH, m, gap, tileW, tileH, rowH, cols, visibleRows;
 } ListGeom;
 
 static ListGeom list_geom(int scr) {
 	ListGeom g;
 	SDL_Rect r = screens[scr].rect;
 	int px = ui_px(scr);
-	g.rowH = px * 22;
 	g.headerH = px * 20;
 	g.listH = r.h - g.headerH;
-	g.visible = g.listH / g.rowH;
+	g.m = px * 4;
+	g.gap = px * 4;
+	g.cols = 2;
+	g.tileW = (r.w - g.m * 2 - g.gap * (g.cols - 1)) / g.cols;
+	g.tileH = px * 40;
+	g.rowH = g.tileH + g.gap;
+	g.visibleRows = SDL_max(1, (g.listH - g.m) / g.rowH);
 	return g;
+}
+
+static SDL_Rect tile_rect(ListGeom* g, int i, int scroll) {
+	int row = i / g->cols, col = i % g->cols;
+	return (SDL_Rect) { g->m + col * (g->tileW + g->gap), g->headerH + g->m + row * g->rowH - scroll, g->tileW, g->tileH };
+}
+
+/* each game's logo, loaded on first sight; reloaded when a new one is extracted */
+static SDL_Texture* tileLogo[256][2];
+static int tileLogoW[256], tileLogoH[256];
+static bool tileTried[256];
+
+static void free_tiles(void) {
+	for (int i = 0; i < 256; ++i) {
+		ui_free_image(tileLogo[i]);
+		tileTried[i] = false;
+	}
 }
 
 static void draw_list(Config* cfg, int scr, int sel, int scroll) {
@@ -250,26 +274,50 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 		ui_text_center(scr, r.w / 2, r.h / 2, px, dir, C_GOLD);
 		ui_text_center(scr, r.w / 2, r.h / 2 + px * 12, px, "(SUPPORTED GAMES ONLY, UNZIPPED)", C_DIM);
 	}
-	for (int i = 0; i < nGames; ++i) {
-		int y = g.headerH + i * g.rowH - scroll;
-		if (y + g.rowH <= g.headerH || y >= r.h) continue;
-		SDL_Color bg = i == sel ? C_SEL : (i & 1) ? C_ROW_ALT : C_ROW;
-		ui_fill(scr, (SDL_Rect) { 0, y, r.w, g.rowH - px }, bg);
-		int tagW = games[i].supported || cfg->showAll == false ? 0 : ui_text_width("NO MAP", px) + px * 6;
-		char line[200];
-		truncate_to(line, sizeof(line), games[i].name, (r.w - px * 16 - tagW) / (px * 6));
-		ui_text(scr, px * 6, y + (g.rowH - px * 8) / 2, px, line, C_TEXT);
-		if (tagW) {
-			SDL_Rect t = { r.w - tagW - px * 6, y + (g.rowH - px * 12) / 2, tagW, px * 11 };
-			ui_fill(scr, t, C_TAG);
-			ui_text(scr, t.x + px * 3, t.y + px * 2, px, "NO MAP", C_TEXT);
+	int done, total;
+	logo_progress(&done, &total);
+	bool extracting = done < total;
+	for (int i = 0; i < nGames && i < 256; ++i) {
+		SDL_Rect t = tile_rect(&g, i, scroll);
+		if (t.y + t.h <= g.headerH || t.y >= r.h) continue;
+		bool on = i == sel;
+		if (on) ui_fill_round(scr, (SDL_Rect) { t.x - px, t.y - px, t.w + px * 2, t.h + px * 2 }, C_EDGE, px * 4);
+		ui_fill_round(scr, t, on ? C_SEL : C_ROW, px * 3);
+		if (!tileTried[i]) {
+			tileTried[i] = true;
+			bool pixelArt;
+			if (ui_load_logo(cfg, games[i].path, games[i].code, tileLogo[i], &tileLogoW[i], &tileLogoH[i], &pixelArt)) {
+				for (int v = 0; v < 2; ++v) {
+					if (tileLogo[i][v]) SDL_SetTextureScaleMode(tileLogo[i][v], SDL_ScaleModeLinear);
+				}
+			}
+		}
+		if (tileLogo[i][0] || tileLogo[i][1]) {
+			/* the logo, as large as fits with some padding, keeping its shape */
+			int pad = px * 5;
+			int aw = t.w - pad * 2, ah = t.h - pad * 2;
+			int w = aw, h = tileLogoH[i] * aw / tileLogoW[i];
+			if (h > ah) h = ah, w = tileLogoW[i] * ah / tileLogoH[i];
+			SDL_Rect a = { t.x + (t.w - w) / 2, t.y + (t.h - h) / 2, w, h };
+			ui_image(scr, tileLogo[i], tileLogoW[i], tileLogoH[i], "stretch", &a);
+		} else if (games[i].supported && extracting) {
+			ui_label(scr, t.x + t.w / 2, t.y + t.h / 2, px * 4, "Loading thumbnail...", C_DIM);
+		} else {
+			/* no logo to be had (no map profile, or extraction failed): the name */
+			char line[200];
+			truncate_to(line, sizeof(line), games[i].name, (t.w - px * 8) / (px * 6));
+			ui_text_center(scr, t.x + t.w / 2, t.y + (t.h - px * 7) / 2, px, line, C_TEXT);
+		}
+		if (!games[i].supported && cfg->showAll) {
+			int tagW = ui_text_width("NO MAP", px) + px * 6;
+			SDL_Rect tg = { t.x + t.w - tagW - px * 3, t.y + px * 3, tagW, px * 11 };
+			ui_fill(scr, tg, C_TAG);
+			ui_text(scr, tg.x + px * 3, tg.y + px * 2, px, "NO MAP", C_TEXT);
 		}
 	}
-	/* header drawn last so rows scroll underneath it */
+	/* header drawn last so tiles scroll underneath it */
 	ui_fill(scr, (SDL_Rect) { 0, 0, r.w, g.headerH }, C_HEADER);
-	char hdr[64];
-	snprintf(hdr, sizeof(hdr), "GAMES (%d)", nGames);
-	ui_text(scr, px * 6, (g.headerH - px * 7) / 2, px, hdr, C_GOLD);
+	ui_label(scr, r.w / 2, g.headerH / 2, px * 5, "Touch or use the D-Pad to select a game", C_TEXT);
 }
 
 /* "Preparing games" over a dimmed screen, with a progress bar. */
@@ -291,16 +339,17 @@ static void draw_wait(int scr, int done, int total) {
 
 static int clamp_scroll(int scr, int scroll) {
 	ListGeom g = list_geom(scr);
-	int max = nGames * g.rowH - g.listH;
+	int rows = (nGames + g.cols - 1) / g.cols;
+	int max = g.m * 2 + rows * g.rowH - g.gap - g.listH;
 	if (max < 0) max = 0;
 	return scroll < 0 ? 0 : scroll > max ? max : scroll;
 }
 
 static int keep_visible(int scr, int sel, int scroll) {
 	ListGeom g = list_geom(scr);
-	int top = sel * g.rowH;
+	int top = (sel / g.cols) * g.rowH;
 	if (top < scroll) scroll = top;
-	if (top + g.rowH > scroll + g.listH) scroll = top + g.rowH - g.listH;
+	if (top + g.tileH + g.m * 2 > scroll + g.listH) scroll = top + g.tileH + g.m * 2 - g.listH;
 	return clamp_scroll(scr, scroll);
 }
 
@@ -333,6 +382,7 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 		if (logo_generation() != logoGen) { /* a logo finished extracting */
 			logoGen = logo_generation();
 			thumbFor = -2;
+			free_tiles();
 		}
 		if (!ui_events()) {
 			quit = true;
@@ -368,12 +418,18 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 		}
 
 		if (nGames) {
+			/* up/down: a row, left/right: a column, L/R: a screenful */
 			int dir = 0;
-			if (btn_pressed(B_DOWN)) dir = 1, repeat = 0;
-			if (btn_pressed(B_UP)) dir = -1, repeat = 0;
-			if ((btnNow[B_DOWN] || btnNow[B_UP]) && ++repeat > 18 && repeat % 4 == 0) dir = btnNow[B_DOWN] ? 1 : -1;
-			if (btn_pressed(B_R) || btn_pressed(B_RIGHT)) dir = g.visible;
-			if (btn_pressed(B_L) || btn_pressed(B_LEFT)) dir = -g.visible;
+			if (btn_pressed(B_DOWN)) dir = g.cols, repeat = 0;
+			if (btn_pressed(B_UP)) dir = -g.cols, repeat = 0;
+			if (btn_pressed(B_RIGHT)) dir = 1, repeat = 0;
+			if (btn_pressed(B_LEFT)) dir = -1, repeat = 0;
+			bool held = btnNow[B_DOWN] || btnNow[B_UP] || btnNow[B_LEFT] || btnNow[B_RIGHT];
+			if (held && ++repeat > 18 && repeat % 6 == 0) {
+				dir = btnNow[B_DOWN] ? g.cols : btnNow[B_UP] ? -g.cols : btnNow[B_RIGHT] ? 1 : -1;
+			}
+			if (btn_pressed(B_R)) dir = g.cols * g.visibleRows;
+			if (btn_pressed(B_L)) dir = -g.cols * g.visibleRows;
 			if (dir) {
 				sel += dir;
 				if (sel < 0) sel = 0;
@@ -393,16 +449,18 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 				pressY = p.y;
 				pressScroll = scroll;
 			} else if (p.kind == 3 && pressed) {
-				if (abs(p.y - pressY) > g.rowH / 4) dragging = true;
+				if (abs(p.y - pressY) > g.tileH / 6) dragging = true;
 				if (dragging) scroll = clamp_scroll(ls, pressScroll - (p.y - pressY));
 			} else if (p.kind == 2 && pressed) {
 				pressed = false;
 				if (dragging) continue;
 				if (p.y >= g.headerH) {
-					int i = (p.y - g.headerH + scroll) / g.rowH;
-					if (i >= 0 && i < nGames) {
-						sel = i;
-						chosen = i;
+					for (int i = 0; i < nGames; ++i) {
+						SDL_Rect t = tile_rect(&g, i, scroll);
+						if (p.x >= t.x && p.x < t.x + t.w && p.y >= t.y && p.y < t.y + t.h) {
+							sel = i;
+							chosen = i;
+						}
 					}
 				}
 			}
@@ -422,6 +480,7 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 	}
 	free_thumbs();
 	free_brand();
+	free_tiles();
 	if (chosen < 0) return false;
 	snprintf(outPath, outSize, "%s", games[chosen].path);
 	f = fopen(lastFile, "w");
