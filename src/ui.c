@@ -3,6 +3,7 @@
 #include "font.h"
 #include "logo.h"
 #include "paths.h"
+#include "profiles.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -721,7 +722,12 @@ bool ui_load_logo(const Config* c, const char* rom, const char* code, SDL_Textur
 	/* otherwise the one extracted from the game's own title screen */
 	snprintf(path, sizeof(path), "%s/logos", c->stateDir);
 	mkdirs(path);
-	snprintf(path, sizeof(path), "%s/logos/%.4s.png", c->stateDir, code);
+	const MapProfile* prof = profile_find(code);
+	if (prof && prof->logo.rev) {
+		snprintf(path, sizeof(path), "%s/logos/%.4s-r%d.png", c->stateDir, code, prof->logo.rev);
+	} else {
+		snprintf(path, sizeof(path), "%s/logos/%.4s.png", c->stateDir, code);
+	}
 	*pixelArt = true;
 	if (ui_load_image(path, tex, w, h, false)) return true;
 	if (rom) logo_request(rom, code, path);

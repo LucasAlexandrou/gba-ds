@@ -92,6 +92,7 @@ typedef struct MapProfile {
 		int wait, wait2, layer, maxY;
 		bool pressStart, blackIsClear;
 		MacroStep steps[24]; /* instead of wait/pressStart: button steps from power-on */
+		int rev; /* bump when extraction changes, so cached logos are made again */
 	} logo;
 
 	/* Border for the map screen, taken from one of the game's own menu screens

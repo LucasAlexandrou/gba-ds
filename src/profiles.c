@@ -130,7 +130,8 @@ static const MapProfile profiles[] = {
 		.gridX = 0, .gridY = 0, .gridCell = 8,
 		.mem = { { 0x03000BDE, 0xFF, 0x03, 1 } },
 		.live = { { 0x03000BDE, 0xFF, 0x01, 1 } },
-		.logo = { .wait = 200, .pressStart = true, .wait2 = 300, .layer = 1, .maxY = 125 },
+		.logo = { .wait = 200, .pressStart = true, .wait2 = 300, .layer = 1, .maxY = 125, .blackIsClear = true,
+		          .rev = 1 /* was saved with its black fill */ },
 		/* the HUD mini-map in the top-right corner: a 32x32 frame (tile 220)
 		 * and the blinking 8x8 position marker, both drawn on top (priority 0) */
 		.hideSprites = { { 200, -16, 239, 24, 160, 255, 0 } },
