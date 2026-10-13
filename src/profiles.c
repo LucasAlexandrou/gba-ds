@@ -178,7 +178,7 @@ static const MapProfile profiles[] = {
  *
  * European and Japanese releases reuse the USA profile. Where their RAM
  * layout moved, memShift is added to every memory probe address (found by
- * matching the code that reads them, tools/xlate notes in CHANGELOG); patch
+ * matching the code that reads them in the two ROMs); patch
  * adjusts anything else that differs (button sequences through extra
  * screens, lettering positions). */
 typedef struct {
