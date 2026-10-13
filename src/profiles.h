@@ -77,6 +77,9 @@ typedef struct MapProfile {
 
 	MemProbe mem[4]; /* checked on the shadow core once the map should be up */
 	MemProbe live[4]; /* checked on the live core before snapshotting (gameplay) */
+	/* Back on the title / file menus (all must match): forget the map and
+	 * show the logo again until the next capture. */
+	MemProbe menu[2];
 
 	/* Values that change when the player enters a new room; a change
 	 * triggers an early capture. Only addr/size are used. */

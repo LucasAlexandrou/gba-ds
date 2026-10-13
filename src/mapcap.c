@@ -768,6 +768,10 @@ int mapcap_failures(MapCapture* mc, const char** why) {
 	return f;
 }
 
+bool mapcap_in_menu(MapCapture* mc, Emu* live) {
+	return mc->prof->menu[0].addr && memprobes_match(mc->prof->menu, 2, live);
+}
+
 bool mapcap_live_ok(MapCapture* mc, Emu* live) {
 	return memprobes_match(mc->prof->live, 4, live);
 }

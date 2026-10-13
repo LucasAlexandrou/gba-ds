@@ -155,6 +155,8 @@ static const MapProfile profiles[] = {
 		 * and in Four Swords) and in normal play: 9 outdoors, 7 indoors, with
 		 * sub-mode 0 (not mid screen transition or closing the map) */
 		.live = { { 0x03000010, 0xFF, 0x02, 1 }, { 0x03002BDC, 0xFF, 0x09, 1, true, 0x07 }, { 0x03002BDD, 0xFF, 0x00, 1 } },
+		/* save & quit returns to the cartridge's title and file select */
+		.menu = { { 0x03000010, 0xFF, 0x01, 1 } },
 		/* A Link to the Past's own title (the cartridge's shows Four Swords too):
 		 * name a file, pick it, choose the game, wait for the title */
 		.logo = { .steps = { { 0, 400 }, { K_A, 4 }, { 0, 60 }, { K_A, 4 }, { 0, 20 }, { K_A, 4 }, { 0, 20 }, { K_A, 4 },

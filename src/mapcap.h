@@ -52,6 +52,8 @@ int mapcap_failures(MapCapture* mc, const char** why);
 /* Cheap check on the live core: is this a moment where capturing makes sense?
  * (in gameplay, not in a menu). Profiles without a check return true. */
 bool mapcap_live_ok(MapCapture* mc, Emu* live);
+/* The game is back on its title / file menus (profiles without a check: never). */
+bool mapcap_in_menu(MapCapture* mc, Emu* live);
 
 /* Returns a value that changes when the player moves to a new map cell
  * (or 0 if the profile cannot tell). Used to trigger captures early. */

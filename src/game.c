@@ -755,6 +755,13 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				refreshAt = -1;
 				if (debug) fprintf(stderr, "frame %llu: room transition\n", (unsigned long long) frameCount);
 			}
+			if (mapShownIdx >= 0 && frameCount % 30 == 0 && mapcap_in_menu(mc, &emu)) {
+				/* quit to the title: the map belongs to the old session */
+				mapShownIdx = -1;
+				mapInactive = false;
+				forceMap = true;
+				if (debug) fprintf(stderr, "frame %llu: back at the menus, map cleared\n", (unsigned long long) frameCount);
+			}
 			uint32_t rk = mapcap_room_key(mc, &emu);
 			bool roomChanged = rk && rk != lastRoomKey;
 			/* Back off while captures keep failing (e.g. the game says "playing"
@@ -786,7 +793,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 					forceMap = false;
 				}
 			}
-			if (mapcap_poll(mc, mapRes.serial, &mapRes)) {
+			bool fresh = mapcap_poll(mc, mapRes.serial, &mapRes);
+			if (fresh && mapcap_in_menu(mc, &emu)) {
+				/* a capture that finished after quitting to the title: drop it */
+			} else if (fresh) {
 				mapInactive = false;
 				if (mapRes.hasTile) mapframe_set_tile(&mf, mapRes.tile, mapRes.tileK, mapRes.tileX, mapRes.tileY);
 				mapShownIdx = -1;
