@@ -1,5 +1,6 @@
 #include "profiles.h"
 
+#include <pthread.h>
 #include <string.h>
 
 /* Values below were found with tools/harness + tools/ramdiff.py against the
@@ -173,13 +174,106 @@ static const MapProfile profiles[] = {
 	},
 };
 
-const MapProfile* profile_find(const char* gameCode) {
+/* ---------------------------------------------------------------- regions
+ *
+ * European and Japanese releases reuse the USA profile. Where their RAM
+ * layout moved, memShift is added to every memory probe address (found by
+ * matching the code that reads them, tools/xlate notes in CHANGELOG); patch
+ * adjusts anything else that differs (button sequences through extra
+ * screens, lettering positions). */
+typedef struct {
+	const char* code;
+	const char* base;
+	int memShift;
+	void (*patch)(MapProfile*);
+} Variant;
+
+/* Inserts n steps at position at (arrays hold max entries). */
+static void insert_steps(MacroStep* steps, int max, int at, const MacroStep* add, int n) {
+	int len = 0;
+	while (len < max && steps[len].frames) ++len;
+	if (len + n > max) return;
+	memmove(&steps[at + n], &steps[at], (size_t) (len - at) * sizeof(*steps));
+	memcpy(&steps[at], add, (size_t) n * sizeof(*steps));
+}
+
+/* European multi-language releases start with a language menu (English
+ * selected): wait for it and press A, then boot as the USA release does. */
+static const MacroStep LANGUAGE_A[] = { { 0, 60 }, { K_A, 4 } };
+
+static void lang_menu(MapProfile* p) {
+	insert_steps(p->logo.steps, 24, 0, LANGUAGE_A, 2);
+	if (p->frame.steps[0].frames) insert_steps(p->frame.steps, 24, 0, LANGUAGE_A, 2);
+}
+
+static void zelda_eur(MapProfile* p) {
+	p->listName = "Legend of Zelda, The - A Link to the Past (Europe)";
+	/* the language menu comes after the title, where USA has the file menu */
+	static const MacroStep lang[] = { { K_A, 4 }, { 0, 60 } };
+	insert_steps(p->logo.steps, 24, 1, lang, 2);
+}
+static void zelda_jpn(MapProfile* p) {
+	p->listName = "Zelda no Densetsu - Kamigami no Triforce (Japan)";
+}
+
+
+static const Variant variants[] = {
+	{ "A2CP", "A2CE", 0, lang_menu },
+	{ "A2CJ", "A2CE", -0x30, NULL },
+	{ "ACHP", "ACHE", 0, NULL },
+	{ "ACHJ", "ACHE", -0x30, NULL },
+	{ "AAMP", "AAME", 0, NULL },
+	{ "AAMJ", "AAME", 0, NULL },
+	{ "BMXP", "BMXE", 0, lang_menu },
+	{ "BMXJ", "BMXE", 0, NULL },
+	{ "AMTP", "AMTE", 0, lang_menu },
+	{ "AMTJ", "AMTE", 0x34, NULL },
+	{ "AZLP", "AZLE", 0, zelda_eur },
+	{ "AZLJ", "AZLE", 0, zelda_jpn },
+};
+#define N_VARIANTS (sizeof(variants) / sizeof(*variants))
+static MapProfile variantProfiles[N_VARIANTS];
+static pthread_once_t variantsOnce = PTHREAD_ONCE_INIT;
+
+static const MapProfile* base_find(const char* gameCode) {
 	for (size_t i = 0; i < sizeof(profiles) / sizeof(*profiles); ++i) {
 		for (int j = 0; j < 4 && profiles[i].codes[j]; ++j) {
 			if (!strncmp(profiles[i].codes[j], gameCode, 4)) {
 				return &profiles[i];
 			}
 		}
+	}
+	return NULL;
+}
+
+static void shift(MemProbe* list, int n, int by) {
+	for (int i = 0; i < n && list[i].addr; ++i) list[i].addr += by;
+}
+
+static void build_variants(void) {
+	for (size_t i = 0; i < N_VARIANTS; ++i) {
+		const Variant* v = &variants[i];
+		MapProfile* p = &variantProfiles[i];
+		const MapProfile* b = base_find(v->base);
+		if (!b) continue;
+		*p = *b;
+		memset(p->codes, 0, sizeof(p->codes));
+		p->codes[0] = v->code;
+		shift(p->mem, 4, v->memShift);
+		shift(p->live, 4, v->memShift);
+		shift(p->menu, 2, v->memShift);
+		shift(p->room, 4, v->memShift);
+		shift(p->open2If, 2, v->memShift);
+		if (v->patch) v->patch(p);
+	}
+}
+
+const MapProfile* profile_find(const char* gameCode) {
+	const MapProfile* p = base_find(gameCode);
+	if (p) return p;
+	pthread_once(&variantsOnce, build_variants);
+	for (size_t i = 0; i < N_VARIANTS; ++i) {
+		if (!strncmp(variants[i].code, gameCode, 4) && variantProfiles[i].codes[0]) return &variantProfiles[i];
 	}
 	return NULL;
 }

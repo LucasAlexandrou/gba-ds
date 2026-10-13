@@ -55,17 +55,28 @@ bool logo_extract(const char* romPath, const char* gameCode, const char* outPng)
 	uint32_t* fg = malloc(GBA_W * GBA_H * 4);
 	uint8_t* opaque = calloc(GBA_W * GBA_H, 1);
 	emu_state_save(&e, st);
+	/* Layer switches only take effect when the display registers are
+	 * written; loading the state after setting them rewrites the registers
+	 * (some titles, e.g. Circle of the Moon JP, never rewrite them). */
 	layers(&e, -1); /* backdrop only */
+	emu_state_load(&e, st);
 	emu_frame(&e, 0);
 	memcpy(back, e.fb, GBA_W * GBA_H * 4);
-	emu_state_load(&e, st);
 	layers(&e, p->logo.layer);
+	emu_state_load(&e, st);
 	emu_frame(&e, 0);
 	memcpy(fg, e.fb, GBA_W * GBA_H * 4);
 	layers(&e, -2);
 	emu_close(&e);
 	free(st);
 
+	if (getenv("GBADS_LOGO_DEBUG")) {
+		char dbg[1200];
+		snprintf(dbg, sizeof(dbg), "%s.fg.png", outPng);
+		stbi_write_png(dbg, GBA_W, GBA_H, 4, fg, GBA_W * 4);
+		snprintf(dbg, sizeof(dbg), "%s.back.png", outPng);
+		stbi_write_png(dbg, GBA_W, GBA_H, 4, back, GBA_W * 4);
+	}
 	/* opaque mask and bounding box above maxY */
 	int x0 = GBA_W, y0 = GBA_H, x1 = -1, y1 = -1, count = 0;
 	int maxY = p->logo.maxY ? p->logo.maxY : GBA_H;
@@ -129,11 +140,12 @@ static bool render_layer(const char* romPath, const MacroStep* steps, int nSteps
 	void* st = malloc(sz);
 	uint32_t* back = malloc(GBA_W * GBA_H * 4);
 	emu_state_save(&e, st);
-	layers(&e, -1);
+	layers(&e, -1); /* (state reloaded after switching layers: see logo_extract) */
+	emu_state_load(&e, st);
 	emu_frame(&e, 0);
 	memcpy(back, e.fb, GBA_W * GBA_H * 4);
-	emu_state_load(&e, st);
 	layers(&e, layer);
+	emu_state_load(&e, st);
 	emu_frame(&e, 0);
 	memcpy(out, e.fb, GBA_W * GBA_H * 4);
 	layers(&e, -2);

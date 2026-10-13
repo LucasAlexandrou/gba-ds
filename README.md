@@ -12,16 +12,16 @@ The idea here is "what if the Game Boy Advance had a second screen" -- part of w
 
 <sub>Stacked screens, pixel-perfect scaling, LCD grid on.</sub>
 
-| Game | Map button | Status |
+| Game (USA, Europe and Japan) | Map button | Status |
 |---|---|---|
-| Castlevania: Aria of Sorrow (USA) | Select | working |
-| Castlevania: Harmony of Dissonance (USA) | Select | working |
-| Castlevania: Circle of the Moon (USA) | Select | working |
-| Metroid: Zero Mission (USA) | Start | working (not fully playtested) |
-| Metroid Fusion (USA) | Start | working (not fully playtested) |
-| The Legend of Zelda: A Link to the Past (USA) | L | working |
+| Castlevania: Aria of Sorrow | Select | working |
+| Castlevania: Harmony of Dissonance | Select | working |
+| Castlevania: Circle of the Moon | Select | working |
+| Metroid: Zero Mission | Start | working (not fully playtested) |
+| Metroid Fusion | Start | working (not fully playtested) |
+| The Legend of Zelda: A Link to the Past | L | working |
 
-Any other GBA game also runs; it just gets no map screen.
+The European and Japanese releases are supported as well as the USA ones: map, logo and border. (The European Metroids' label erasing was checked in English and German.) Any other GBA game also runs; it just gets no map screen.
 
 **Metroid mini-map:** with the full map always up, the small 3×3 mini-map in the top-right corner of the Metroid games is hidden. It's left out when the picture is drawn, so the game itself is unchanged; set `map = 0` and it comes back along with the normal one-screen view.
 
