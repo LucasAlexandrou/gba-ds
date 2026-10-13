@@ -419,6 +419,18 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 			emu_frame(s, p->open[i].keys);
 		}
 	}
+	if (p->open2[0].frames) {
+		int limit = p->openWithin ? p->openWithin : p->settleMax;
+		int g = 0;
+		while (g < limit && !memprobes_match(p->mem, 4, s)) emu_frame(s, 0), ++g;
+		if (g >= limit) return "map button did nothing";
+		if (memprobes_match(p->open2If, 2, s)) {
+			for (int f = 0; f < p->open2Delay; ++f) emu_frame(s, 0);
+			for (int i = 0; i < 4 && p->open2[i].frames; ++i) {
+				for (int f = 0; f < p->open2[i].frames; ++f) emu_frame(s, p->open2[i].keys);
+			}
+		}
+	}
 	int stable = 0;
 	bool havePrev = false;
 	bool everUp = false;

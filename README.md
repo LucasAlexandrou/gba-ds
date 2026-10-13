@@ -16,7 +16,7 @@ A Game Boy Advance emulator for dual-screen handhelds (built for the Anbernic RG
 
 Any other GBA game also runs; it just gets no map screen.
 
-**A Link to the Past:** the cartridge also holds Four Swords, which needs linked GBAs, so the game list shows only A Link to the Past and maps are only captured while it's being played. L brings up the world map outdoors and the dungeon map once you have it; where L does nothing (houses, caves, dungeons without their map), the last map stays up, dimmed.
+**A Link to the Past:** the cartridge also holds Four Swords, which needs linked GBAs, so the game list shows only A Link to the Past and maps are only captured while it's being played. L brings up the world map outdoors (GBA DS shows the zoomed-out whole-world view, which doesn't scroll with Link) and the dungeon map once you have it; where L does nothing (houses, caves, dungeons without their map), the last map stays up, dimmed.
 
 ## How it works
 

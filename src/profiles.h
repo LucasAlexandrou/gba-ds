@@ -31,6 +31,12 @@ typedef struct MapProfile {
 	const char* listName; /* name in the game list instead of the file name */
 
 	MacroStep open[8]; /* button sequence that brings up the map */
+	/* Optional second step: once the map is up (mem probes), if open2If
+	 * matches, wait open2Delay frames and press open2 (A Link to the Past:
+	 * L again on the world map zooms out to the whole world). */
+	MemProbe open2If[2];
+	int open2Delay;
+	MacroStep open2[4];
 	int settleMax;     /* frames to wait after the macro for the map to settle */
 	int openWithin;    /* give up if the memory probes don't match within this many frames (0 = settleMax) */
 	int stableFrames;  /* consecutive "quiet" frames required */

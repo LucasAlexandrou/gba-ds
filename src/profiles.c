@@ -143,14 +143,18 @@ static const MapProfile profiles[] = {
 		 * by the game that has the map */
 		.listName = "Legend of Zelda, The - A Link to the Past (USA)",
 		.open = { { K_L, 4 } },
+		/* on the world map, L again: the zoomed-out whole world, which doesn't
+		 * scroll along with Link like the close-up does */
+		.open2If = { { 0x03002BDD, 0xFF, 0x07, 1 } }, .open2Delay = 30, .open2 = { { K_L, 4 } },
 		.settleMax = 150, .openWithin = 30, .stableFrames = 3, .maxDiff = 300,
 		.crop_x = 0, .crop_y = 0, .crop_w = 240, .crop_h = 160,
 		/* the game's main mode byte (as on the SNES): 0x0E with sub-mode 7 =
 		 * world map, 3 = dungeon map */
 		.mem = { { 0x03002BDC, 0xFF, 0x0E, 1 }, { 0x03002BDD, 0xFF, 0x07, 1, true, 0x03 } },
 		/* A Link to the Past is running (0x03000010: 2; 1 on the shared menus
-		 * and in Four Swords) and in play: 9 outdoors, 7 indoors */
-		.live = { { 0x03000010, 0xFF, 0x02, 1 }, { 0x03002BDC, 0xFF, 0x09, 1, true, 0x07 } },
+		 * and in Four Swords) and in normal play: 9 outdoors, 7 indoors, with
+		 * sub-mode 0 (not mid screen transition or closing the map) */
+		.live = { { 0x03000010, 0xFF, 0x02, 1 }, { 0x03002BDC, 0xFF, 0x09, 1, true, 0x07 }, { 0x03002BDD, 0xFF, 0x00, 1 } },
 		/* A Link to the Past's own title (the cartridge's shows Four Swords too):
 		 * name a file, pick it, choose the game, wait for the title */
 		.logo = { .steps = { { 0, 400 }, { K_A, 4 }, { 0, 60 }, { K_A, 4 }, { 0, 20 }, { K_A, 4 }, { 0, 20 }, { K_A, 4 },
