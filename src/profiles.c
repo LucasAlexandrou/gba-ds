@@ -148,6 +148,9 @@ static const MapProfile profiles[] = {
 		.open2If = { { 0x03002BDD, 0xFF, 0x07, 1 } }, .open2Delay = 30, .open2 = { { K_L, 4 } },
 		.settleMax = 150, .openWithin = 30, .stableFrames = 3, .maxDiff = 300,
 		.crop_x = 0, .crop_y = 0, .crop_w = 240, .crop_h = 160,
+		/* not still black: dungeon maps can sit on a black screen for a few
+		 * frames before fading in (dark rooms), which otherwise looks "settled" */
+		.bgColor = 0x000000, .minForeground = 2000, .tolerance = 8,
 		/* the game's main mode byte (as on the SNES): 0x0E with sub-mode 7 =
 		 * world map, 3 = dungeon map */
 		.mem = { { 0x03002BDC, 0xFF, 0x0E, 1 }, { 0x03002BDD, 0xFF, 0x07, 1, true, 0x03 } },

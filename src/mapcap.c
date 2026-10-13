@@ -396,6 +396,13 @@ static bool map_up(const MapProfile* p, Emu* s) {
 /* Runs the shadow core from `state`; returns NULL on success or a reason.
  * Fills mc->work[0..workFrames). */
 static bool grab_rate(MapCapture* mc, const void* state);
+
+/* Summed brightness of a frame (fast, for comparing fade levels). */
+static long frame_luma(const uint32_t* px, size_t n) {
+	long sum = 0;
+	for (size_t i = 0; i < n; i += 3) sum += (px[i] & 0xFF) + ((px[i] >> 8) & 0xFF) * 2 + ((px[i] >> 16) & 0xFF);
+	return sum + 1;
+}
 static void place_rate(MapCapture* mc);
 
 static const char* do_capture(MapCapture* mc, const void* state) {
@@ -478,6 +485,19 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 	}
 	if (!animated) {
 		mc->workFrames = 1;
+	}
+	/* A fade still in progress isn't animation: drop leading frames whose
+	 * brightness differs from the last one by more than 3% of full scale
+	 * (a blinking marker changes far less). */
+	if (mc->workFrames > 1) {
+		long last = frame_luma(mc->work[mc->workFrames - 1], n);
+		long full = (long) ((n + 2) / 3) * 1020; /* every sampled pixel white */
+		int skip = 0;
+		while (skip < mc->workFrames - 1 && labs(frame_luma(mc->work[skip], n) - last) * 100 > full * 3) ++skip;
+		if (skip) {
+			for (int i = skip; i < mc->workFrames; ++i) memcpy(mc->work[i - skip], mc->work[i], n * sizeof(uint32_t));
+			mc->workFrames -= skip;
+		}
 	}
 	if (p->rate.w) {
 		/* refresh the label when the map gained pixels (a new room, or the
