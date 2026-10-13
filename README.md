@@ -4,17 +4,22 @@ A Game Boy Advance emulator for dual-screen handhelds (built for the Anbernic RG
 
 The idea here is "what if the Game Boy Advance had a second screen" -- part of what this means is that, at least for now, neither screen is treated like a touchscreen. Instead the secondary screen is used similarly to how the DS Castlevania games use it -- displaying maps or other secondary information to make the gameplay experience a little more pleasant on a device with the space to accommodate it. (This whole project was inspired by playing through all the DS Castlevania games and then feeling a little sad about the prospect of going back in time to the GBA games...)
 
-![Aria of Sorrow](docs/aos.png)
-![Metroid: Zero Mission](docs/zm.png)
+<p>
+<img src="docs/cotm.png" width="32%" alt="Castlevania: Circle of the Moon with its 99.8% map">
+<img src="docs/fusion.png" width="32%" alt="Metroid Fusion with its map">
+<img src="docs/zelda.png" width="32%" alt="A Link to the Past with the world map">
+</p>
+
+<sub>Stacked screens, pixel-perfect scaling, LCD grid on.</sub>
 
 | Game | Map button | Status |
 |---|---|---|
 | Castlevania: Aria of Sorrow (USA) | Select | working |
 | Castlevania: Harmony of Dissonance (USA) | Select | working |
 | Castlevania: Circle of the Moon (USA) | Select | working |
-| Metroid: Zero Mission (USA) | Start | working |
-| Metroid Fusion (USA) | Start | working |
-| The Legend of Zelda: A Link to the Past (USA) | L | world map tested; dungeon maps untested |
+| Metroid: Zero Mission (USA) | Start | working (not fully playtested) |
+| Metroid Fusion (USA) | Start | working (not fully playtested) |
+| The Legend of Zelda: A Link to the Past (USA) | L | working |
 
 Any other GBA game also runs; it just gets no map screen.
 
