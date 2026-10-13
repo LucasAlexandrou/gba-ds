@@ -1,5 +1,6 @@
 /* One play session: the emulator, the second-screen map, and the pause menu. */
 #include "game.h"
+#include "brand.h"
 #include "emu.h"
 #include "mapcap.h"
 #include "paths.h"
@@ -44,8 +45,9 @@ static bool debug;
 
 enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
 static const char* menuLabels[] = {
-	[M_RESUME] = "RESUME", [M_SWAP] = "SWAP SCREENS", [M_SAVE] = "SAVE STATE", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_OVERLAY] = "", [M_RESTART] = "RESTART GAME",
-	[M_LOAD] = "LOAD STATE", [M_LIBRARY] = "CLOSE GAME", [M_EXIT] = "CLOSE GBA DS",
+	/* title case: drawn in Futura from the built-in images (tools/make_brand.py) */
+	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_OVERLAY] = "", [M_RESTART] = "Restart Game",
+	[M_LOAD] = "Load State", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
 };
 static int menuItems[9], nMenuItems;
 /* two pages, switched with L1/R1 or the tabs */
@@ -58,7 +60,7 @@ static bool suppress[B_COUNT];
 static void suppress_held(void) {
 	for (int b = 0; b < B_COUNT; ++b) suppress[b] = btnNow[b];
 }
-static const char* pageNames[2] = { "GAME", "DISPLAY" };
+static const char* pageNames[2] = { "Game", "Display" };
 static bool restartArmed;
 static bool menuOpen;
 static int menuSel;
@@ -127,34 +129,51 @@ static int item_at(int scr, int x, int y) {
 }
 
 static void draw_menu(void) {
+	static SDL_Texture* shoulderTex[2][2]; /* L1, R1 prompts, per view */
+	static int shoulderW, shoulderH;
+	if (!shoulderTex[0][0] && !shoulderTex[0][1]) {
+		ui_load_brand(BRAND_BTN_L1, shoulderTex[0], &shoulderW, &shoulderH);
+		ui_load_brand(BRAND_BTN_R1, shoulderTex[1], &shoulderW, &shoulderH);
+	}
 	for (int s = 0; s < nScreens; ++s) ui_dim(s, 170);
 	int scr = ui_touch_screen();
 	int px = ui_px(scr);
+	int cap = px * 11 / 2;   /* Futura capital height */
+	int rad = px * 3;        /* box corner radius */
 	for (int t = 0; t < 2; ++t) {
 		SDL_Rect r = tab_rect(scr, t);
 		bool on = t == curPage;
-		ui_fill(scr, r, on ? C_BTN_EDGE : C_BTN);
-		ui_text_center(scr, r.x + r.w / 2, r.y + (r.h - px * 7) / 2, px, pageNames[t], on ? (SDL_Color) { 20, 16, 36, 255 } : C_DIS);
+		ui_fill_round(scr, r, on ? C_BTN_EDGE : C_BTN, rad);
+		ui_label(scr, r.x + r.w / 2, r.y + r.h / 2, cap, pageNames[t], on ? (SDL_Color) { 20, 16, 36, 255 } : C_DIS);
 	}
 	SDL_Rect t0 = tab_rect(scr, 0), t1 = tab_rect(scr, 1);
-	ui_text(scr, t0.x - px * 14, t0.y + (t0.h - px * 7) / 2, px, "L1", C_DIS);
-	ui_text(scr, t1.x + t1.w + px * 3, t1.y + (t1.h - px * 7) / 2, px, "R1", C_DIS);
+	/* L1 / R1 button prompts beside the tabs */
+	int gw = px * 25 / 2, gh = px * 8;
+	SDL_Rect g0 = { t0.x - px * 9 - gw / 2, t0.y + (t0.h - gh) / 2, gw, gh };
+	SDL_Rect g1 = { t1.x + t1.w + px * 9 - gw / 2, t1.y + (t1.h - gh) / 2, gw, gh };
+	if (shoulderTex[0][0] || shoulderTex[0][1]) {
+		ui_image(scr, shoulderTex[0], shoulderW, shoulderH, "stretch", &g0);
+		ui_image(scr, shoulderTex[1], shoulderW, shoulderH, "stretch", &g1);
+	} else {
+		ui_text(scr, t0.x - px * 14, t0.y + (t0.h - px * 7) / 2, px, "L1", C_DIS);
+		ui_text(scr, t1.x + t1.w + px * 3, t1.y + (t1.h - px * 7) / 2, px, "R1", C_DIS);
+	}
 	for (int i = 0; i < nMenuItems; ++i) {
 		SDL_Rect r = item_rect(scr, i);
 		bool sel = i == menuSel;
-		ui_fill(scr, (SDL_Rect) { r.x - px / 2, r.y - px / 2, r.w + px, r.h + px }, sel ? C_BTN_EDGE : C_BTN);
-		ui_fill(scr, r, sel ? C_BTN_SEL : C_BTN);
+		if (sel) ui_fill_round(scr, (SDL_Rect) { r.x - px / 2, r.y - px / 2, r.w + px, r.h + px }, C_BTN_EDGE, rad + px / 2);
+		ui_fill_round(scr, r, sel ? C_BTN_SEL : C_BTN, rad);
 		bool en = item_enabled(menuItems[i]);
 		const char* label = menuLabels[menuItems[i]];
-		if (menuItems[i] == M_SCALE) label = !strcmp(cfg->scale, "fit") ? "SCALE: FULL WIDTH" : !strcmp(cfg->scale, "stretch") ? "SCALE: STRETCH" : "SCALE: PIXEL PERFECT";
-		if (menuItems[i] == M_LCD) label = cfg->lcdGrid ? "LCD GRID: ON" : "LCD GRID: OFF";
-		if (menuItems[i] == M_FPS) label = cfg->showFps ? "SHOW FPS: ON" : "SHOW FPS: OFF";
+		if (menuItems[i] == M_SCALE) label = !strcmp(cfg->scale, "fit") ? "Scale: Full Width" : !strcmp(cfg->scale, "stretch") ? "Scale: Stretch" : "Scale: Pixel Perfect";
+		if (menuItems[i] == M_LCD) label = cfg->lcdGrid ? "LCD Grid: On" : "LCD Grid: Off";
+		if (menuItems[i] == M_FPS) label = cfg->showFps ? "Show FPS: On" : "Show FPS: Off";
 		if (menuItems[i] == M_OVERLAY) {
-			static const char* const ovl[4] = { "OVERLAYS: NONE", "OVERLAYS: PRIMARY", "OVERLAYS: SECONDARY", "OVERLAYS: BOTH" };
+			static const char* const ovl[4] = { "Overlays: None", "Overlays: Primary", "Overlays: Secondary", "Overlays: Both" };
 			label = ovl[cfg->overlays & OVL_BOTH];
 		}
-		if (menuItems[i] == M_RESTART && restartArmed) label = "TAP AGAIN TO RESTART";
-		ui_text_center(scr, r.x + r.w / 2, r.y + (r.h - px * 7) / 2, px, label, en ? C_TEXT : C_DIS);
+		if (menuItems[i] == M_RESTART && restartArmed) label = "Tap Again to Restart";
+		ui_label(scr, r.x + r.w / 2, r.y + r.h / 2, cap, label, en ? C_TEXT : C_DIS);
 	}
 	if (menuNote[0]) {
 		SDL_Rect last = item_rect(scr, nMenuItems - 1);
@@ -162,7 +181,7 @@ static void draw_menu(void) {
 	}
 	if (nScreens > 1) {
 		int o = ui_other_screen();
-		ui_text_center(o, screens[o].rect.w / 2, screens[o].rect.h / 2 - px * 4, ui_px(o) + 1, "PAUSED", C_GOLD);
+		ui_label(o, screens[o].rect.w / 2, screens[o].rect.h / 2, (ui_px(o) + 1) * 7 * 34 / 35, "Paused", C_GOLD);
 	}
 }
 

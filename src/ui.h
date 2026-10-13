@@ -75,6 +75,11 @@ void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, c
 /* Where ui_image_pixels puts a w x h image on a screen (screen-local coords). */
 SDL_Rect ui_image_rect(int screen, int w, int h, const char* mode);
 void ui_fill(int screen, SDL_Rect local, SDL_Color c);
+/* Filled box with rounded corners (radius in pixels). */
+void ui_fill_round(int screen, SDL_Rect local, SDL_Color c, int radius);
+/* Built-in Futura text (brandTexts) centred on cx, cy with capitals capPx tall,
+ * tinted c. Falls back to the pixel font if the text has no image. */
+void ui_label(int screen, int cx, int cy, int capPx, const char* text, SDL_Color c);
 void ui_dim(int screen, Uint8 alpha);
 void ui_text(int screen, int x, int y, int px, const char* s, SDL_Color c);
 int ui_text_width(const char* s, int px);

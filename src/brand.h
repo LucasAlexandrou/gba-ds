@@ -4,7 +4,7 @@
 
 #include <stddef.h>
 
-enum { BRAND_LOGO, BRAND_BTN_A, BRAND_BTN_B, BRAND_NO_SAVES, BRAND_COUNT };
+enum { BRAND_LOGO, BRAND_BTN_A, BRAND_BTN_B, BRAND_NO_SAVES, BRAND_BTN_L1, BRAND_BTN_R1, BRAND_COUNT };
 
 typedef struct {
 	const unsigned char* png;
@@ -12,5 +12,17 @@ typedef struct {
 } BrandImage;
 
 extern const BrandImage brandImages[BRAND_COUNT];
+
+/* Menu text in Futura Bold Italic: white on transparent, brandTextCap * 2 px
+ * tall with the capitals centred vertically. */
+typedef struct {
+	const char* text;
+	const unsigned char* png;
+	size_t size;
+} BrandText;
+
+extern const BrandText brandTexts[];
+extern const int brandTextCount;
+extern const int brandTextCap;
 
 #endif

@@ -753,3 +753,95 @@ void ui_osd(const char* fmt, ...) {
 const char* ui_osd_text(void) {
 	return ticks < osdUntil ? osdText : NULL;
 }
+
+/* ------------------------------------------------------------ rounded boxes, Futura labels */
+
+#define DISC 64
+static SDL_Texture* discTex[2]; /* white anti-aliased disc, per view */
+
+static SDL_Texture* disc_texture(int view) {
+	if (discTex[view]) return discTex[view];
+	SDL_Surface* s = SDL_CreateRGBSurfaceWithFormat(0, DISC, DISC, 32, SDL_PIXELFORMAT_RGBA32);
+	if (!s) return NULL;
+	for (int y = 0; y < DISC; ++y) {
+		for (int x = 0; x < DISC; ++x) {
+			/* 4x4 supersampled coverage */
+			int in = 0;
+			for (int sy = 0; sy < 4; ++sy) {
+				for (int sx = 0; sx < 4; ++sx) {
+					float dx = x + (sx + 0.5f) / 4 - DISC / 2.0f, dy = y + (sy + 0.5f) / 4 - DISC / 2.0f;
+					in += dx * dx + dy * dy <= (DISC / 2.0f) * (DISC / 2.0f);
+				}
+			}
+			((Uint32*) s->pixels)[y * (s->pitch / 4) + x] = SDL_MapRGBA(s->format, 255, 255, 255, (Uint8) (in * 255 / 16));
+		}
+	}
+	discTex[view] = SDL_CreateTextureFromSurface(views[view].ren, s);
+	SDL_FreeSurface(s);
+	if (discTex[view]) {
+		SDL_SetTextureBlendMode(discTex[view], SDL_BLENDMODE_BLEND);
+		SDL_SetTextureScaleMode(discTex[view], SDL_ScaleModeLinear);
+	}
+	return discTex[view];
+}
+
+void ui_fill_round(int screen, SDL_Rect r, SDL_Color c, int radius) {
+	radius = SDL_min(radius, SDL_min(r.w, r.h) / 2);
+	if (radius <= 0) {
+		ui_fill(screen, r, c);
+		return;
+	}
+	/* the middle as three non-overlapping rects (so translucent fills stay even) */
+	ui_fill(screen, (SDL_Rect) { r.x + radius, r.y, r.w - 2 * radius, r.h }, c);
+	ui_fill(screen, (SDL_Rect) { r.x, r.y + radius, radius, r.h - 2 * radius }, c);
+	ui_fill(screen, (SDL_Rect) { r.x + r.w - radius, r.y + radius, radius, r.h - 2 * radius }, c);
+	Screen* s = &screens[screen];
+	SDL_Texture* t = disc_texture(s->view);
+	if (!t) return;
+	SDL_SetTextureColorMod(t, c.r, c.g, c.b);
+	SDL_SetTextureAlphaMod(t, c.a);
+	int h = DISC / 2;
+	SDL_Rect src[4] = { { 0, 0, h, h }, { h, 0, h, h }, { 0, h, h, h }, { h, h, h, h } };
+	int ox = s->rect.x + r.x, oy = s->rect.y + r.y;
+	SDL_Rect dst[4] = { { ox, oy, radius, radius }, { ox + r.w - radius, oy, radius, radius },
+		                { ox, oy + r.h - radius, radius, radius }, { ox + r.w - radius, oy + r.h - radius, radius, radius } };
+	for (int i = 0; i < 4; ++i) SDL_RenderCopy(views[s->view].ren, t, &src[i], &dst[i]);
+}
+
+static SDL_Texture** labelTex[2];
+static int labelW[64], labelH[64];
+
+void ui_label(int screen, int cx, int cy, int capPx, const char* text, SDL_Color c) {
+	int idx = -1;
+	for (int i = 0; i < brandTextCount && i < 64; ++i) {
+		if (!strcmp(brandTexts[i].text, text)) idx = i;
+	}
+	Screen* s = &screens[screen];
+	int v = s->view;
+	if (idx >= 0 && !labelTex[v]) labelTex[v] = calloc(64, sizeof(SDL_Texture*));
+	if (idx >= 0 && !labelTex[v][idx]) {
+		SDL_Surface* surf = image_load_mem(brandTexts[idx].png, brandTexts[idx].size);
+		if (surf) {
+			labelW[idx] = surf->w, labelH[idx] = surf->h;
+			labelTex[v][idx] = SDL_CreateTextureFromSurface(views[v].ren, surf);
+			SDL_FreeSurface(surf);
+			if (labelTex[v][idx]) {
+				SDL_SetTextureBlendMode(labelTex[v][idx], SDL_BLENDMODE_BLEND);
+				SDL_SetTextureScaleMode(labelTex[v][idx], SDL_ScaleModeLinear);
+			}
+		}
+	}
+	if (idx < 0 || !labelTex[v][idx]) {
+		/* no image: the pixel font, about the same height */
+		int px = SDL_max(1, capPx / 6);
+		ui_text_center(screen, cx, cy - px * 7 / 2, px, text, c);
+		return;
+	}
+	SDL_Texture* t = labelTex[v][idx];
+	int h = capPx * labelH[idx] / brandTextCap;
+	int w = labelW[idx] * h / labelH[idx];
+	SDL_SetTextureColorMod(t, c.r, c.g, c.b);
+	SDL_SetTextureAlphaMod(t, c.a);
+	SDL_Rect dst = { s->rect.x + cx - w / 2, s->rect.y + cy - h / 2, w, h };
+	SDL_RenderCopy(views[v].ren, t, NULL, &dst);
+}
