@@ -12,6 +12,7 @@ void config_defaults(Config* c) {
 	strcpy(c->mapScale, "integer");
 	strcpy(c->hotkey, "guide");
 	strcpy(c->romDir, "/storage/roms/gba");
+	strcpy(c->cheatDir, "/config/retroarch/cheats:/storage/.config/retroarch/cheats");
 	strcpy(c->touchScreen, "second");
 	strcpy(c->touchMap, "window");
 	c->map = true;
@@ -81,6 +82,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	STR("save_dir", saveDir)
 	STR("state_dir", stateDir)
 	STR("rom_dir", romDir)
+	STR("cheat_dir", cheatDir)
 	STR("asset_dir", assetDir)
 	STR("touch_screen", touchScreen)
 	STR("touch_map", touchMap)
@@ -165,6 +167,7 @@ void config_usage(const char* argv0) {
 	        "\n"
 	        "Options (also accepted as key=value lines in gba-ds.cfg):\n"
 	        "  --rom-dir=DIR[:DIR]    library folders (/storage/roms/gba)\n"
+	        "  --cheat-dir=DIR[:DIR]  RetroArch .cht folders (/config/retroarch/cheats:...)\n"
 	        "  --layout=auto|span-h|span-v|dual|single   screen arrangement (auto)\n"
 	        "  --swap                 show the map on the first screen\n"
 	        "  --touch-screen=first|second   which screen has the touch panel (second)\n"

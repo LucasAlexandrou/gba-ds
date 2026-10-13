@@ -3,18 +3,21 @@
 #include <mgba/flags.h>
 #include <mgba/internal/gba/gba.h>
 #include <mgba/internal/gba/renderers/video-software.h>
+#include <mgba/internal/gba/cheats.h>
 #undef GBA_H
 #include "emu.h"
 
 #include <mgba/flags.h>
 
 #include <mgba/core/core.h>
+#include <mgba/core/cheats.h>
 #include <mgba/core/serialize.h>
 #include <mgba/core/config.h>
 #include <mgba-util/audio-buffer.h>
 #include <mgba-util/vfs.h>
 #include <mgba/core/log.h>
 #include <stdarg.h>
+#include <ctype.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -206,4 +209,73 @@ void emu_hide_sprites(Emu* e, const SpriteRule* rules, int n) {
 		r->drawScanline = filtered_draw_scanline;
 	}
 	((struct GBAVideoSoftwareRenderer*) r)->oamDirty = true;
+}
+
+/* ---------------------------------------------------------------- cheats */
+
+void emu_cheats_clear(Emu* e) {
+	struct mCheatDevice* device = e->core->cheatDevice(e->core);
+	if (!device) return;
+	/* mCheatDeviceClear only frees the sets: a Code Breaker hook (the
+	 * "Enable Code") would stay patched into the ROM, and the next hook
+	 * would save that patch as the original instruction and loop forever.
+	 * Switch each set off (restores ROM patches) and remove it (restores
+	 * the hooked instruction) first. */
+	while (mCheatSetsSize(&device->cheats)) {
+		struct mCheatSet* set = *mCheatSetsGetPointer(&device->cheats, mCheatSetsSize(&device->cheats) - 1);
+		set->enabled = false;
+		mCheatRefresh(device, set);
+		mCheatRemoveSet(device, set);
+		mCheatSetDeinit(set);
+	}
+}
+
+static bool is_hex(const char* s, size_t n) {
+	for (size_t i = 0; i < n; ++i) {
+		if (!isxdigit((unsigned char) s[i])) return false;
+	}
+	return true;
+}
+
+int emu_cheats_add(Emu* e, const char* name, const char* const* codes, int n, int type) {
+	struct mCheatDevice* device = e->core->cheatDevice(e->core);
+	if (!device) return 0;
+	int mtype = type == EMU_CHEAT_CODEBREAKER ? GBA_CHEAT_CODEBREAKER :
+	            type == EMU_CHEAT_GAMESHARK ? GBA_CHEAT_GAMESHARK :
+	            type == EMU_CHEAT_ACTION_REPLAY ? GBA_CHEAT_PRO_ACTION_REPLAY : GBA_CHEAT_AUTODETECT;
+	struct mCheatSet* set = device->createSet(device, name);
+	int added = 0;
+	for (int c = 0; c < n; ++c) {
+		/* split into hex words on '+' and spaces, then pair them up:
+		 * 8 + 4 digits is a Code Breaker line, 8 + 8 a GameShark / AR one */
+		char words[64][20];
+		int nw = 0;
+		const char* p = codes[c];
+		while (*p && nw < 64) {
+			while (*p == '+' || isspace((unsigned char) *p)) ++p;
+			const char* q = p;
+			while (*q && *q != '+' && !isspace((unsigned char) *q)) ++q;
+			size_t len = (size_t) (q - p);
+			if (len && len < sizeof(words[0])) {
+				memcpy(words[nw], p, len);
+				words[nw++][len] = 0;
+			}
+			p = q;
+		}
+		for (int w = 0; w + 1 < nw; w += 2) {
+			size_t l1 = strlen(words[w]), l2 = strlen(words[w + 1]);
+			if (l1 != 8 || (l2 != 4 && l2 != 8) || !is_hex(words[w], l1) || !is_hex(words[w + 1], l2)) {
+				fprintf(stderr, "cheat %s: skipping \"%s %s\"\n", name ? name : "", words[w], words[w + 1]);
+				continue;
+			}
+			char line[20];
+			snprintf(line, sizeof(line), "%s %s", words[w], words[w + 1]);
+			int t = l2 == 4 ? GBA_CHEAT_CODEBREAKER : mtype == GBA_CHEAT_CODEBREAKER ? GBA_CHEAT_AUTODETECT : mtype;
+			if (mCheatAddLine(set, line, t)) ++added;
+			else fprintf(stderr, "cheat %s: mGBA rejected \"%s\"\n", name ? name : "", line);
+		}
+	}
+	set->enabled = true;
+	mCheatAddSet(device, set);
+	return added;
 }

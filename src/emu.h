@@ -70,4 +70,13 @@ bool write_png(const char* path, const uint32_t* px, int w, int h, int stride);
  * the game's memory and state are untouched. One emulator at a time. */
 void emu_hide_sprites(Emu* e, const SpriteRule* rules, int n);
 
+/* Cheats. emu_cheats_clear removes them all; emu_cheats_add adds one set
+ * (applied every frame) from codes in RetroArch's .cht form: hex words
+ * joined with '+', paired up into "XXXXXXXX YYYY" (Code Breaker) or
+ * "XXXXXXXX YYYYYYYY" (GameShark / Action Replay) lines. type: 0 = detect,
+ * else EMU_CHEAT_*. Returns the number of lines mGBA accepted. */
+enum { EMU_CHEAT_DETECT = 0, EMU_CHEAT_CODEBREAKER, EMU_CHEAT_GAMESHARK, EMU_CHEAT_ACTION_REPLAY };
+void emu_cheats_clear(Emu* e);
+int emu_cheats_add(Emu* e, const char* name, const char* const* codes, int n, int type);
+
 #endif

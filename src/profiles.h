@@ -138,6 +138,9 @@ typedef struct MapProfile {
 } MapProfile;
 
 const MapProfile* profile_find(const char* gameCode);
+/* True for a regional release whose RAM layout differs from the USA one
+ * (cheat codes made for other regions would write the wrong addresses). */
+bool profile_ram_moved(const char* gameCode);
 bool memprobes_match(const MemProbe* list, int n, Emu* e);
 
 #endif

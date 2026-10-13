@@ -8,6 +8,7 @@
 #include "logo.h"
 #include "mapframe.h"
 #include "profiles.h"
+#include "cheats.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,11 +49,11 @@ static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
+enum MenuItem { M_RESUME, M_CHEATS, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
 static const char* menuLabels[] = {
 	/* title case: drawn in Futura from the built-in images (tools/make_brand.py) */
 	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_RESTART] = "Restart Game",
-	[M_LOAD] = "Load State", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
+	[M_LOAD] = "Load State", [M_CHEATS] = "Cheats", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
 };
 static int menuItems[9], nMenuItems;
 /* two pages, switched with L1/R1 or the tabs */
@@ -80,8 +81,182 @@ static const SDL_Color C_TEXT = { 236, 236, 244, 255 };
 static const SDL_Color C_DIS = { 100, 100, 120, 255 };
 static const SDL_Color C_GOLD = { 232, 200, 120, 255 };
 
+static Cheats cheats;
+static SDL_Rect tab_rect(int scr, int t);
+
 static bool item_enabled(int item) {
+	if (item == M_CHEATS) return cheats.n > 0;
 	return item != M_LOAD || file_exists(gp.state);
+}
+
+/* ---------------------------------------------------------------- cheats screen
+ *
+ * "Cheats" on the Game page opens a list of the game's cheats with an On/Off
+ * pill each: D-pad / A to toggle, L/R a page at a time, B (or the Back box)
+ * back to the menu. Touch: tap a cheat to toggle it, drag to scroll. */
+static bool cheatsOpen;
+static int cheatSel;                 /* row index */
+static int cheatScroll;              /* pixels */
+static int cheatRows[CHEAT_MAX_FILES + 1024], nCheatRows; /* >= 0 cheat index, < 0 file header (-1 - file) */
+static int cheatPressRow = -1, cheatPressY, cheatPressScroll;
+static bool cheatDragging;
+
+static void build_cheat_rows(void) {
+	nCheatRows = 0;
+	for (int f = 0; f < cheats.nFiles; ++f) {
+		if (cheats.nFiles > 1) cheatRows[nCheatRows++] = -1 - f;
+		for (int i = 0; i < cheats.n && nCheatRows < (int) SDL_arraysize(cheatRows); ++i) {
+			if (cheats.items[i].file == f) cheatRows[nCheatRows++] = i;
+		}
+	}
+}
+
+typedef struct {
+	int px, tpx, top, rowH, gap, x, w, listH, footY;
+} CheatGeom;
+
+static CheatGeom cheat_geom(int scr) {
+	CheatGeom g;
+	SDL_Rect r = screens[scr].rect;
+	g.px = ui_px(scr);
+	g.tpx = SDL_max(2, g.px * 3 / 4);
+	g.top = g.px * 26;
+	g.rowH = g.tpx * 7 + g.px * 5;
+	g.gap = g.px * 2;
+	g.x = g.px * 6;
+	g.w = r.w - g.px * 12;
+	g.footY = r.h - g.tpx * 9 * 2 - g.px * 5;
+	g.listH = g.footY - g.px * 6 - g.top;
+	return g;
+}
+
+static int cheat_max_scroll(const CheatGeom* g) {
+	return SDL_max(0, nCheatRows * (g->rowH + g->gap) - g->gap - g->listH);
+}
+
+static void cheat_keep_visible(int scr) {
+	CheatGeom g = cheat_geom(scr);
+	int y = cheatSel * (g.rowH + g.gap);
+	if (y < cheatScroll) cheatScroll = y;
+	if (y + g.rowH > cheatScroll + g.listH) cheatScroll = y + g.rowH - g.listH;
+	cheatScroll = SDL_clamp(cheatScroll, 0, cheat_max_scroll(&g));
+}
+
+static void cheat_move(int dir) {
+	int i = cheatSel;
+	for (int k = 0; k < nCheatRows; ++k) {
+		i += dir;
+		if (i < 0 || i >= nCheatRows) return;
+		if (cheatRows[i] >= 0) {
+			cheatSel = i;
+			cheat_keep_visible(ui_touch_screen());
+			return;
+		}
+	}
+}
+
+static void open_cheats(void) {
+	build_cheat_rows();
+	cheatsOpen = true;
+	cheatSel = 0;
+	cheatScroll = 0;
+	if (nCheatRows && cheatRows[0] < 0) cheat_move(1);
+	cheatPressRow = -1;
+}
+
+static void toggle_cheat(int row) {
+	if (row < 0 || row >= nCheatRows || cheatRows[row] < 0) return;
+	Cheat* c = &cheats.items[cheatRows[row]];
+	c->on = !c->on;
+	cheats_apply(&cheats, &emu);
+	cheats_save(&cheats);
+}
+
+/* row under screen-local y, or -1 */
+static int cheat_row_at(int scr, int x, int y) {
+	CheatGeom g = cheat_geom(scr);
+	if (y < g.top || y >= g.top + g.listH || x < g.x || x >= g.x + g.w) return -1;
+	int ly = y - g.top + cheatScroll;
+	int row = ly / (g.rowH + g.gap);
+	if (ly % (g.rowH + g.gap) >= g.rowH || row >= nCheatRows) return -1;
+	return row;
+}
+
+/* fits s into maxChars, ending in "..." when cut */
+static void fit_text(char* out, size_t size, const char* s, int maxChars) {
+	if (maxChars < 4) maxChars = 4;
+	snprintf(out, size, "%s", s);
+	if ((int) strlen(out) > maxChars && maxChars + 1 < (int) size) strcpy(out + maxChars - 3, "...");
+}
+
+static void draw_cheats(int scr) {
+	CheatGeom g = cheat_geom(scr);
+	SDL_Rect r = screens[scr].rect;
+	int px = g.px, rad = px * 3, cap = px * 11 / 2;
+	/* top: Back box (where the Game tab is) and the title */
+	SDL_Rect b = tab_rect(scr, 0), t = tab_rect(scr, 1);
+	ui_fill_round(scr, b, C_BTN, rad);
+	ui_label(scr, b.x + b.w / 2, b.y + b.h / 2, cap, "Back", C_TEXT);
+	ui_fill_round(scr, t, C_BTN_EDGE, rad);
+	ui_label(scr, t.x + t.w / 2, t.y + t.h / 2, cap, "Cheats", (SDL_Color) { 20, 16, 36, 255 });
+	SDL_Renderer* ren = ui_ren(scr);
+	SDL_Rect clip = { screens[scr].rect.x, screens[scr].rect.y + g.top, r.w, g.listH };
+	SDL_RenderSetClipRect(ren, &clip);
+	int pillW = ui_text_width("OFF", g.tpx) + px * 6;
+	int maxChars = (g.w - pillW - px * 10) / (g.tpx * 6);
+	for (int i = 0; i < nCheatRows; ++i) {
+		int y = g.top + i * (g.rowH + g.gap) - cheatScroll;
+		if (y + g.rowH <= g.top || y >= g.top + g.listH) continue;
+		char line[200];
+		if (cheatRows[i] < 0) {
+			const CheatFile* f = &cheats.files[-1 - cheatRows[i]];
+			fit_text(line, sizeof(line), f->label, g.w / (g.tpx * 6));
+			ui_text(scr, g.x + px * 2, y + (g.rowH - g.tpx * 7) / 2, g.tpx, line, C_GOLD);
+			continue;
+		}
+		const Cheat* c = &cheats.items[cheatRows[i]];
+		bool sel = i == cheatSel;
+		SDL_Rect row = { g.x, y, g.w, g.rowH };
+		if (sel) ui_fill_round(scr, (SDL_Rect) { row.x - px / 2, row.y - px / 2, row.w + px, row.h + px }, C_BTN_EDGE, rad);
+		ui_fill_round(scr, row, sel ? C_BTN_SEL : C_BTN, rad);
+		fit_text(line, sizeof(line), c->desc, maxChars);
+		ui_text(scr, g.x + px * 4, y + (g.rowH - g.tpx * 7) / 2, g.tpx, line, C_TEXT);
+		SDL_Rect pill = { g.x + g.w - pillW - px * 3, y + px * 2, pillW, g.rowH - px * 4 };
+		ui_fill_round(scr, pill, c->on ? (SDL_Color) { 64, 168, 112, 255 } : (SDL_Color) { 60, 56, 84, 255 }, px * 2);
+		const char* st = c->on ? "ON" : "OFF";
+		ui_text(scr, pill.x + (pill.w - ui_text_width(st, g.tpx)) / 2, pill.y + (pill.h - g.tpx * 7) / 2, g.tpx, st,
+		        c->on ? C_TEXT : (SDL_Color) { 160, 156, 184, 255 });
+	}
+	SDL_RenderSetClipRect(ren, NULL);
+	/* scroll bar */
+	int maxS = cheat_max_scroll(&g);
+	if (maxS > 0) {
+		int total = g.listH + maxS;
+		int bh = SDL_max(px * 6, g.listH * g.listH / total);
+		int by = g.top + (g.listH - bh) * cheatScroll / maxS;
+		ui_fill_round(scr, (SDL_Rect) { r.w - px * 4, by, px * 2, bh }, C_BTN_EDGE, px);
+	}
+	/* footer: the selected cheat's whole name when the row had to cut it
+	 * (two lines), and how many are on */
+	int per = (r.w - px * 12) / (g.tpx * 6);
+	if (cheatSel >= 0 && cheatSel < nCheatRows && cheatRows[cheatSel] >= 0 &&
+	    (int) strlen(cheats.items[cheatRows[cheatSel]].desc) > maxChars) {
+		const char* d = cheats.items[cheatRows[cheatSel]].desc;
+		char l1[200], l2[200];
+		int len = (int) strlen(d), cut = len;
+		if (len > per) {
+			cut = per;
+			while (cut > per / 2 && d[cut] != ' ') --cut;
+			if (d[cut] != ' ') cut = per;
+		}
+		snprintf(l1, sizeof(l1), "%.*s", cut, d);
+		fit_text(l2, sizeof(l2), d + cut + (d[cut] == ' '), per);
+		ui_text_center(scr, r.w / 2, g.footY, g.tpx, l1, C_GOLD);
+		if (l2[0]) ui_text_center(scr, r.w / 2, g.footY + g.tpx * 9, g.tpx, l2, C_GOLD);
+	}
+	char count[48];
+	snprintf(count, sizeof(count), "%d ON", cheats_on(&cheats));
+	ui_text(scr, r.w - px * 4 - ui_text_width(count, g.tpx), r.h - g.tpx * 8, g.tpx, count, C_DIS);
 }
 
 static int menu_width(int scr) {
@@ -145,6 +320,14 @@ static void draw_menu(void) {
 	int px = ui_px(scr);
 	int cap = px * 11 / 2;   /* Futura capital height */
 	int rad = px * 3;        /* box corner radius */
+	if (cheatsOpen) {
+		draw_cheats(scr);
+		if (nScreens > 1) {
+			int o = ui_other_screen();
+			ui_label(o, screens[o].rect.w / 2, screens[o].rect.h / 2, (ui_px(o) + 1) * 7 * 34 / 35, "Paused", C_GOLD);
+		}
+		return;
+	}
 	for (int t = 0; t < 2; ++t) {
 		SDL_Rect r = tab_rect(scr, t);
 		bool on = t == curPage;
@@ -543,6 +726,7 @@ static void draw_game(void) {
 }
 
 static void open_menu(void) {
+	cheatsOpen = false;
 	set_page(0);
 	menuOpen = true;
 	menuSel = 0;
@@ -557,6 +741,10 @@ static bool activate(int item, enum GameExit* exitTo) {
 	switch (item) {
 	case M_RESUME:
 		menuOpen = false;
+		break;
+	case M_CHEATS:
+		if (!cheats.n) snprintf(menuNote, sizeof(menuNote), "NO CHEATS FOUND (SEE README)");
+		else open_cheats();
 		break;
 	case M_SWAP:
 		swap_screens();
@@ -644,6 +832,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		return fromLibrary ? GAME_TO_LIBRARY : GAME_QUIT_APP;
 	}
 	fprintf(stderr, "game %s (%s), save %s\n", gp.base, emu.gameCode, gp.sav);
+	cheats_load(&cheats, cfg, rom, emu.gameCode, gp.cheats);
+	if (cheats_on(&cheats)) cheats_apply(&cheats, &emu);
+	cheatsOpen = false;
 
 	mc = NULL;
 	mapW = GBA_W;
@@ -695,6 +886,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[0][pageLen[0]++] = M_RESTART;
 	pages[0][pageLen[0]++] = M_SAVE;
 	pages[0][pageLen[0]++] = M_LOAD;
+	pages[0][pageLen[0]++] = M_CHEATS;
 	if (fromLibrary) pages[0][pageLen[0]++] = M_LIBRARY;
 	pages[0][pageLen[0]++] = M_EXIT;
 	pages[1][pageLen[1]++] = M_SWAP;
@@ -784,6 +976,37 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				continue;
 			}
 			if (p.screen != ui_touch_screen()) continue;
+			if (cheatsOpen) {
+				int px = ui_px(p.screen);
+				if (p.kind == 1) {
+					if (tab_at(p.screen, p.x, p.y) == 0) {
+						cheatsOpen = false; /* Back */
+						ignorePointerUp = true;
+						continue;
+					}
+					cheatPressRow = cheat_row_at(p.screen, p.x, p.y);
+					cheatPressY = p.y;
+					cheatPressScroll = cheatScroll;
+					cheatDragging = false;
+					ignorePointerUp = false;
+				} else if (p.kind == 3 && cheatPressRow != -2) {
+					if (abs(p.y - cheatPressY) > px * 4) cheatDragging = true;
+					if (cheatDragging) {
+						CheatGeom g = cheat_geom(p.screen);
+						cheatScroll = SDL_clamp(cheatPressScroll - (p.y - cheatPressY), 0, cheat_max_scroll(&g));
+					}
+				} else if (p.kind == 2) {
+					int row = cheat_row_at(p.screen, p.x, p.y);
+					if (!ignorePointerUp && !cheatDragging && row >= 0 && row == cheatPressRow && cheatRows[row] >= 0) {
+						cheatSel = row;
+						toggle_cheat(row);
+					}
+					cheatPressRow = -2;
+					cheatDragging = false;
+					ignorePointerUp = false;
+				}
+				continue;
+			}
 			if (p.kind == 1) {
 				int t = tab_at(p.screen, p.x, p.y);
 				if (t >= 0) {
@@ -827,7 +1050,22 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		if (done) break;
 
-		if (menuOpen) {
+		if (menuOpen && cheatsOpen) {
+			/* D-pad repeats while held */
+			static int held[2];
+			for (int k = 0; k < 2; ++k) {
+				int b = k ? B_DOWN : B_UP;
+				held[k] = btnNow[b] ? held[k] + 1 : 0;
+				if (held[k] == 1 || (held[k] > 20 && held[k] % 4 == 0)) cheat_move(k ? 1 : -1);
+			}
+			CheatGeom g = cheat_geom(ui_touch_screen());
+			int page = SDL_max(1, g.listH / (g.rowH + g.gap) - 1);
+			if (btn_pressed(B_L)) for (int k = 0; k < page; ++k) cheat_move(-1);
+			if (btn_pressed(B_R)) for (int k = 0; k < page; ++k) cheat_move(1);
+			if (btn_pressed(B_A)) toggle_cheat(cheatSel);
+			if (btn_pressed(B_B)) cheatsOpen = false;
+			if (btn_pressed(B_START)) cheatsOpen = false, menuOpen = false;
+		} else if (menuOpen) {
 			if (btn_pressed(B_L) && curPage > 0) set_page(curPage - 1);
 			if (btn_pressed(B_R) && curPage < 1) set_page(curPage + 1);
 			if (btn_pressed(B_DOWN)) menuSel = (menuSel + 1) % nMenuItems;

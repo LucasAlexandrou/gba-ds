@@ -10,6 +10,7 @@ typedef struct {
 	char autoState[1024]; /* written on exit, loaded on launch */
 	char thumb[1024];     /* last game frame, for the library */
 	char mapThumb[1024];  /* last map frame, for the library */
+	char cheats[1024];    /* which cheats are switched on */
 } GamePaths;
 
 void game_paths(const Config* cfg, const char* rom, GamePaths* out);

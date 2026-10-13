@@ -268,6 +268,13 @@ static void build_variants(void) {
 	}
 }
 
+bool profile_ram_moved(const char* gameCode) {
+	for (size_t i = 0; i < N_VARIANTS; ++i) {
+		if (!strncmp(variants[i].code, gameCode, 4)) return variants[i].memShift != 0;
+	}
+	return false;
+}
+
 const MapProfile* profile_find(const char* gameCode) {
 	const MapProfile* p = base_find(gameCode);
 	if (p) return p;

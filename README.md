@@ -56,10 +56,20 @@ The app opens on a game list: two columns of tiles on the touchscreen, each show
 
 - **Resume:** leaving a game saves its state automatically, and launching it again picks up exactly there. Turn this off with `auto_resume = 0`. Battery saves are written as usual too, so in-game saves are never at risk.
 - **Pause menu:** tap the touchscreen or press **HOME**. Both screens dim, the game and its sound pause, and the menu appears on the touchscreen. It has two pages. Switch between them with **L1/R1** or by tapping the tabs at the top.
-  - **Game:** Resume · Restart game (tap twice; unsaved progress is lost) · Save state · Load state (greyed out until you've saved one) · Close game (back to the game list) · Close GBA DS (back to EmulationStation). Both save a resume point first.
+  - **Game:** Resume · Restart game (tap twice; unsaved progress is lost) · Save state · Load state (greyed out until you've saved one) · Cheats (see below) · Close game (back to the game list) · Close GBA DS (back to EmulationStation). Both save a resume point first.
   - **Display:** Swap screens · Scale (pixel perfect / full width) · LCD grid · Overlays (primary / secondary / both / none) · Map animations (off shows a still map, without the blinking markers) · Show FPS (frames per second and % of full speed).
 
   Display choices are remembered for next time. The menu works by touch or with the D-pad and A; B, Start or HOME closes it.
+
+### Cheats
+
+GBA DS reads RetroArch's cheat files (`.cht`, the format of the [libretro cheat database](https://github.com/libretro/libretro-database/tree/master/cht/Nintendo%20-%20Game%20Boy%20Advance)) from RetroArch's cheats folder, `/config/retroarch/cheats` (and `/storage/.config/retroarch/cheats`), including subfolders such as `Nintendo - Game Boy Advance/`. Set `cheat_dir` in `gba-ds.cfg` to look elsewhere (several folders separated by `:`).
+
+- A file is picked by name: `Metroid Fusion (World) (Code Breaker).cht` goes with `Metroid Fusion (USA).gba`. The part in brackets doesn't have to match, except the region: a file marked `(USA)` isn't offered for a Japanese ROM. The Japanese Aria of Sorrow, Harmony of Dissonance and Metroid Fusion keep their data at different addresses from the other releases, so for those only files that say `(Japan)` are used, not `(World)` ones.
+- **Cheats** on the Game page lists them with an On/Off switch each: D-pad and A, L1/R1 a page at a time, B to go back; or tap a cheat to switch it, and drag to scroll. A long name is shown in full at the bottom.
+- Code Breaker files usually start with an "Enable Code (Must Be On)" cheat: switch that on along with the others, as on the real device.
+- Choices take effect immediately and are remembered per game (`gba-ds/states/<game>.cheats`); the files' own `cheatN_enable` values are used until you change something.
+- Cheats can crash or soft-lock a game, and anything they change is kept in your saves. Make a save state first.
 
 ### Buttons
 

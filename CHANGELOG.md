@@ -2,6 +2,7 @@
 
 ## v1.0.1 (not yet released)
 
+- **Cheats**: RetroArch `.cht` files (Code Breaker, GameShark, Action Replay) from RetroArch's cheats folder, switched on and off from a new Cheats screen on the pause menu's Game page.
 - Game list: a small USA / Europe / Japan flag in the corner of a game's tile when you have the same game from more than one region.
 - **European and Japanese releases** of all six games: map, title logo and Castlevania border. The Japanese Aria of Sorrow, Harmony of Dissonance and Metroid Fusion keep their state at slightly different memory addresses; the European multi-language releases start at a language menu, which the logo and border extraction now gets past.
 - Title logos: a fix for games that don't rewrite their display settings every frame (Circle of the Moon JP came out blank).

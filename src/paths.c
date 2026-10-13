@@ -56,6 +56,7 @@ void game_paths(const Config* cfg, const char* rom, GamePaths* o) {
 	snprintf(o->autoState, sizeof(o->autoState), "%s/%s.auto.state", cfg->stateDir, o->base);
 	snprintf(o->thumb, sizeof(o->thumb), "%s/%s.game.bmp", cfg->stateDir, o->base);
 	snprintf(o->mapThumb, sizeof(o->mapThumb), "%s/%s.map.bmp", cfg->stateDir, o->base);
+	snprintf(o->cheats, sizeof(o->cheats), "%s/%s.cheats", cfg->stateDir, o->base);
 
 	/* First run: carry over a RetroArch battery save (.srm) */
 	if (!file_exists(o->sav)) {
