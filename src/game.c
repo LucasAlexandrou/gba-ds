@@ -23,7 +23,7 @@ static GamePaths gp;
 static SDL_Texture* gameTex[2];
 static SDL_Texture* mapTex[2];
 static SDL_Texture* logoTex[2];
-/* user overlay PNGs: [0] game screen ("top"), [1] map screen ("bottom") */
+/* user overlay PNGs: [0] game screen ("primary"), [1] map screen ("secondary") */
 static SDL_Texture* overlayTex[2][2];
 static int overlayW[2], overlayH[2];
 static char overlayMode[2][16];
@@ -150,7 +150,7 @@ static void draw_menu(void) {
 		if (menuItems[i] == M_LCD) label = cfg->lcdGrid ? "LCD GRID: ON" : "LCD GRID: OFF";
 		if (menuItems[i] == M_FPS) label = cfg->showFps ? "SHOW FPS: ON" : "SHOW FPS: OFF";
 		if (menuItems[i] == M_OVERLAY) {
-			static const char* const ovl[4] = { "OVERLAYS: NONE", "OVERLAYS: TOP", "OVERLAYS: BOTTOM", "OVERLAYS: BOTH" };
+			static const char* const ovl[4] = { "OVERLAYS: NONE", "OVERLAYS: PRIMARY", "OVERLAYS: SECONDARY", "OVERLAYS: BOTH" };
 			label = ovl[cfg->overlays & OVL_BOTH];
 		}
 		if (menuItems[i] == M_RESTART && restartArmed) label = "TAP AGAIN TO RESTART";
@@ -209,7 +209,7 @@ static void upload_map_frame(int idx) {
 
 /* Draws the map with its generated surround; false if there's none to draw. */
 static bool draw_framed_map(int s) {
-	if (!(cfg->overlays & OVL_BOTTOM) || !mapframe_ready(&mf) || mapShownIdx < 0) return false;
+	if (!(cfg->overlays & OVL_SECONDARY) || !mapframe_ready(&mf) || mapShownIdx < 0) return false;
 	SDL_Rect r = screens[s].rect;
 	if (mapframe_layout(&mf, r.w, r.h, cfg->mapScale) || mf.baseDirty) canvasDirty = true;
 	if (canvasTexW != mf.cw || canvasTexH != mf.ch) {
@@ -256,7 +256,7 @@ static void save_prefs(void) {
 		fprintf(f, "# written by gba-ds's pause menu; overrides gba-ds.cfg\n");
 		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\n",
 		        cfg->swap ? 1 : 0, cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0,
-		        (const char* const[]) { "none", "top", "bottom", "both" }[cfg->overlays & OVL_BOTH]);
+		        (const char* const[]) { "none", "primary", "secondary", "both" }[cfg->overlays & OVL_BOTH]);
 		fclose(f);
 	}
 }
@@ -274,16 +274,17 @@ static SDL_Color borderColor;
 
 /* User overlay PNGs in <asset_dir>/overlays/, drawn over a whole screen
  * (transparent where the picture should show). First found wins:
- *   top (game screen):   <CODE>-top-<scale>, <CODE>-top, top-<scale>, top
- *   bottom (map screen): <CODE>-bottom-<scale>, <CODE>-bottom, <CODE>-<scale>,
- *                        <CODE>, bottom-<scale>, bottom
+ *   primary (game screen):  <CODE>-primary-<scale>, <CODE>-primary,
+ *                           primary-<scale>, primary
+ *   secondary (map screen): <CODE>-secondary-<scale>, <CODE>-secondary,
+ *                           <CODE>-<scale>, <CODE>, secondary-<scale>, secondary
  * <scale> is that screen's scaling (integer / fit / stretch). */
 static void load_overlay(int which) {
 	const char* scale = which ? cfg->mapScale : cfg->scale;
 	if (!strcmp(overlayMode[which], scale)) return;
 	snprintf(overlayMode[which], sizeof(overlayMode[which]), "%s", scale);
 	ui_free_image(overlayTex[which]);
-	const char* side = which ? "bottom" : "top";
+	const char* side = which ? "secondary" : "primary";
 	char names[6][64];
 	int n = 0;
 	snprintf(names[n++], 64, "%.4s-%s-%s", emu.gameCode, side, scale);
@@ -343,7 +344,7 @@ static void draw_game(void) {
 		if (showGame) {
 			if (nScreens == 2 && !mapOn && s != game_screen()) continue; /* no map: leave other screen black */
 			ui_image_pixels(s, gameTex, GBA_W, GBA_H, cfg->scale, cfg->lcdGrid);
-			if (cfg->overlays & OVL_TOP) draw_overlay(s, 0);
+			if (cfg->overlays & OVL_PRIMARY) draw_overlay(s, 0);
 			if (cfg->showFps) {
 				/* sized to sit in the empty band above the picture */
 				char buf[48];
@@ -369,7 +370,7 @@ static void draw_game(void) {
 			SDL_Rect area = { r.w / 12, r.h / 6, r.w - r.w / 6, r.h - r.h / 3 };
 			ui_image(s, logoTex, logoW, logoH, logoPixel ? "integer" : "fit", &area);
 		}
-		if (mapShownIdx >= 0 && (cfg->overlays & OVL_BOTTOM)) { /* the map only, never the logo */
+		if (mapShownIdx >= 0 && (cfg->overlays & OVL_SECONDARY)) { /* the map only, never the logo */
 			draw_overlay(s, 1);
 		}
 		if (mapShownIdx >= 0 && mapInactive) {
@@ -430,9 +431,9 @@ static bool activate(int item, enum GameExit* exitTo) {
 		}
 		break;
 	case M_OVERLAY:
-		/* TOP -> BOTTOM -> BOTH -> NONE -> TOP */
-		cfg->overlays = cfg->overlays == OVL_TOP ? OVL_BOTTOM : cfg->overlays == OVL_BOTTOM ? OVL_BOTH :
-		                cfg->overlays == OVL_BOTH ? 0 : OVL_TOP;
+		/* PRIMARY -> SECONDARY -> BOTH -> NONE -> PRIMARY */
+		cfg->overlays = cfg->overlays == OVL_PRIMARY ? OVL_SECONDARY : cfg->overlays == OVL_SECONDARY ? OVL_BOTH :
+		                cfg->overlays == OVL_BOTH ? 0 : OVL_PRIMARY;
 		save_prefs();
 		break;
 	case M_FPS:

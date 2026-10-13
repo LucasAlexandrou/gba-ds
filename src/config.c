@@ -55,9 +55,9 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	BOOL("smooth", smooth)
 	BOOL("lcd_grid", lcdGrid)
 	if (!strcmp(key, "overlays")) {
-		/* none / top / bottom / both (older configs: 0 / 1) */
-		c->overlays = !strcmp(val, "top")    ? OVL_TOP :
-		              !strcmp(val, "bottom") ? OVL_BOTTOM :
+		/* none / primary / secondary / both (older configs: 0 / 1, top / bottom) */
+		c->overlays = !strcmp(val, "primary") || !strcmp(val, "top")      ? OVL_PRIMARY :
+		              !strcmp(val, "secondary") || !strcmp(val, "bottom") ? OVL_SECONDARY :
 		              !strcmp(val, "both")   ? OVL_BOTH :
 		              !strcmp(val, "none")   ? 0 :
 		              parse_bool(val)        ? OVL_BOTH : 0;

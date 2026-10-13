@@ -97,9 +97,9 @@ Until the first map is ready (title screen, intro, a fresh boot), the map screen
 
 ## Map screen surrounds and overlays
 
-The **Overlays** setting (Display page of the menu, or `overlays` in `gba-ds.cfg`) cycles **TOP / BOTTOM / BOTH / NONE**. "Top" is the game screen and "bottom" the map screen in the default arrangement; if you swap screens, each overlay moves with its picture.
+The **Overlays** setting (Display page of the menu, or `overlays` in `gba-ds.cfg`) cycles **PRIMARY / SECONDARY / BOTH / NONE**. "Primary" is the game screen and "secondary" the map screen, whichever physical screen they're on: swap screens and each overlay moves with its picture.
 
-**Bottom** turns on the generated map surround and your map-screen overlay. The surround fills the space around the map with graphics from each game itself. Nothing is shipped: like the logos, it's extracted from the ROM once in the background and cached in `gba-ds/states/frames/`.
+**Secondary** turns on the generated map surround and your map-screen overlay. The surround fills the space around the map with graphics from each game itself. Nothing is shipped: like the logos, it's extracted from the ROM once in the background and cached in `gba-ds/states/frames/`.
 - **Castlevania (all three):** the map's background colour, plus the border from the game's own menus:
   - Aria of Sorrow and Harmony of Dissonance use their name-entry frame.
   - Circle of the Moon uses the bevelled boxes from its file menu.
@@ -111,19 +111,19 @@ The surround is assembled in the game's own pixel space and scaled together with
 
 ### Your own overlays
 
-Put PNGs in `gba-ds/overlays/`. Each is 1024×768 and is drawn over the whole screen, so leave it transparent where the picture should show. The game-screen ("top") overlay is a good place for a console bezel. For each screen the first file found is used, so a game's own overlay beats a global one:
+Put PNGs in `gba-ds/overlays/`. Each is 1024×768 and is drawn over the whole screen, so leave it transparent where the picture should show. The primary (game screen) overlay is a good place for a console bezel. For each screen the first file found is used, so a game's own overlay beats a global one:
 
-| | Top (game screen) | Bottom (map screen) |
+| | Primary (game screen) | Secondary (map screen) |
 |---|---|---|
-| this game, this scaling | `<CODE>-top-<scale>.png` | `<CODE>-bottom-<scale>.png` |
-| this game | `<CODE>-top.png` | `<CODE>-bottom.png` |
-| every game, this scaling | `top-<scale>.png` | `bottom-<scale>.png` |
-| every game | `top.png` | `bottom.png` |
+| this game, this scaling | `<CODE>-primary-<scale>.png` | `<CODE>-secondary-<scale>.png` |
+| this game | `<CODE>-primary.png` | `<CODE>-secondary.png` |
+| every game, this scaling | `primary-<scale>.png` | `secondary-<scale>.png` |
+| every game | `primary.png` | `secondary.png` |
 
 - `<CODE>` is the game code: `A2CE` Aria of Sorrow, `AAME` Circle of the Moon, `ACHE` Harmony of Dissonance, `BMXE` Zero Mission, `AMTE` Fusion, `AZLE` A Link to the Past.
 - `<scale>` is that screen's scaling: `integer` (pixel perfect), `fit` (full width) or `stretch`.
 - Map overlays named the old way (`<CODE>-<scale>.png`, `<CODE>.png`) still work, ahead of the global ones.
-- The bottom overlay is only drawn while a map is showing, not over the logo screen.
+- The secondary overlay is only drawn while a map is showing, not over the logo screen.
 
 Areas to keep clear (the same for every game, since all maps are now shown at full GBA size):
 

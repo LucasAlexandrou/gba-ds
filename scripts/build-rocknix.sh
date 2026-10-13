@@ -66,7 +66,7 @@ cp dist/launch.sh dist/gba-ds.cfg "$PKG/"
 mkdir -p "$PKG/logos"
 printf "Optional: your own logo images (<CODE>.png or .bmp) override the ones extracted from the games.\n" > "$PKG/logos/README.txt"
 mkdir -p "$PKG/overlays"
-printf "Overlay PNGs (1024x768, transparent where the picture shows): top.png / bottom.png for every game,\n<CODE>-top.png / <CODE>-bottom.png for one game, optionally with -integer / -fit / -stretch. See README.\n" > "$PKG/overlays/README.txt"
+printf "Overlay PNGs (1024x768, transparent where the picture shows): primary.png (game screen) / secondary.png (map screen) for every game,\n<CODE>-primary.png / <CODE>-secondary.png for one game, optionally with -integer / -fit / -stretch. See README.\n" > "$PKG/overlays/README.txt"
 cp README.md "$PKG/README.md"
 cp "dist/GBA DS.sh" "$ROOT/build/pkg/"
 # EmulationStation artwork for the Ports entry
