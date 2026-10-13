@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.1 (not yet released)
 
 - New **Map Animations** option (pause menu → Display, or `map_animations` in gba-ds.cfg). Off shows a still map: each blinking or pulsing marker is frozen where it's most visible (Fusion's white Samus square, the Castlevania glows at their brightest, Link and the red X in A Link to the Past), and the still only changes when the map itself does.
 
