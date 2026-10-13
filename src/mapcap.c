@@ -101,7 +101,7 @@ bool memprobes_match(const MemProbe* list, int n, Emu* e) {
 		default: v = emu_read8(e, m->addr); break;
 		}
 		uint32_t mask = m->mask ? m->mask : 0xFFFFFFFF;
-		if ((v & mask) != (m->value & mask)) {
+		if ((v & mask) != (m->value & mask) && !(m->hasAlt && (v & mask) == (m->alt & mask))) {
 			return false;
 		}
 	}
@@ -425,6 +425,9 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 	int f;
 	for (f = 0; f < p->settleMax; ++f) {
 		emu_frame(s, 0);
+		if (!everUp && p->openWithin && f >= p->openWithin) {
+			return "map button did nothing"; /* quick: no map available here */
+		}
 		if (!map_up(p, s)) {
 			stable = 0;
 			havePrev = false;

@@ -21,14 +21,18 @@ typedef struct {
 	uint32_t mask;
 	uint32_t value;
 	int size; /* 1, 2 or 4 bytes */
+	bool hasAlt; /* also accept `alt` (A Link to the Past: overworld OR dungeon) */
+	uint32_t alt;
 } MemProbe;
 
 typedef struct MapProfile {
 	const char* codes[4]; /* 4-char game codes this profile handles */
 	const char* title;
+	const char* listName; /* name in the game list instead of the file name */
 
 	MacroStep open[8]; /* button sequence that brings up the map */
 	int settleMax;     /* frames to wait after the macro for the map to settle */
+	int openWithin;    /* give up if the memory probes don't match within this many frames (0 = settleMax) */
 	int stableFrames;  /* consecutive "quiet" frames required */
 	int maxDiff;       /* pixels allowed to change between quiet frames (blinking markers) */
 	int crop_x, crop_y, crop_w, crop_h;
@@ -78,6 +82,7 @@ typedef struct MapProfile {
 	struct {
 		int wait, wait2, layer, maxY;
 		bool pressStart, blackIsClear;
+		MacroStep steps[24]; /* instead of wait/pressStart: button steps from power-on */
 	} logo;
 
 	/* Border for the map screen, taken from one of the game's own menu screens

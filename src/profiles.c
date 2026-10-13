@@ -136,6 +136,29 @@ static const MapProfile profiles[] = {
 		.hideSprites = { { 200, -16, 239, 24, 160, 255, 0 } },
 		.animFrames = 8, .animStep = 4,
 	},
+	{
+		.codes = { "AZLE" },
+		.title = "The Legend of Zelda: A Link to the Past",
+		/* the cartridge also holds Four Swords (multiplayer only), so list it
+		 * by the game that has the map */
+		.listName = "Legend of Zelda, The - A Link to the Past (USA)",
+		.open = { { K_L, 4 } },
+		.settleMax = 150, .openWithin = 30, .stableFrames = 3, .maxDiff = 300,
+		.crop_x = 0, .crop_y = 0, .crop_w = 240, .crop_h = 160,
+		/* the game's main mode byte (as on the SNES): 0x0E with sub-mode 7 =
+		 * world map, 3 = dungeon map */
+		.mem = { { 0x03002BDC, 0xFF, 0x0E, 1 }, { 0x03002BDD, 0xFF, 0x07, 1, true, 0x03 } },
+		/* A Link to the Past is running (0x03000010: 2; 1 on the shared menus
+		 * and in Four Swords) and in play: 9 outdoors, 7 indoors */
+		.live = { { 0x03000010, 0xFF, 0x02, 1 }, { 0x03002BDC, 0xFF, 0x09, 1, true, 0x07 } },
+		/* A Link to the Past's own title (the cartridge's shows Four Swords too):
+		 * name a file, pick it, choose the game, wait for the title */
+		.logo = { .steps = { { 0, 400 }, { K_A, 4 }, { 0, 60 }, { K_A, 4 }, { 0, 20 }, { K_A, 4 }, { 0, 20 }, { K_A, 4 },
+		                     { 0, 20 }, { K_START, 4 }, { 0, 20 }, { K_A, 4 }, { 0, 120 }, { K_A, 4 }, { 0, 120 },
+		                     { K_A, 4 }, { 0, 120 }, { K_A, 4 }, { 0, 200 }, { K_A, 4 }, { 0, 900 } },
+		          .layer = 1, .maxY = 130, .blackIsClear = true },
+		.animFrames = 8, .animStep = 4,
+	},
 };
 
 const MapProfile* profile_find(const char* gameCode) {

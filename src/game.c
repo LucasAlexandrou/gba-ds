@@ -31,6 +31,9 @@ static bool logoPixel;
 static MapResult mapRes;
 static int mapW = GBA_W, mapH = GBA_H;
 static int mapShownIdx = -1;
+/* The map button did nothing at the last attempt (A Link to the Past indoors
+ * without a map): keep showing the last map, dimmed. */
+static bool mapInactive;
 static uint64_t mapAnimStart, frameCount;
 static bool singleShowsMap;
 static double fps, speedPct;
@@ -339,6 +342,9 @@ static void draw_game(void) {
 			load_overlay();
 			if (overlayTex[0] || overlayTex[1]) ui_image(s, overlayTex, overlayW, overlayH, "stretch", NULL);
 		}
+		if (mapShownIdx >= 0 && mapInactive) {
+			ui_dim(s, 120);
+		}
 	}
 	draw_osd();
 }
@@ -440,6 +446,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	mapH = GBA_H;
 	memset(&mapRes, 0, sizeof(mapRes));
 	mapShownIdx = -1;
+	mapInactive = false;
 	frameCount = 0;
 	singleShowsMap = false;
 	menuOpen = false;
@@ -759,10 +766,19 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (fails != lastFails) {
 				if (debug && fails) fprintf(stderr, "frame %llu: map capture failed (%d in a row): %s\n",
 				                            (unsigned long long) frameCount, fails, why ? why : "?");
+				if (fails && why && (!strcmp(why, "map screen did not appear") || !strcmp(why, "map button did nothing"))) {
+					mapInactive = true;
+				}
 				lastFails = fails;
 			}
-			int interval = cfg->mapInterval << SDL_min(fails, 3);
-			bool due = sinceMapRequest >= interval || (!fails && (forceMap || roomChanged));
+			/* quick "no map here" failures (A Link to the Past indoors) cost little
+			 * and are expected, so they don't back off */
+			bool cheapFail = why && !strcmp(why, "map button did nothing");
+			int interval = cheapFail ? cfg->mapInterval : cfg->mapInterval << SDL_min(fails, 3);
+			/* after failures, a room change still triggers a try, but no more
+			 * often than the normal interval */
+			bool due = sinceMapRequest >= interval ||
+			           ((forceMap || roomChanged) && (!fails || sinceMapRequest >= cfg->mapInterval));
 			if (due && !mapcap_busy(mc) && mapcap_live_ok(mc, &emu)) {
 				if (mapcap_request(mc, &emu)) {
 					sinceMapRequest = 0;
@@ -771,6 +787,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				}
 			}
 			if (mapcap_poll(mc, mapRes.serial, &mapRes)) {
+				mapInactive = false;
 				if (mapRes.hasTile) mapframe_set_tile(&mf, mapRes.tile, mapRes.tileK, mapRes.tileX, mapRes.tileY);
 				mapShownIdx = -1;
 				mapAnimStart = frameCount;

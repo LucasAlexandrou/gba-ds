@@ -32,10 +32,13 @@ static void layers(Emu* e, int only) {
 
 bool logo_extract(const char* romPath, const char* gameCode, const char* outPng) {
 	const MapProfile* p = profile_find(gameCode);
-	if (!p || !p->logo.wait) return false;
+	if (!p || (!p->logo.wait && !p->logo.steps[0].frames)) return false;
 	Emu e;
 	if (!emu_open(&e, romPath, NULL, false)) return false;
 
+	for (int i = 0; i < 24 && p->logo.steps[i].frames && !cancelAll; ++i) {
+		for (int f = 0; f < p->logo.steps[i].frames && !cancelAll; ++f) emu_frame(&e, p->logo.steps[i].keys);
+	}
 	for (int f = 0; f < p->logo.wait && !cancelAll; ++f) emu_frame(&e, 0);
 	if (p->logo.pressStart) {
 		for (int f = 0; f < 4; ++f) emu_frame(&e, K_START);
@@ -306,7 +309,7 @@ static void enqueue(const char* romPath, const char* gameCode, const char* outPn
 void logo_request(const char* romPath, const char* gameCode, const char* outPng) {
 	if (exists(outPng)) return;
 	const MapProfile* p = profile_find(gameCode);
-	if (!p || !p->logo.wait) return;
+	if (!p || (!p->logo.wait && !p->logo.steps[0].frames)) return;
 	enqueue(romPath, gameCode, outPng, false);
 }
 

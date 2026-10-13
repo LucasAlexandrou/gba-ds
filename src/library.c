@@ -75,6 +75,8 @@ static void scan_dir(Config* cfg, const char* d, int depth) {
 		for (char* c = g.name; *c; ++c) {
 			if (*c == '_') *c = ' ';
 		}
+		const MapProfile* prof = profile_find(g.code);
+		if (prof && prof->listName) snprintf(g.name, sizeof(g.name), "%s", prof->listName);
 		games = realloc(games, sizeof(*games) * (nGames + 1));
 		games[nGames++] = g;
 	}
