@@ -18,6 +18,7 @@ typedef struct {
 	char name[160];
 	char code[5];
 	bool supported;
+	int flag; /* BRAND_FLAG_* shown on the tile, or -1 (only one region of this game) */
 } GameEntry;
 
 static GameEntry* games;
@@ -82,6 +83,15 @@ static void scan_dir(Config* cfg, const char* d, int depth) {
 	closedir(dir);
 }
 
+/* The region letter that ends a game code: E USA, J Japan; P and the
+ * single-country European letters Europe. */
+static int region_flag(char c) {
+	if (c == 'E') return BRAND_FLAG_US;
+	if (c == 'J') return BRAND_FLAG_JP;
+	if (strchr("PDFSIHXYZU", c) && c) return BRAND_FLAG_EU;
+	return -1;
+}
+
 static void scan(Config* cfg) {
 	free(games);
 	games = NULL;
@@ -91,6 +101,20 @@ static void scan(Config* cfg) {
 	char* save;
 	for (char* d = strtok_r(dirs, ":", &save); d; d = strtok_r(NULL, ":", &save)) scan_dir(cfg, d, 0);
 	qsort(games, nGames, sizeof(*games), cmp_games);
+	/* Region flags, only where the library holds the same game from more
+	 * than one region: same first three code letters, different last one. */
+	for (int i = 0; i < nGames; ++i) {
+		games[i].flag = -1;
+		int mine = region_flag(games[i].code[3]);
+		if (mine < 0) continue;
+		for (int j = 0; j < nGames; ++j) {
+			if (j != i && !strncmp(games[i].code, games[j].code, 3) && region_flag(games[j].code[3]) >= 0 &&
+			    region_flag(games[j].code[3]) != mine) {
+				games[i].flag = mine;
+				break;
+			}
+		}
+	}
 	for (int i = 0; i < nGames; ++i) {
 		SDL_Texture* t[2];
 		int w, h;
@@ -312,6 +336,12 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 			char line[200];
 			truncate_to(line, sizeof(line), games[i].name, (t.w - px * 8) / (px * 6));
 			ui_text_center(scr, t.x + t.w / 2, t.y + (t.h - px * 7) / 2, px, line, C_TEXT);
+		}
+		if (games[i].flag >= 0) {
+			/* region flag in the bottom-right corner */
+			int fh = px * 7;
+			int fw = brandH[games[i].flag] ? brandW[games[i].flag] * fh / brandH[games[i].flag] : 0;
+			draw_brand(scr, games[i].flag, t.x + t.w - fw - px * 3, t.y + t.h - fh - px * 3, fh);
 		}
 		if (!games[i].supported && cfg->showAll) {
 			int tagW = ui_text_width("NO MAP", px) + px * 6;
