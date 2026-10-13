@@ -127,6 +127,14 @@ typedef struct MapProfile {
 
 	int animFrames; /* frames to record for the blinking/pulsing marker loop */
 	int animStep;   /* emulated frames between recorded frames */
+	/* "Map Animations: Off": a marker loop longer than animFrames * animStep
+	 * (the Castlevania glows) is recorded over this many frames instead, so
+	 * the still frame can always come from the same point of the loop. */
+	int animCycle;
+	/* How the still frame is chosen for each animated spot: the brightest
+	 * state (default), or the state that covers the most pixels (ties: the
+	 * most contrast) for markers whose brightest state isn't the marker. */
+	enum { STILL_BRIGHT, STILL_COVER } stillPick;
 } MapProfile;
 
 const MapProfile* profile_find(const char* gameCode);

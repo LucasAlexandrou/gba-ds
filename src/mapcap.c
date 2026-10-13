@@ -30,6 +30,8 @@ struct MapCapture {
 	uint32_t* work[MAP_MAX_FRAMES];
 	uint32_t* prev;
 	int workFrames;
+	int workStep;     /* emulated frames between work[] frames */
+	volatile bool still; /* "Map Animations: Off": record the whole loop (animCycle) */
 
 	/* async machinery */
 	pthread_t thread;
@@ -44,6 +46,7 @@ struct MapCapture {
 	uint32_t pubTile[16 * 16];
 	bool pubTileValid;
 	int pubFrames;
+	int pubStep;
 	uint32_t serial;
 	const char* lastError;
 };
@@ -469,9 +472,15 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 	}
 	mc->workFrames = 1;
 	int want = p->animFrames > MAP_MAX_FRAMES ? MAP_MAX_FRAMES : p->animFrames;
+	int step = p->animStep;
+	if (mc->still && p->animCycle > want * step) {
+		want = MAP_MAX_FRAMES;
+		step = (p->animCycle + want - 1) / want;
+	}
+	mc->workStep = step;
 	bool animated = false;
 	for (int i = 1; i < want; ++i) {
-		for (int k = 0; k < p->animStep; ++k) {
+		for (int k = 0; k < step; ++k) {
 			emu_frame(s, 0);
 		}
 		if (!map_up(p, s)) {
@@ -618,6 +627,7 @@ static void* worker(void* arg) {
 				memcpy(mc->published[i], mc->work[i], n * sizeof(uint32_t));
 			}
 			mc->pubFrames = mc->workFrames;
+			mc->pubStep = mc->workStep;
 			if (mc->tileValid) {
 				memcpy(mc->pubTile, mc->tile, sizeof(mc->pubTile));
 				mc->pubTileValid = true;
@@ -714,7 +724,7 @@ MapResult mapcap_capture_sync(MapCapture* mc, Emu* live) {
 	r.w = mc->cw;
 	r.h = mc->ch;
 	r.nFrames = mc->workFrames;
-	r.frameStep = mc->prof->animStep;
+	r.frameStep = mc->workStep;
 	for (int i = 0; i < MAP_MAX_FRAMES; ++i) {
 		r.frames[i] = mc->work[i];
 	}
@@ -739,6 +749,14 @@ bool mapcap_request(MapCapture* mc, Emu* live) {
 	return ok;
 }
 
+void mapcap_set_still(MapCapture* mc, bool still) {
+	mc->still = still;
+}
+
+const MapProfile* mapcap_profile(MapCapture* mc) {
+	return mc->prof;
+}
+
 bool mapcap_busy(MapCapture* mc) {
 	pthread_mutex_lock(&mc->lock);
 	bool b = mc->busy || mc->pending;
@@ -756,7 +774,7 @@ bool mapcap_poll(MapCapture* mc, uint32_t lastSerial, MapResult* out) {
 		out->w = mc->cw;
 		out->h = mc->ch;
 		out->nFrames = mc->pubFrames;
-		out->frameStep = mc->prof->animStep;
+		out->frameStep = mc->pubStep;
 		for (int i = 0; i < MAP_MAX_FRAMES; ++i) {
 			if (!out->frames[i]) {
 				out->frames[i] = malloc(n * sizeof(uint32_t));

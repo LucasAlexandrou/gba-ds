@@ -30,7 +30,7 @@ static const MapProfile profiles[] = {
 		.frame = { .steps = { { 0, 900 }, { K_START, 3 }, { 0, 9 }, { K_START, 3 }, { 0, 69 }, { K_A, 3 }, { 0, 49 },
 		                      { K_A, 3 }, { 0, 69 } },
 		           .layer = 1, .t = 8, .p = 8, .x0 = 0, .y0 = 40, .x1 = 232, .y1 = 152 },
-		.animFrames = 8, .animStep = 4,
+		.animFrames = 8, .animStep = 4, .animCycle = 90, /* glow pulse: 84 frames */
 	},
 	{
 		.codes = { "ACHE" },
@@ -48,7 +48,7 @@ static const MapProfile profiles[] = {
 		                      { K_A, 3 }, { 0, 39 }, { K_START, 3 }, { 0, 9 }, { K_A, 3 }, { 0, 39 }, { K_START, 3 },
 		                      { 0, 9 }, { K_A, 3 }, { 0, 90 } },
 		           .layer = 1, .t = 8, .p = 8, .x0 = 0, .y0 = 40, .x1 = 232, .y1 = 152, .minLuma = 90 },
-		.animFrames = 8, .animStep = 3,
+		.animFrames = 8, .animStep = 3, .animCycle = 64, /* glow pulse: 64 frames */
 	},
 	{
 		.codes = { "AAME" },
@@ -168,6 +168,8 @@ static const MapProfile profiles[] = {
 		                     { K_A, 4 }, { 0, 120 }, { K_A, 4 }, { 0, 200 }, { K_A, 4 }, { 0, 900 } },
 		          .layer = 1, .maxY = 130, .blackIsClear = true },
 		.animFrames = 8, .animStep = 4,
+		/* the brightest state of the X is a pale flash; the red X covers more */
+		.stillPick = STILL_COVER,
 	},
 };
 

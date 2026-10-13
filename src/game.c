@@ -33,13 +33,15 @@ static bool logoPixel;
 static MapResult mapRes;
 static int mapW = GBA_W, mapH = GBA_H;
 static int mapShownIdx = -1;
+/* "Map Animations: Off" shows this composed still instead of mapRes.frames[] */
+#define STILL_IDX MAP_MAX_FRAMES
+static uint32_t* stillPx;        /* mapW * mapH */
+static int stillW, stillH;
+static bool stillValid;
 /* The map button did nothing at the last attempt (A Link to the Past indoors
  * without a map): keep showing the last map, dimmed. */
 static bool mapInactive;
 static uint64_t mapAnimStart, frameCount;
-/* The frame shown when map animations are off (and saved as the library's
- * map thumbnail): the one where the blinking markers are most visible. */
-static int mapStaticIdx;
 static bool singleShowsMap;
 static double fps, speedPct;
 static bool debug;
@@ -197,8 +199,9 @@ static void save_thumbs(void) {
 		SDL_SaveBMP(s, gp.thumb);
 		SDL_FreeSurface(s);
 	}
-	if (mapShownIdx >= 0 && mapRes.frames[mapStaticIdx]) {
-		s = SDL_CreateRGBSurfaceWithFormatFrom(mapRes.frames[mapStaticIdx], mapW, mapH, 32, mapW * 4, SDL_PIXELFORMAT_XBGR8888);
+	const uint32_t* still = stillValid ? stillPx : mapRes.frames[0];
+	if (mapShownIdx >= 0 && still) {
+		s = SDL_CreateRGBSurfaceWithFormatFrom((void*) still, mapW, mapH, 32, mapW * 4, SDL_PIXELFORMAT_XBGR8888);
 		if (s) {
 			SDL_SaveBMP(s, gp.mapThumb);
 			SDL_FreeSurface(s);
@@ -223,9 +226,15 @@ static int canvasTexW, canvasTexH;
 static bool canvasDirty;
 static char framePath[1200];
 
+
+static const uint32_t* map_px(int idx) {
+	return idx == STILL_IDX ? (stillValid ? stillPx : NULL) : mapRes.frames[idx];
+}
+
 static void upload_map_frame(int idx) {
-	if (idx == mapShownIdx || !mapRes.frames[idx]) return;
-	for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, mapRes.frames[idx], mapW * 4);
+	const uint32_t* px = map_px(idx);
+	if (idx == mapShownIdx || !px) return;
+	for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, px, mapW * 4);
 	mapShownIdx = idx;
 	canvasDirty = true;
 }
@@ -235,71 +244,128 @@ static int cmp_u32(const void* a, const void* b) {
 	return x < y ? -1 : x > y;
 }
 
-/* Picks the still frame for "Map Animations: Off". Blinking markers are on in
- * some frames and off (or faded) in others, so within the area where frames
- * differ, take the frame with the most pixels unlike that area's background
- * colour; ties (a marker that only changes colour) go to the frame with the
- * most contrast there. */
-static int pick_static_frame(const MapResult* r) {
-	int n = r->nFrames, w = r->w, h = r->h;
-	if (n < 2) return 0;
-	unsigned char* diff = calloc((size_t) w * h, 1);
-	if (!diff) return 0;
-	int x0 = w, y0 = h, x1 = -1, y1 = -1;
-	for (int y = 0; y < h; ++y) {
-		for (int x = 0; x < w; ++x) {
-			uint32_t p = r->frames[0][y * w + x] & 0xFFFFFF;
-			for (int f = 1; f < n; ++f) {
-				if ((r->frames[f][y * w + x] & 0xFFFFFF) != p) {
-					diff[y * w + x] = 1;
-					if (x < x0) x0 = x;
-					if (x > x1) x1 = x;
-					if (y < y0) y0 = y;
-					if (y > y1) y1 = y;
-					break;
+/* Builds the still map for "Map Animations: Off" into out (w * h), and marks
+ * the pixels that animate in mask. Each animated spot (pixels that change,
+ * grouped when they're within a few pixels of each other) is taken from the
+ * frame where it is most visible: its brightest state (a marker that blinks
+ * on and off, a pulsing glow at its peak), or with STILL_COVER the state that
+ * covers the most pixels unlike the spot's surroundings, ties going to the
+ * one with the most contrast. */
+static void compose_still(const MapResult* r, int pick, uint32_t* out, unsigned char* mask) {
+	int n = r->nFrames, w = r->w, h = r->h, wh = w * h;
+	memcpy(out, r->frames[0], (size_t) wh * 4);
+	memset(mask, 0, (size_t) wh);
+	if (n < 2) return;
+	for (int i = 0; i < wh; ++i) {
+		uint32_t p = r->frames[0][i] & 0xFFFFFF;
+		for (int f = 1; f < n && !mask[i]; ++f) mask[i] = (r->frames[f][i] & 0xFFFFFF) != p;
+	}
+	int* label = calloc((size_t) wh, sizeof(int));
+	int* queue = malloc((size_t) wh * sizeof(int));
+	if (!label || !queue) {
+		free(label);
+		free(queue);
+		return;
+	}
+	static uint32_t sample[4096];
+	const int R = 3; /* animated pixels this close belong to the same spot */
+	int spots = 0;
+	for (int seed = 0; seed < wh; ++seed) {
+		if (!mask[seed] || label[seed]) continue;
+		/* flood-fill one spot; list its pixels in queue[0..len) */
+		int id = ++spots, len = 0, head = 0;
+		int x0 = w, y0 = h, x1 = 0, y1 = 0;
+		label[seed] = id;
+		queue[len++] = seed;
+		while (head < len) {
+			int p = queue[head++], px = p % w, py = p / w;
+			x0 = SDL_min(x0, px), x1 = SDL_max(x1, px), y0 = SDL_min(y0, py), y1 = SDL_max(y1, py);
+			for (int dy = -R; dy <= R; ++dy) {
+				for (int dx = -R; dx <= R; ++dx) {
+					int nx = px + dx, ny = py + dy;
+					if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+					int q = ny * w + nx;
+					if (mask[q] && !label[q]) label[q] = id, queue[len++] = q;
 				}
 			}
 		}
-	}
-	if (x1 < 0) {
-		free(diff);
-		return 0;
-	}
-	x0 = SDL_max(x0 - 1, 0), y0 = SDL_max(y0 - 1, 0);
-	x1 = SDL_min(x1 + 1, w - 1), y1 = SDL_min(y1 + 1, h - 1);
-	/* background colour = most common colour in the area (sampled) */
-	static uint32_t sample[(GBA_W / 2 + 1) * (GBA_H / 2 + 1)];
-	int best = 0;
-	long bestCov = -1, bestEdge = -1;
-	for (int f = 0; f < n; ++f) {
-		const uint32_t* px = r->frames[f];
-		int ns = 0, step = (x1 - x0) * (y1 - y0) > 4096 ? 2 : 1;
-		for (int y = y0; y <= y1 && ns < (int) SDL_arraysize(sample); y += step) {
-			for (int x = x0; x <= x1 && ns < (int) SDL_arraysize(sample); x += step) sample[ns++] = px[y * w + x] & 0xFFFFFF;
-		}
-		qsort(sample, ns, sizeof(sample[0]), cmp_u32);
-		uint32_t bg = sample[0];
-		for (int i = 0, run = 0, top = 0; i < ns; ++i) {
-			run = i && sample[i] == sample[i - 1] ? run + 1 : 1;
-			if (run > top) top = run, bg = sample[i];
-		}
-		long cov = 0, edge = 0;
-		for (int y = y0; y <= y1; ++y) {
-			for (int x = x0; x <= x1; ++x) {
-				uint32_t p = px[y * w + x] & 0xFFFFFF;
-				if (diff[y * w + x] && p != bg) ++cov;
-				for (int k = 0; k < 2; ++k) {
-					int nx = x + (k == 0), ny = y + (k == 1);
-					if (nx > x1 || ny > y1) continue;
-					uint32_t q = px[ny * w + nx];
-					for (int c = 0; c < 24; c += 8) edge += abs((int) ((p >> c) & 0xFF) - (int) ((q >> c) & 0xFF));
+		x0 = SDL_max(x0 - 2, 0), y0 = SDL_max(y0 - 2, 0), x1 = SDL_min(x1 + 2, w - 1), y1 = SDL_min(y1 + 2, h - 1);
+		/* the surroundings' colour: most common still pixel around the spot */
+		uint32_t bg = 0;
+		if (pick == STILL_COVER) {
+			int ns = 0;
+			for (int y = y0; y <= y1; ++y) {
+				for (int x = x0; x <= x1 && ns < (int) SDL_arraysize(sample); ++x) {
+					if (!mask[y * w + x]) sample[ns++] = r->frames[0][y * w + x] & 0xFFFFFF;
 				}
 			}
+			qsort(sample, ns, sizeof(sample[0]), cmp_u32);
+			for (int i = 0, run = 0, top = 0; i < ns; ++i) {
+				run = i && sample[i] == sample[i - 1] ? run + 1 : 1;
+				if (run > top) top = run, bg = sample[i];
+			}
 		}
-		if (cov > bestCov || (cov == bestCov && edge > bestEdge)) best = f, bestCov = cov, bestEdge = edge;
+		int best = 0;
+		long bestA = -1, bestB = -1;
+		for (int f = 0; f < n; ++f) {
+			const uint32_t* fr = r->frames[f];
+			long a = 0, b = 0;
+			for (int i = 0; i < len; ++i) {
+				uint32_t p = fr[queue[i]];
+				if (pick == STILL_COVER) a += (p & 0xFFFFFF) != bg;
+				else a += (p & 0xFF) + ((p >> 8) & 0xFF) + ((p >> 16) & 0xFF);
+			}
+			if (pick == STILL_COVER) {
+				for (int y = y0; y <= y1; ++y) {
+					for (int x = x0; x <= x1; ++x) {
+						uint32_t p = fr[y * w + x];
+						if (x < x1) {
+							uint32_t q = fr[y * w + x + 1];
+							for (int c = 0; c < 24; c += 8) b += abs((int) ((p >> c) & 0xFF) - (int) ((q >> c) & 0xFF));
+						}
+						if (y < y1) {
+							uint32_t q = fr[(y + 1) * w + x];
+							for (int c = 0; c < 24; c += 8) b += abs((int) ((p >> c) & 0xFF) - (int) ((q >> c) & 0xFF));
+						}
+					}
+				}
+			}
+			if (a > bestA || (a == bestA && b > bestB)) best = f, bestA = a, bestB = b;
+		}
+		for (int i = 0; i < len; ++i) out[queue[i]] = r->frames[best][queue[i]];
 	}
-	free(diff);
-	return best;
+	free(label);
+	free(queue);
+}
+
+/* After a fresh capture: rebuild the still map. A capture that only differs
+ * from the one on screen where the markers animate (a pulse caught at
+ * another point of its loop) keeps the old still, so it doesn't jump around
+ * every time the map is refreshed. Returns true if the still changed. */
+static bool update_still(void) {
+	int w = mapRes.w, h = mapRes.h, wh = w * h;
+	uint32_t* px = malloc((size_t) wh * 4);
+	unsigned char* mask = malloc((size_t) wh);
+	if (!px || !mask) {
+		free(px);
+		free(mask);
+		return false;
+	}
+	const MapProfile* prof = mc ? mapcap_profile(mc) : NULL;
+	compose_still(&mapRes, prof ? (int) prof->stillPick : STILL_BRIGHT, px, mask);
+	if (stillValid && stillW == w && stillH == h) {
+		bool same = true;
+		for (int i = 0; i < wh && same; ++i) same = px[i] == stillPx[i] || mask[i];
+		if (same) {
+			free(px);
+			free(mask);
+			return false;
+		}
+	}
+	free(stillPx);
+	free(mask);
+	stillPx = px, stillW = w, stillH = h, stillValid = true;
+	return true;
 }
 
 /* Draws the map with its generated surround; false if there's none to draw. */
@@ -318,7 +384,7 @@ static bool draw_framed_map(int s) {
 		canvasDirty = true;
 	}
 	if (canvasDirty) {
-		const uint32_t* px = mapframe_compose(&mf, mapRes.frames[mapShownIdx]);
+		const uint32_t* px = mapframe_compose(&mf, map_px(mapShownIdx));
 		for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(canvasTex[i], NULL, px, mf.cw * 4);
 		canvasDirty = false;
 	}
@@ -539,9 +605,10 @@ static bool activate(int item, enum GameExit* exitTo) {
 	case M_MAPANIM:
 		cfg->mapAnim = !cfg->mapAnim;
 		if (mapShownIdx >= 0) {
-			mapAnimStart = frameCount; /* restart the cycle from the still frame */
-			upload_map_frame(mapStaticIdx);
+			mapAnimStart = frameCount;
+			upload_map_frame(cfg->mapAnim ? 0 : STILL_IDX);
 		}
+		if (mc) mapcap_set_still(mc, !cfg->mapAnim);
 		save_prefs();
 		break;
 	case M_RESTART:
@@ -583,13 +650,14 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	mapH = GBA_H;
 	memset(&mapRes, 0, sizeof(mapRes));
 	mapShownIdx = -1;
-	mapStaticIdx = 0;
+	stillValid = false;
 	mapInactive = false;
 	frameCount = 0;
 	singleShowsMap = false;
 	menuOpen = false;
 	if (cfg->map) {
 		mc = mapcap_create(rom, emu.gameCode, cfg->mapCrop);
+		if (mc) mapcap_set_still(mc, !cfg->mapAnim);
 		if (mc) {
 			fprintf(stderr, "map profile: %s\n", mapcap_title(mc));
 			mapcap_size(mc, &mapW, &mapH);
@@ -940,10 +1008,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				if (mapRes.hasTile) mapframe_set_tile(&mf, mapRes.tile, mapRes.tileK, mapRes.tileX, mapRes.tileY);
 				mapShownIdx = -1;
 				mapAnimStart = frameCount;
-				mapStaticIdx = pick_static_frame(&mapRes);
-				upload_map_frame(cfg->mapAnim ? 0 : mapStaticIdx);
-				if (debug) fprintf(stderr, "frame %llu: map updated (%d frame(s), still frame %d)\n",
-				                   (unsigned long long) frameCount, mapRes.nFrames, mapStaticIdx);
+				bool stillChanged = update_still();
+				upload_map_frame(cfg->mapAnim ? 0 : STILL_IDX);
+				if (debug) fprintf(stderr, "frame %llu: map updated (%d frame(s) %d apart%s)\n", (unsigned long long) frameCount,
+				                   mapRes.nFrames, mapRes.frameStep, stillChanged ? "" : ", still unchanged");
 			} else if (cfg->mapAnim && mapRes.nFrames > 1 && mapShownIdx >= 0) {
 				int idx = (int) ((frameCount - mapAnimStart) / SDL_max(1, mapRes.frameStep)) % mapRes.nFrames;
 				upload_map_frame(idx);
@@ -992,6 +1060,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		free(mapRes.frames[i]);
 		mapRes.frames[i] = NULL;
 	}
+	free(stillPx);
+	stillPx = NULL;
+	stillValid = false;
 	for (int i = 0; i < nViews; ++i) {
 		SDL_DestroyTexture(gameTex[i]);
 		SDL_DestroyTexture(mapTex[i]);

@@ -45,6 +45,9 @@ MapResult mapcap_capture_sync(MapCapture* mc, Emu* live);
  * internally) and returns true if it is newer than lastSerial. */
 bool mapcap_request(MapCapture* mc, Emu* live);
 bool mapcap_busy(MapCapture* mc);
+/* "Map Animations: Off": later captures record the profile's whole marker loop. */
+void mapcap_set_still(MapCapture* mc, bool still);
+const struct MapProfile* mapcap_profile(MapCapture* mc);
 bool mapcap_poll(MapCapture* mc, uint32_t lastSerial, MapResult* out);
 /* Consecutive failed captures since the last success (and the last reason). */
 int mapcap_failures(MapCapture* mc, const char** why);
