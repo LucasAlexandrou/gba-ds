@@ -16,6 +16,7 @@ void config_defaults(Config* c) {
 	strcpy(c->touchMap, "window");
 	c->map = true;
 	c->mapCrop = true;
+	c->mapAnim = true;
 	c->overlays = OVL_BOTH;
 	c->mapInterval = 90;
 	c->sway = true;
@@ -68,6 +69,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	BOOL("vsync", vsync)
 	BOOL("map", map)
 	BOOL("map_crop", mapCrop)
+	BOOL("map_animations", mapAnim)
 	INT("map_interval", mapInterval)
 	BOOL("ab_swap", abSwap)
 	STR("hotkey", hotkey)

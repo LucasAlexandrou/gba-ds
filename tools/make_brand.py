@@ -110,6 +110,7 @@ MENU_TEXTS = [
     "Swap Screens", "Scale: Pixel Perfect", "Scale: Full Width", "Scale: Stretch",
     "LCD Grid: On", "LCD Grid: Off", "Show FPS: On", "Show FPS: Off",
     "Overlays: None", "Overlays: Primary", "Overlays: Secondary", "Overlays: Both",
+    "Map Animations: On", "Map Animations: Off",
     # game list
     "Play", "Quit", "Touch or use the D-Pad to select a game", "Loading thumbnail...",
 ]

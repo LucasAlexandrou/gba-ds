@@ -37,16 +37,19 @@ static int mapShownIdx = -1;
  * without a map): keep showing the last map, dimmed. */
 static bool mapInactive;
 static uint64_t mapAnimStart, frameCount;
+/* The frame shown when map animations are off (and saved as the library's
+ * map thumbnail): the one where the blinking markers are most visible. */
+static int mapStaticIdx;
 static bool singleShowsMap;
 static double fps, speedPct;
 static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
+enum MenuItem { M_RESUME, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
 static const char* menuLabels[] = {
 	/* title case: drawn in Futura from the built-in images (tools/make_brand.py) */
-	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_OVERLAY] = "", [M_RESTART] = "Restart Game",
+	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_RESTART] = "Restart Game",
 	[M_LOAD] = "Load State", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
 };
 static int menuItems[9], nMenuItems;
@@ -168,6 +171,7 @@ static void draw_menu(void) {
 		if (menuItems[i] == M_SCALE) label = !strcmp(cfg->scale, "fit") ? "Scale: Full Width" : !strcmp(cfg->scale, "stretch") ? "Scale: Stretch" : "Scale: Pixel Perfect";
 		if (menuItems[i] == M_LCD) label = cfg->lcdGrid ? "LCD Grid: On" : "LCD Grid: Off";
 		if (menuItems[i] == M_FPS) label = cfg->showFps ? "Show FPS: On" : "Show FPS: Off";
+		if (menuItems[i] == M_MAPANIM) label = cfg->mapAnim ? "Map Animations: On" : "Map Animations: Off";
 		if (menuItems[i] == M_OVERLAY) {
 			static const char* const ovl[4] = { "Overlays: None", "Overlays: Primary", "Overlays: Secondary", "Overlays: Both" };
 			label = ovl[cfg->overlays & OVL_BOTH];
@@ -193,8 +197,8 @@ static void save_thumbs(void) {
 		SDL_SaveBMP(s, gp.thumb);
 		SDL_FreeSurface(s);
 	}
-	if (mapShownIdx >= 0 && mapRes.frames[0]) {
-		s = SDL_CreateRGBSurfaceWithFormatFrom(mapRes.frames[0], mapW, mapH, 32, mapW * 4, SDL_PIXELFORMAT_XBGR8888);
+	if (mapShownIdx >= 0 && mapRes.frames[mapStaticIdx]) {
+		s = SDL_CreateRGBSurfaceWithFormatFrom(mapRes.frames[mapStaticIdx], mapW, mapH, 32, mapW * 4, SDL_PIXELFORMAT_XBGR8888);
 		if (s) {
 			SDL_SaveBMP(s, gp.mapThumb);
 			SDL_FreeSurface(s);
@@ -224,6 +228,78 @@ static void upload_map_frame(int idx) {
 	for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, mapRes.frames[idx], mapW * 4);
 	mapShownIdx = idx;
 	canvasDirty = true;
+}
+
+static int cmp_u32(const void* a, const void* b) {
+	uint32_t x = *(const uint32_t*) a, y = *(const uint32_t*) b;
+	return x < y ? -1 : x > y;
+}
+
+/* Picks the still frame for "Map Animations: Off". Blinking markers are on in
+ * some frames and off (or faded) in others, so within the area where frames
+ * differ, take the frame with the most pixels unlike that area's background
+ * colour; ties (a marker that only changes colour) go to the frame with the
+ * most contrast there. */
+static int pick_static_frame(const MapResult* r) {
+	int n = r->nFrames, w = r->w, h = r->h;
+	if (n < 2) return 0;
+	unsigned char* diff = calloc((size_t) w * h, 1);
+	if (!diff) return 0;
+	int x0 = w, y0 = h, x1 = -1, y1 = -1;
+	for (int y = 0; y < h; ++y) {
+		for (int x = 0; x < w; ++x) {
+			uint32_t p = r->frames[0][y * w + x] & 0xFFFFFF;
+			for (int f = 1; f < n; ++f) {
+				if ((r->frames[f][y * w + x] & 0xFFFFFF) != p) {
+					diff[y * w + x] = 1;
+					if (x < x0) x0 = x;
+					if (x > x1) x1 = x;
+					if (y < y0) y0 = y;
+					if (y > y1) y1 = y;
+					break;
+				}
+			}
+		}
+	}
+	if (x1 < 0) {
+		free(diff);
+		return 0;
+	}
+	x0 = SDL_max(x0 - 1, 0), y0 = SDL_max(y0 - 1, 0);
+	x1 = SDL_min(x1 + 1, w - 1), y1 = SDL_min(y1 + 1, h - 1);
+	/* background colour = most common colour in the area (sampled) */
+	static uint32_t sample[(GBA_W / 2 + 1) * (GBA_H / 2 + 1)];
+	int best = 0;
+	long bestCov = -1, bestEdge = -1;
+	for (int f = 0; f < n; ++f) {
+		const uint32_t* px = r->frames[f];
+		int ns = 0, step = (x1 - x0) * (y1 - y0) > 4096 ? 2 : 1;
+		for (int y = y0; y <= y1 && ns < (int) SDL_arraysize(sample); y += step) {
+			for (int x = x0; x <= x1 && ns < (int) SDL_arraysize(sample); x += step) sample[ns++] = px[y * w + x] & 0xFFFFFF;
+		}
+		qsort(sample, ns, sizeof(sample[0]), cmp_u32);
+		uint32_t bg = sample[0];
+		for (int i = 0, run = 0, top = 0; i < ns; ++i) {
+			run = i && sample[i] == sample[i - 1] ? run + 1 : 1;
+			if (run > top) top = run, bg = sample[i];
+		}
+		long cov = 0, edge = 0;
+		for (int y = y0; y <= y1; ++y) {
+			for (int x = x0; x <= x1; ++x) {
+				uint32_t p = px[y * w + x] & 0xFFFFFF;
+				if (diff[y * w + x] && p != bg) ++cov;
+				for (int k = 0; k < 2; ++k) {
+					int nx = x + (k == 0), ny = y + (k == 1);
+					if (nx > x1 || ny > y1) continue;
+					uint32_t q = px[ny * w + nx];
+					for (int c = 0; c < 24; c += 8) edge += abs((int) ((p >> c) & 0xFF) - (int) ((q >> c) & 0xFF));
+				}
+			}
+		}
+		if (cov > bestCov || (cov == bestCov && edge > bestEdge)) best = f, bestCov = cov, bestEdge = edge;
+	}
+	free(diff);
+	return best;
 }
 
 /* Draws the map with its generated surround; false if there's none to draw. */
@@ -273,9 +349,10 @@ static void save_prefs(void) {
 	FILE* f = fopen(prefs, "w");
 	if (f) {
 		fprintf(f, "# written by gba-ds's pause menu; overrides gba-ds.cfg\n");
-		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\n",
+		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\nmap_animations = %d\n",
 		        cfg->swap ? 1 : 0, cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0,
-		        (const char* const[]) { "none", "primary", "secondary", "both" }[cfg->overlays & OVL_BOTH]);
+		        (const char* const[]) { "none", "primary", "secondary", "both" }[cfg->overlays & OVL_BOTH],
+		        cfg->mapAnim ? 1 : 0);
 		fclose(f);
 	}
 }
@@ -459,6 +536,14 @@ static bool activate(int item, enum GameExit* exitTo) {
 		cfg->showFps = !cfg->showFps;
 		save_prefs();
 		break;
+	case M_MAPANIM:
+		cfg->mapAnim = !cfg->mapAnim;
+		if (mapShownIdx >= 0) {
+			mapAnimStart = frameCount; /* restart the cycle from the still frame */
+			upload_map_frame(mapStaticIdx);
+		}
+		save_prefs();
+		break;
 	case M_RESTART:
 		if (!restartArmed) {
 			restartArmed = true;
@@ -498,6 +583,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	mapH = GBA_H;
 	memset(&mapRes, 0, sizeof(mapRes));
 	mapShownIdx = -1;
+	mapStaticIdx = 0;
 	mapInactive = false;
 	frameCount = 0;
 	singleShowsMap = false;
@@ -547,6 +633,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[1][pageLen[1]++] = M_SCALE;
 	pages[1][pageLen[1]++] = M_LCD;
 	pages[1][pageLen[1]++] = M_OVERLAY;
+	pages[1][pageLen[1]++] = M_MAPANIM;
 	pages[1][pageLen[1]++] = M_FPS;
 	set_page(0);
 
@@ -853,9 +940,11 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				if (mapRes.hasTile) mapframe_set_tile(&mf, mapRes.tile, mapRes.tileK, mapRes.tileX, mapRes.tileY);
 				mapShownIdx = -1;
 				mapAnimStart = frameCount;
-				upload_map_frame(0);
-				if (debug) fprintf(stderr, "frame %llu: map updated\n", (unsigned long long) frameCount);
-			} else if (mapRes.nFrames > 1 && mapShownIdx >= 0) {
+				mapStaticIdx = pick_static_frame(&mapRes);
+				upload_map_frame(cfg->mapAnim ? 0 : mapStaticIdx);
+				if (debug) fprintf(stderr, "frame %llu: map updated (%d frame(s), still frame %d)\n",
+				                   (unsigned long long) frameCount, mapRes.nFrames, mapStaticIdx);
+			} else if (cfg->mapAnim && mapRes.nFrames > 1 && mapShownIdx >= 0) {
 				int idx = (int) ((frameCount - mapAnimStart) / SDL_max(1, mapRes.frameStep)) % mapRes.nFrames;
 				upload_map_frame(idx);
 			}

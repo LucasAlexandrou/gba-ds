@@ -21,6 +21,7 @@ typedef struct Config {
 	bool vsync;
 	bool map;          /* enable the second-screen map */
 	bool mapCrop;      /* crop map bezels/prompts where the profile knows how */
+	bool mapAnim;      /* cycle the map's animation frames (off: one still frame) */
 	int mapInterval;   /* frames between periodic map refreshes */
 	bool abSwap;       /* GBA A on the bottom face button instead of the right one */
 	char hotkey[16];   /* guide | back */

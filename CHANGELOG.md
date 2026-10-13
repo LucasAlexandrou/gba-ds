@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New **Map Animations** option (pause menu → Display, or `map_animations` in gba-ds.cfg). Off shows a still map instead of blinking markers, using the frame where the markers are most visible (in A Link to the Past: Link's head and the red X).
+
 ## v1.0 (2026-10-13)
 
 First release. GBA DS is a Game Boy Advance emulator for dual-screen handhelds (built for the Anbernic RG DS Plus on ROCKNIX) that keeps the game's own map on the second screen, the way the DS Castlevanias do.
