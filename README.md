@@ -23,6 +23,8 @@ The idea here is "what if the Game Boy Advance had a second screen" -- part of w
 
 Any other GBA game also runs; it just gets no map screen.
 
+**Metroid mini-map:** with the full map always up, the small 3×3 mini-map in the top-right corner of the Metroid games is hidden. It's left out when the picture is drawn, so the game itself is unchanged; set `map = 0` and it comes back along with the normal one-screen view.
+
 **A Link to the Past:** the cartridge also holds Four Swords, which needs linked GBAs, so the game list shows only A Link to the Past and maps are only captured while it's being played. L brings up the world map outdoors (GBA DS shows the zoomed-out whole-world view, which doesn't scroll with Link) and the dungeon map once you have it; where L does nothing (houses, caves, dungeons without their map), the last map stays up, dimmed. After Save and Quit, the second screen goes back to the logo.
 
 ## How it works
@@ -95,31 +97,39 @@ Until the first map is ready (title screen, intro, a fresh boot), the map screen
 
 ## Map screen surrounds and overlays
 
-With **Overlays** on (Display page), the space around the map is filled with a surround generated from each game's own graphics. Nothing is shipped; like the logos, it's extracted from the ROM once in the background and cached in `gba-ds/states/frames/`.
+The **Overlays** setting (Display page of the menu, or `overlays` in `gba-ds.cfg`) cycles **TOP / BOTTOM / BOTH / NONE**. "Top" is the game screen and "bottom" the map screen in the default arrangement; if you swap screens, each overlay moves with its picture.
 
-- **Metroid: Zero Mission / Fusion:** none. Both map screens are shown whole, with the game's own frame, so there's nothing to fill. The scroll arrows are left as the games draw them.
-
-With the full map always up, the small 3×3 mini-map in the top-right corner of the Metroid games is hidden. It's left out when the picture is drawn, so the game itself is unchanged; set `map = 0` and it comes back along with the normal one-screen view.
+**Bottom** turns on the generated map surround and your map-screen overlay. The surround fills the space around the map with graphics from each game itself. Nothing is shipped: like the logos, it's extracted from the ROM once in the background and cached in `gba-ds/states/frames/`.
 - **Castlevania (all three):** the map's background colour, plus the border from the game's own menus:
   - Aria of Sorrow and Harmony of Dissonance use their name-entry frame.
   - Circle of the Moon uses the bevelled boxes from its file menu.
 
   In pixel-perfect mode the border goes all the way round the map. In full-width mode it spans the top and bottom.
+- **Metroid: Zero Mission / Fusion, A Link to the Past:** none. These map screens are shown whole, with the game's own frame, so there's nothing to fill.
 
 The surround is assembled in the game's own pixel space and scaled together with the map, so it lines up exactly and the LCD grid covers it too.
 
-You can still add your own art on top: put a PNG at `gba-ds/overlays/<CODE>-<scale>.png`.
-- `<CODE>` is the game code: `A2CE` Aria of Sorrow, `AAME` Circle of the Moon, `ACHE` Harmony of Dissonance, `BMXE` Zero Mission, `AMTE` Fusion.
-- `<scale>` is `integer` (pixel perfect) or `fit` (full width).
-- `<CODE>.png` with no scale suffix is used for both modes.
+### Your own overlays
 
-Each overlay is 1024×768 and is drawn over the whole map screen, so leave it transparent where the map should show. It's only drawn while a map is showing, not over the logo screen. These are the map rectangles to keep clear:
+Put PNGs in `gba-ds/overlays/`. Each is 1024×768 and is drawn over the whole screen, so leave it transparent where the picture should show. The game-screen ("top") overlay is a good place for a console bezel. For each screen the first file found is used, so a game's own overlay beats a global one:
 
-| Game | integer | fit |
+| | Top (game screen) | Bottom (map screen) |
 |---|---|---|
-| Castlevania (all three) | x=32, y=64, 960×640 | x=0, y=43, 1024×682 |
-| Metroid: Zero Mission | x=32, y=64, 960×640 | x=0, y=43, 1024×682 |
-| Metroid Fusion | x=32, y=64, 960×640 | x=0, y=43, 1024×682 |
+| this game, this scaling | `<CODE>-top-<scale>.png` | `<CODE>-bottom-<scale>.png` |
+| this game | `<CODE>-top.png` | `<CODE>-bottom.png` |
+| every game, this scaling | `top-<scale>.png` | `bottom-<scale>.png` |
+| every game | `top.png` | `bottom.png` |
+
+- `<CODE>` is the game code: `A2CE` Aria of Sorrow, `AAME` Circle of the Moon, `ACHE` Harmony of Dissonance, `BMXE` Zero Mission, `AMTE` Fusion, `AZLE` A Link to the Past.
+- `<scale>` is that screen's scaling: `integer` (pixel perfect), `fit` (full width) or `stretch`.
+- Map overlays named the old way (`<CODE>-<scale>.png`, `<CODE>.png`) still work, ahead of the global ones.
+- The bottom overlay is only drawn while a map is showing, not over the logo screen.
+
+Areas to keep clear (the same for every game, since all maps are now shown at full GBA size):
+
+| Screen | integer | fit |
+|---|---|---|
+| game or map | x=32, y=64, 960×640 | x=0, y=43, 1024×682 |
 
 `border_color` (hex, default `000000`) sets the colour behind the map where there's no overlay. 
 

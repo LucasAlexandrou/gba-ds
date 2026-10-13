@@ -23,9 +23,10 @@ static GamePaths gp;
 static SDL_Texture* gameTex[2];
 static SDL_Texture* mapTex[2];
 static SDL_Texture* logoTex[2];
-static SDL_Texture* overlayTex[2];
-static int overlayW, overlayH;
-static char overlayMode[16];
+/* user overlay PNGs: [0] game screen ("top"), [1] map screen ("bottom") */
+static SDL_Texture* overlayTex[2][2];
+static int overlayW[2], overlayH[2];
+static char overlayMode[2][16];
 static int logoW, logoH;
 static bool logoPixel;
 static MapResult mapRes;
@@ -148,7 +149,10 @@ static void draw_menu(void) {
 		if (menuItems[i] == M_SCALE) label = !strcmp(cfg->scale, "fit") ? "SCALE: FULL WIDTH" : !strcmp(cfg->scale, "stretch") ? "SCALE: STRETCH" : "SCALE: PIXEL PERFECT";
 		if (menuItems[i] == M_LCD) label = cfg->lcdGrid ? "LCD GRID: ON" : "LCD GRID: OFF";
 		if (menuItems[i] == M_FPS) label = cfg->showFps ? "SHOW FPS: ON" : "SHOW FPS: OFF";
-		if (menuItems[i] == M_OVERLAY) label = cfg->overlays ? "OVERLAYS: ON" : "OVERLAYS: OFF";
+		if (menuItems[i] == M_OVERLAY) {
+			static const char* const ovl[4] = { "OVERLAYS: NONE", "OVERLAYS: TOP", "OVERLAYS: BOTTOM", "OVERLAYS: BOTH" };
+			label = ovl[cfg->overlays & OVL_BOTH];
+		}
 		if (menuItems[i] == M_RESTART && restartArmed) label = "TAP AGAIN TO RESTART";
 		ui_text_center(scr, r.x + r.w / 2, r.y + (r.h - px * 7) / 2, px, label, en ? C_TEXT : C_DIS);
 	}
@@ -205,7 +209,7 @@ static void upload_map_frame(int idx) {
 
 /* Draws the map with its generated surround; false if there's none to draw. */
 static bool draw_framed_map(int s) {
-	if (!cfg->overlays || !mapframe_ready(&mf) || mapShownIdx < 0) return false;
+	if (!(cfg->overlays & OVL_BOTTOM) || !mapframe_ready(&mf) || mapShownIdx < 0) return false;
 	SDL_Rect r = screens[s].rect;
 	if (mapframe_layout(&mf, r.w, r.h, cfg->mapScale) || mf.baseDirty) canvasDirty = true;
 	if (canvasTexW != mf.cw || canvasTexH != mf.ch) {
@@ -250,9 +254,9 @@ static void save_prefs(void) {
 	FILE* f = fopen(prefs, "w");
 	if (f) {
 		fprintf(f, "# written by gba-ds's pause menu; overrides gba-ds.cfg\n");
-		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %d\n",
+		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\n",
 		        cfg->swap ? 1 : 0, cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0,
-		        cfg->overlays ? 1 : 0);
+		        (const char* const[]) { "none", "top", "bottom", "both" }[cfg->overlays & OVL_BOTH]);
 		fclose(f);
 	}
 }
@@ -268,19 +272,45 @@ static void swap_screens(void) {
 
 static SDL_Color borderColor;
 
-/* <asset_dir>/overlays/<CODE>-<scale>.png, else <CODE>.png: drawn over the
- * whole map screen (transparent where the map should show). */
-static void load_overlay(void) {
-	if (!strcmp(overlayMode, cfg->mapScale)) return;
-	snprintf(overlayMode, sizeof(overlayMode), "%s", cfg->mapScale);
-	ui_free_image(overlayTex);
+/* User overlay PNGs in <asset_dir>/overlays/, drawn over a whole screen
+ * (transparent where the picture should show). First found wins:
+ *   top (game screen):   <CODE>-top-<scale>, <CODE>-top, top-<scale>, top
+ *   bottom (map screen): <CODE>-bottom-<scale>, <CODE>-bottom, <CODE>-<scale>,
+ *                        <CODE>, bottom-<scale>, bottom
+ * <scale> is that screen's scaling (integer / fit / stretch). */
+static void load_overlay(int which) {
+	const char* scale = which ? cfg->mapScale : cfg->scale;
+	if (!strcmp(overlayMode[which], scale)) return;
+	snprintf(overlayMode[which], sizeof(overlayMode[which]), "%s", scale);
+	ui_free_image(overlayTex[which]);
+	const char* side = which ? "bottom" : "top";
+	char names[6][64];
+	int n = 0;
+	snprintf(names[n++], 64, "%.4s-%s-%s", emu.gameCode, side, scale);
+	snprintf(names[n++], 64, "%.4s-%s", emu.gameCode, side);
+	if (which) {
+		snprintf(names[n++], 64, "%.4s-%s", emu.gameCode, scale); /* older names */
+		snprintf(names[n++], 64, "%.4s", emu.gameCode);
+	}
+	snprintf(names[n++], 64, "%s-%s", side, scale);
+	snprintf(names[n++], 64, "%s", side);
 	char path[1200];
-	snprintf(path, sizeof(path), "%s/overlays/%.4s-%s.png", cfg->assetDir, emu.gameCode, cfg->mapScale);
-	if (!ui_load_image(path, overlayTex, &overlayW, &overlayH, true)) {
-		snprintf(path, sizeof(path), "%s/overlays/%.4s.png", cfg->assetDir, emu.gameCode);
-		ui_load_image(path, overlayTex, &overlayW, &overlayH, true);
+	for (int i = 0; i < n; ++i) {
+		snprintf(path, sizeof(path), "%s/overlays/%s.png", cfg->assetDir, names[i]);
+		if (ui_load_image(path, overlayTex[which], &overlayW[which], &overlayH[which], true)) {
+			if (debug) fprintf(stderr, "overlay (%s): %s\n", side, path);
+			return;
+		}
 	}
 }
+
+static void draw_overlay(int s, int which) {
+	load_overlay(which);
+	if (overlayTex[which][0] || overlayTex[which][1]) {
+		ui_image(s, overlayTex[which], overlayW[which], overlayH[which], "stretch", NULL);
+	}
+}
+
 
 /* Text size for the FPS counter and messages: fits the empty band (gap px tall)
  * above or below the picture, even in full-width scaling. */
@@ -313,6 +343,7 @@ static void draw_game(void) {
 		if (showGame) {
 			if (nScreens == 2 && !mapOn && s != game_screen()) continue; /* no map: leave other screen black */
 			ui_image_pixels(s, gameTex, GBA_W, GBA_H, cfg->scale, cfg->lcdGrid);
+			if (cfg->overlays & OVL_TOP) draw_overlay(s, 0);
 			if (cfg->showFps) {
 				/* sized to sit in the empty band above the picture */
 				char buf[48];
@@ -338,9 +369,8 @@ static void draw_game(void) {
 			SDL_Rect area = { r.w / 12, r.h / 6, r.w - r.w / 6, r.h - r.h / 3 };
 			ui_image(s, logoTex, logoW, logoH, logoPixel ? "integer" : "fit", &area);
 		}
-		if (mapShownIdx >= 0 && cfg->overlays) { /* overlays frame the map only, never the logo */
-			load_overlay();
-			if (overlayTex[0] || overlayTex[1]) ui_image(s, overlayTex, overlayW, overlayH, "stretch", NULL);
+		if (mapShownIdx >= 0 && (cfg->overlays & OVL_BOTTOM)) { /* the map only, never the logo */
+			draw_overlay(s, 1);
 		}
 		if (mapShownIdx >= 0 && mapInactive) {
 			ui_dim(s, 120);
@@ -400,7 +430,9 @@ static bool activate(int item, enum GameExit* exitTo) {
 		}
 		break;
 	case M_OVERLAY:
-		cfg->overlays = !cfg->overlays;
+		/* TOP -> BOTTOM -> BOTH -> NONE -> TOP */
+		cfg->overlays = cfg->overlays == OVL_TOP ? OVL_BOTTOM : cfg->overlays == OVL_BOTTOM ? OVL_BOTH :
+		                cfg->overlays == OVL_BOTH ? 0 : OVL_TOP;
 		save_prefs();
 		break;
 	case M_FPS:
@@ -473,7 +505,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 
 	unsigned bc = (unsigned) strtoul(cfg->borderColor, NULL, 16);
 	borderColor = (SDL_Color) { (bc >> 16) & 0xFF, (bc >> 8) & 0xFF, bc & 0xFF, 255 };
-	overlayMode[0] = 0;
+	overlayMode[0][0] = overlayMode[1][0] = 0;
 	uint32_t logoGen = logo_generation();
 	ui_load_logo(cfg, rom, emu.gameCode, logoTex, &logoW, &logoH, &logoPixel);
 	mapframe_init(&mf, mc ? profile_find(emu.gameCode) : NULL, mapW, mapH);
@@ -857,8 +889,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		gameTex[i] = mapTex[i] = NULL;
 	}
 	ui_free_image(logoTex);
-	ui_free_image(overlayTex);
-	overlayMode[0] = 0;
+	ui_free_image(overlayTex[0]);
+	ui_free_image(overlayTex[1]);
+	overlayMode[0][0] = overlayMode[1][0] = 0;
 	mapframe_free(&mf);
 	for (int i = 0; i < 2; ++i) {
 		if (canvasTex[i]) SDL_DestroyTexture(canvasTex[i]);

@@ -3,6 +3,11 @@
 
 #include <stdbool.h>
 
+/* Overlays: "top" is the game screen, "bottom" the map screen (they follow the
+ * picture when the screens are swapped). Bottom also covers the generated
+ * map surrounds. */
+enum { OVL_TOP = 1, OVL_BOTTOM = 2, OVL_BOTH = 3 };
+
 typedef struct Config {
 	char layout[16];   /* auto | span-h | span-v | dual | single */
 	bool swap;         /* map on the first (left/top) screen instead of the second */
@@ -10,7 +15,7 @@ typedef struct Config {
 	char mapScale[16]; /* map:  integer | fit | stretch */
 	bool smooth;       /* plain linear filtering when scaling (blurry) */
 	char borderColor[16]; /* RRGGBB behind the map screen (outside the map image) */
-	bool overlays;     /* draw map-screen overlay PNGs */
+	int overlays;      /* OVL_TOP | OVL_BOTTOM: game-screen / map-screen overlays */
 	bool lcdGrid;      /* draw an LCD pixel grid over game and map */
 	int lcdStrength;   /* grid darkness, 0..100 */
 	bool vsync;

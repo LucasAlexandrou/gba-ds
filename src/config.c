@@ -16,7 +16,7 @@ void config_defaults(Config* c) {
 	strcpy(c->touchMap, "window");
 	c->map = true;
 	c->mapCrop = true;
-	c->overlays = true;
+	c->overlays = OVL_BOTH;
 	c->mapInterval = 90;
 	c->sway = true;
 	c->audioLatency = 64;
@@ -54,7 +54,15 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	STR("map_scale", mapScale)
 	BOOL("smooth", smooth)
 	BOOL("lcd_grid", lcdGrid)
-	BOOL("overlays", overlays)
+	if (!strcmp(key, "overlays")) {
+		/* none / top / bottom / both (older configs: 0 / 1) */
+		c->overlays = !strcmp(val, "top")    ? OVL_TOP :
+		              !strcmp(val, "bottom") ? OVL_BOTTOM :
+		              !strcmp(val, "both")   ? OVL_BOTH :
+		              !strcmp(val, "none")   ? 0 :
+		              parse_bool(val)        ? OVL_BOTH : 0;
+		return true;
+	}
 	STR("border_color", borderColor)
 	INT("lcd_strength", lcdStrength)
 	BOOL("vsync", vsync)
