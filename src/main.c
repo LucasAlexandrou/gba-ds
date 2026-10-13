@@ -26,6 +26,13 @@ static void on_signal(int sig) {
 }
 
 int main(int argc, char** argv) {
+	for (int i = 1; i < argc; ++i) {
+		if (!strcmp(argv[i], "--version")) {
+			printf("GBA DS %s\n", GBADS_VERSION);
+			return 0;
+		}
+	}
+	fprintf(stderr, "GBA DS %s\n", GBADS_VERSION);
 	Config cfg;
 	config_defaults(&cfg);
 

@@ -39,7 +39,7 @@ You see the real in-game map with every detail the game draws (explored rooms, s
 
 ## Install on ROCKNIX
 
-1. Unzip `gba-ds-rocknix-aarch64.zip` into `/storage/roms/ports/`. You'll get a `gba-ds/` folder and a **GBA DS** entry.
+1. Download `gba-ds-v1.0-rocknix-aarch64.zip` from the [Releases page](https://github.com/kyannon/gba-ds/releases) and unzip it into `/storage/roms/ports/`. You'll get a `gba-ds/` folder and a **GBA DS** entry.
 2. Keep your **unzipped** `.gba` ROMs in `/storage/roms/gba/` (subfolders are fine). Zipped ROMs aren't supported yet.
 3. In EmulationStation, update the game lists and launch **GBA DS** from Ports.
 4. Optional: the zip also puts an icon at `/storage/roms/ports/images/GBA DS.png`. To show it, select **GBA DS** in Ports, open the game options (usually **SELECT**), choose **Edit this game's metadata**, and set **Image** to that file.
@@ -162,7 +162,7 @@ Logs go to `/storage/roms/ports/gba-ds/gba-ds.log`. If the sound ever crackles, 
 On an x86_64 Linux host with git, cmake, make, and zip, run:
 
 ```sh
-scripts/build-rocknix.sh            # -> dist/gba-ds-rocknix-aarch64.zip
+scripts/build-rocknix.sh            # -> dist/gba-ds-v<VERSION>-rocknix-aarch64.zip
 ```
 
 The script fetches a GCC aarch64 toolchain, mGBA (pinned commit), and SDL2 into `deps/`.

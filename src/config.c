@@ -156,6 +156,7 @@ bool config_parse_args(Config* c, int argc, char** argv) {
 
 void config_usage(const char* argv0) {
 	fprintf(stderr,
+	        "GBA DS " GBADS_VERSION "\n"
 	        "usage: %s [options] [game.gba]\n"
 	        "\n"
 	        "Without a game, opens the game library (games found in --rom-dir).\n"

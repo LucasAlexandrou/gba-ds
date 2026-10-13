@@ -15,9 +15,10 @@ SDL_PREFIX ?= ../sdl-host
 OUT        ?= build/$(if $(CROSS),$(patsubst %-,%,$(CROSS)),host)
 
 MGBA_DEFS  := $(shell sed -n 's/^C_DEFINES = //p' $(MGBA_BUILD)/CMakeFiles/mgba.dir/flags.make)
+VERSION    := $(shell cat VERSION 2>/dev/null || echo dev)
 OPTFLAGS   ?= -O2 -g
 override CFLAGS := $(OPTFLAGS) -std=gnu11 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
-              $(MGBA_DEFS) -I$(MGBA_SRC)/include -I$(MGBA_BUILD)/include -I$(SDL_PREFIX)/include/SDL2 -D_REENTRANT
+              -DGBADS_VERSION='"$(VERSION)"' $(MGBA_DEFS) -I$(MGBA_SRC)/include -I$(MGBA_BUILD)/include -I$(SDL_PREFIX)/include/SDL2 -D_REENTRANT
 LDFLAGS    += -L$(SDL_PREFIX)/lib -Wl,-rpath-link,$(SDL_PREFIX)/lib
 LIBS       := $(MGBA_BUILD)/libmgba.a -lSDL2 -lpthread -lm
 
@@ -26,7 +27,7 @@ APP_SRC    := src/main.c src/config.c src/font.c src/ui.c src/library.c src/game
 
 all: $(OUT)/gba-ds
 
-$(OUT)/gba-ds: $(APP_SRC) src/*.h $(MGBA_BUILD)/libmgba.a
+$(OUT)/gba-ds: $(APP_SRC) src/*.h VERSION $(MGBA_BUILD)/libmgba.a
 	@mkdir -p $(OUT)
 	$(CC) $(CFLAGS) -o $@ $(APP_SRC) $(LDFLAGS) $(LIBS)
 

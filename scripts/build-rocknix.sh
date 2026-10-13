@@ -58,6 +58,8 @@ make CROSS="$CROSS" MGBA_SRC="$DEPS/mgba" MGBA_BUILD="$DEPS/mgba/build-aarch64" 
 	SDL_PREFIX="$DEPS/sdl-aarch64" OUT=build/aarch64 OPTFLAGS="-O2 -mcpu=cortex-a55"
 
 # --- package ---------------------------------------------------------------
+VERSION=$(cat VERSION)
+ZIP="gba-ds-v$VERSION-rocknix-aarch64.zip"
 PKG="$ROOT/build/pkg/gba-ds"
 rm -rf "$ROOT/build/pkg"
 mkdir -p "$PKG"
@@ -68,10 +70,15 @@ printf "Optional: your own logo images (<CODE>.png or .bmp) override the ones ex
 mkdir -p "$PKG/overlays"
 printf "Overlay PNGs (1024x768, transparent where the picture shows): primary.png (game screen) / secondary.png (map screen) for every game,\n<CODE>-primary.png / <CODE>-secondary.png for one game, optionally with -integer / -fit / -stretch. See README.\n" > "$PKG/overlays/README.txt"
 cp README.md "$PKG/README.md"
+# mGBA is statically linked (MPL-2.0): ship its licence and where to get its source
+mkdir -p "$PKG/licenses"
+cp "$DEPS/mgba/LICENSE" "$PKG/licenses/mGBA-LICENSE.txt"
+printf "GBA DS %s statically links libmgba (c) Jeffrey Pfau, MPL-2.0.\nmGBA source: https://github.com/mgba-emu/mgba (commit %s)\nGBA DS source: https://github.com/kyannon/gba-ds\n" "$VERSION" "$MGBA_COMMIT" > "$PKG/licenses/README.txt"
 cp "dist/GBA DS.sh" "$ROOT/build/pkg/"
 # EmulationStation artwork for the Ports entry
 mkdir -p "$ROOT/build/pkg/images"
 cp assets/brand/gba-ds-icon.png "$ROOT/build/pkg/images/GBA DS.png"
 chmod +x "$PKG"/*.sh "$PKG/gba-ds" "$ROOT/build/pkg/GBA DS.sh"
-(cd "$ROOT/build/pkg" && rm -f "$ROOT/dist/gba-ds-rocknix-aarch64.zip" && zip -qr "$ROOT/dist/gba-ds-rocknix-aarch64.zip" gba-ds "GBA DS.sh" images)
-echo "built dist/gba-ds-rocknix-aarch64.zip"
+rm -f "$ROOT"/dist/gba-ds-*rocknix-aarch64.zip
+(cd "$ROOT/build/pkg" && zip -qr "$ROOT/dist/$ZIP" gba-ds "GBA DS.sh" images)
+echo "built dist/$ZIP"

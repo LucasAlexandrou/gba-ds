@@ -192,6 +192,11 @@ static void draw_preview(Config* cfg, int scr, int sel) {
 	bx += draw_brand(scr, BRAND_BTN_B, bx, gy, d) + px * 2;
 	ui_label(scr, bx + wordW / 2, cy, cap, "Quit", C_TEXT);
 
+	{
+		int vpx = SDL_max(1, px / 2);
+		const char* v = "V" GBADS_VERSION;
+		ui_text(scr, r.w - m - ui_text_width(v, vpx), cy - vpx * 7 / 2, vpx, v, C_DIM);
+	}
 	if (nGames == 0 || sel < 0) {
 		ui_text_center(scr, r.w / 2, r.h / 2 - px * 4, px, "NO GAMES FOUND", C_TEXT);
 		return;
