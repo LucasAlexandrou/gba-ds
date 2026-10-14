@@ -30,5 +30,13 @@ bool android_second_size(int* w, int* h);
  * display's surface, if it has one right now. */
 void android_second_present(SDL_Surface* frame);
 
+/* GPU path: draw the second screen with the game screen's OpenGL ES
+ * context. _gpu_init on the game thread with the context current (w x h: the
+ * game screen's size); then each redraw between _begin (false: no window
+ * yet, or it failed) and _end. */
+bool android_second_gpu_init(int w, int h);
+bool android_second_begin(void);
+void android_second_end(void);
+
 #endif
 #endif

@@ -6,6 +6,7 @@
 #include "emu.h"
 #include "profiles.h"
 
+#include <EGL/egl.h>
 #include <android/log.h>
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
@@ -249,6 +250,79 @@ void android_second_present(SDL_Surface* s) {
 	}
 }
 
+/* --- GPU path: SDL's OpenGL ES context draws into an EGL window surface on
+ * the second display's window, between android_second_begin / _end on the
+ * game thread. The software path above is the fallback. */
+static EGLConfig gpuConfig;
+static bool gpuOn;
+static int gpuW, gpuH;
+static EGLDisplay surf2Dpy = EGL_NO_DISPLAY;
+static EGLSurface surf2 = EGL_NO_SURFACE;
+static bool surf2Interval;
+static EGLDisplay savedDpy;
+static EGLSurface savedDraw, savedRead;
+static EGLContext savedCtx;
+
+bool android_second_gpu_init(int w, int h) {
+	EGLDisplay d = eglGetCurrentDisplay();
+	EGLContext c = eglGetCurrentContext();
+	if (d == EGL_NO_DISPLAY || c == EGL_NO_CONTEXT) return false;
+	EGLint id = 0, n = 0;
+	if (!eglQueryContext(d, c, EGL_CONFIG_ID, &id)) return false;
+	EGLint attrs[] = { EGL_CONFIG_ID, id, EGL_NONE };
+	if (!eglChooseConfig(d, attrs, &gpuConfig, 1, &n) || n != 1) return false;
+	gpuW = w;
+	gpuH = h;
+	gpuOn = true;
+	return true;
+}
+
+bool android_second_begin(void) {
+	pthread_mutex_lock(&winLock);
+	EGLDisplay d = eglGetCurrentDisplay();
+	EGLContext c = eglGetCurrentContext();
+	if (!gpuOn || !secondWin || d == EGL_NO_DISPLAY || c == EGL_NO_CONTEXT) goto fail;
+	if (surf2 == EGL_NO_SURFACE) {
+		EGLint fmt = 0;
+		eglGetConfigAttrib(d, gpuConfig, EGL_NATIVE_VISUAL_ID, &fmt);
+		/* the same size as the game screen, so SDL's viewport fits both; the
+		 * compositor scales it to the display if they differ */
+		ANativeWindow_setBuffersGeometry(secondWin, gpuW, gpuH, fmt);
+		surf2 = eglCreateWindowSurface(d, gpuConfig, secondWin, NULL);
+		if (surf2 == EGL_NO_SURFACE) {
+			static int logged;
+			if (logged++ < 3) fprintf(stderr, "second screen: eglCreateWindowSurface failed (0x%x)\n", eglGetError());
+			goto fail;
+		}
+		surf2Dpy = d;
+		surf2Interval = false;
+		fprintf(stderr, "second screen: drawing with the GPU (%dx%d)\n", gpuW, gpuH);
+	}
+	savedDpy = d;
+	savedCtx = c;
+	savedDraw = eglGetCurrentSurface(EGL_DRAW);
+	savedRead = eglGetCurrentSurface(EGL_READ);
+	if (!eglMakeCurrent(d, surf2, surf2, c)) {
+		static int logged;
+		if (logged++ < 3) fprintf(stderr, "second screen: eglMakeCurrent failed (0x%x)\n", eglGetError());
+		goto fail;
+	}
+	if (!surf2Interval) {
+		eglSwapInterval(d, 0); /* never wait for the second display's refresh */
+		surf2Interval = true;
+	}
+	return true; /* winLock stays held until android_second_end */
+fail:
+	pthread_mutex_unlock(&winLock);
+	return false;
+}
+
+void android_second_end(void) {
+	eglSwapBuffers(savedDpy, surf2);
+	eglMakeCurrent(savedDpy, savedDraw, savedRead, savedCtx);
+	pthread_mutex_unlock(&winLock);
+}
+
 JNIEXPORT void JNICALL Java_io_github_kyannon_gbads_SecondScreen_nativeSetDisplay(JNIEnv* env, jclass cls, jint w, jint h) {
 	pthread_mutex_lock(&winLock);
 	dispW = w;
@@ -260,6 +334,9 @@ JNIEXPORT void JNICALL Java_io_github_kyannon_gbads_SecondScreen_nativeSetDispla
  * with the old surface before Java lets it go. */
 JNIEXPORT void JNICALL Java_io_github_kyannon_gbads_SecondScreen_nativeSetSurface(JNIEnv* env, jclass cls, jobject surface) {
 	pthread_mutex_lock(&winLock);
+	/* never current here: the game thread only makes it current while holding winLock */
+	if (surf2 != EGL_NO_SURFACE) eglDestroySurface(surf2Dpy, surf2);
+	surf2 = EGL_NO_SURFACE;
 	if (secondWin) ANativeWindow_release(secondWin);
 	secondWin = surface ? ANativeWindow_fromSurface(env, surface) : NULL;
 	geometrySet = false;

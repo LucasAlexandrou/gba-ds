@@ -194,12 +194,25 @@ bool ui_init(Config* c, bool wantDual) {
 
 #ifdef __ANDROID__
 	/* SDL only has the display the activity is on. The other one is a
-	 * Presentation window in Java; it's drawn here with a software renderer
-	 * and copied to its surface in ui_present. */
+	 * Presentation window in Java (android.c). It's view 1, drawn at
+	 * ui_present: with the GPU (the game screen's renderer, made to draw into
+	 * the other window), or failing that with a software renderer. */
 	if (!create_view(&views[0], 0, "GBA DS", true, 1024, 768)) return false;
 	nViews = 1;
-	int sw, sh;
-	if (strcmp(cfg->layout, "single") && android_second_size(&sw, &sh)) {
+	int sw, sh, w0, h0;
+	SDL_RendererInfo ri;
+	SDL_GetRendererOutputSize(views[0].ren, &w0, &h0);
+	bool gles = SDL_GetRendererInfo(views[0].ren, &ri) == 0 && !strncmp(ri.name, "opengles", 8);
+	fprintf(stderr, "game screen renderer: %s, %dx%d\n", gles ? ri.name : "not OpenGL ES", w0, h0);
+	if (strcmp(cfg->layout, "single") && android_second_size(&sw, &sh) && gles && !getenv("GBADS_SOFT_SECOND") &&
+	    android_second_gpu_init(w0, h0)) {
+		views[1].ren = views[0].ren;
+		views[1].offwin = true;
+		nViews = 2;
+		fprintf(stderr, "second screen: GPU\n");
+	} else if (strcmp(cfg->layout, "single") && android_second_size(&sw, &sh)) {
+		fprintf(stderr, "second screen: software\n");
+		views[1].offwin = true;
 		views[1].surf = SDL_CreateRGBSurfaceWithFormat(0, sw, sh, 32, SDL_PIXELFORMAT_ABGR8888);
 		views[1].ren = views[1].surf ? SDL_CreateSoftwareRenderer(views[1].surf) : NULL;
 		if (views[1].ren) {
@@ -245,7 +258,7 @@ void ui_shutdown(void) {
 		}
 	}
 	for (int i = 0; i < nViews; ++i) {
-		SDL_DestroyRenderer(views[i].ren);
+		if (i == 0 || views[i].ren != views[0].ren) SDL_DestroyRenderer(views[i].ren);
 		if (views[i].win) SDL_DestroyWindow(views[i].win);
 		if (views[i].surf) SDL_FreeSurface(views[i].surf);
 		views[i] = (View) { 0 };
@@ -583,7 +596,7 @@ static DrawOp* rec(int screen, int kind) {
 #ifndef __ANDROID__
 	return NULL; /* only Android has a software view */
 #else
-	if (replaying || screen < 0 || screen >= nScreens || !views[screens[screen].view].surf) return NULL;
+	if (replaying || screen < 0 || screen >= nScreens || !views[screens[screen].view].offwin) return NULL;
 	if (nOps == capOps) {
 		capOps = capOps ? capOps * 2 : 64;
 		ops = realloc(ops, sizeof(*ops) * capOps);
@@ -612,18 +625,33 @@ static uint64_t ops_sig(void) {
 	return h ^ (cfg->smooth ? 0x9e3779b97f4a7c15ull : 0);
 }
 
-/* Draws the recorded calls into the software view if they changed. True if
- * the surface holds a new picture. Once per frame (ui_present, or earlier
- * for a screenshot). */
+/* a screenshot wants the second screen's pixels (GPU view: only readable
+ * while its window is the one being drawn) */
+static unsigned char* swReadDst;
+static SDL_Rect swReadRect;
+static int swReadPitch;
+static bool swReadOk;
+
+/* Draws the recorded calls into the off-window view if they changed (or a
+ * screenshot needs it). True if it now shows a new picture. Once per frame
+ * (ui_present, or earlier for a screenshot). */
 static bool sw_render(int v) {
 	if (swState) return swState == 1;
 	uint64_t sig = ops_sig();
-	if (sig == swLastSig && ++swSinceDraw < 60) {
+	if (!swReadDst && sig == swLastSig && ++swSinceDraw < 60) {
 		swState = 2;
 		return false;
 	}
 	Uint64 t0 = SDL_GetPerformanceCounter();
 	SDL_Renderer* ren = views[v].ren;
+	bool gpu = !views[v].surf;
+	if (gpu) {
+		SDL_RenderFlush(ren); /* the game screen's queued drawing goes to its own window first */
+		if (!android_second_begin()) {
+			swState = 2; /* no window yet: try again next frame (swLastSig unchanged) */
+			return false;
+		}
+	}
 	SDL_RenderSetClipRect(ren, NULL);
 	SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
 	SDL_RenderClear(ren);
@@ -643,7 +671,13 @@ static bool sw_render(int v) {
 	}
 	replaying = false;
 	SDL_RenderSetClipRect(ren, NULL);
-	SDL_RenderPresent(ren);
+	if (swReadDst) swReadOk = SDL_RenderReadPixels(ren, &swReadRect, SDL_PIXELFORMAT_ABGR8888, swReadDst, swReadPitch) == 0;
+	if (gpu) {
+		SDL_RenderFlush(ren);
+		android_second_end();
+	} else {
+		SDL_RenderPresent(ren);
+	}
 	swLastSig = sig;
 	swSinceDraw = 0;
 	swState = 1;
@@ -667,7 +701,7 @@ void ui_clip(int screen, const SDL_Rect* clip) {
 
 void ui_clear(void) {
 	for (int i = 0; i < nViews; ++i) {
-		if (views[i].surf) continue; /* keeps its last picture; see sw_render */
+		if (views[i].offwin) continue; /* keeps its last picture; see sw_render */
 		SDL_SetRenderDrawColor(views[i].ren, 0, 0, 0, 255);
 		SDL_RenderClear(views[i].ren);
 	}
@@ -686,9 +720,9 @@ void ui_present(void) {
 	static Uint64 handover;
 	static int frames;
 	for (int i = 0; i < nViews; ++i) {
-		if (!views[i].surf) {
+		if (!views[i].offwin) {
 			SDL_RenderPresent(views[i].ren);
-		} else if (sw_render(i)) {
+		} else if (sw_render(i) && views[i].surf) {
 			Uint64 t0 = SDL_GetPerformanceCounter();
 			android_second_present(views[i].surf);
 			handover += SDL_GetPerformanceCounter() - t0;
@@ -1015,17 +1049,23 @@ bool ui_screenshot_stacked(const char* pngPath) {
 	if (!W || !H) return false;
 	unsigned char* img = calloc((size_t) W * H, 4);
 	if (!img) return false;
-#ifdef __ANDROID__
-	for (int v = 0; v < nViews; ++v) {
-		if (views[v].surf) sw_render(v); /* draw it now (it's otherwise drawn at ui_present) */
-	}
-#endif
 	bool ok = true;
 	int y = 0;
 	for (int i = 0; i < nScreens && ok; ++i) {
 		SDL_Rect r = screens[i].rect;
 		/* ABGR8888 is R, G, B, A in memory: what the PNG writer wants */
 		unsigned char* dst = img + (size_t) y * W * 4 + (size_t) (W - r.w) / 2 * 4;
+#ifdef __ANDROID__
+		if (views[screens[i].view].offwin) {
+			/* drawn now (otherwise at ui_present), read back while it's drawn */
+			swReadDst = dst, swReadRect = r, swReadPitch = W * 4, swReadOk = false;
+			sw_render(screens[i].view);
+			ok = swReadOk;
+			swReadDst = NULL;
+			y += r.h;
+			continue;
+		}
+#endif
 		ok = SDL_RenderReadPixels(views[screens[i].view].ren, &r, SDL_PIXELFORMAT_ABGR8888, dst, W * 4) == 0;
 		y += r.h;
 	}

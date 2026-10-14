@@ -11,7 +11,12 @@
 typedef struct {
 	SDL_Window* win;
 	SDL_Renderer* ren;
-	SDL_Surface* surf; /* software view drawn into memory (Android's second screen); win is NULL */
+	/* Android's second screen (win is NULL): drawn at ui_present from
+	 * recorded calls (ui.c), with the game screen's renderer into the
+	 * second display's window (GPU), or failing that with a software
+	 * renderer into surf, which is then copied over. */
+	bool offwin;
+	SDL_Surface* surf;
 } View;
 
 /* A physical screen: a rectangle inside one view's output. */

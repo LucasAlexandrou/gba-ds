@@ -181,6 +181,19 @@ swapped; 20-30 fps. Changes since:
   screen was redrawn and at what cost (ui.c). Checked on the desktop with
   the Android paths and stub glue: the replayed pause menu matches the
   directly drawn one, and it redraws only on changes.
+- Speed, third round: a map redraw in software took 41 ms (log), so map
+  updates and animations still dropped frames. The second screen is now
+  drawn by the GPU: android.c makes SDL's OpenGL ES context current on an
+  EGL window surface on the Presentation's window (same EGLConfig, buffers
+  the game screen's size so SDL's viewport fits; swap interval 0), and
+  ui.c replays the recorded calls through the game screen's renderer
+  between `android_second_begin` / `_end`. View 1 shares view 0's
+  renderer (`View.offwin`). The software renderer remains the fallback
+  (no GLES renderer, or `GBADS_SOFT_SECOND` set). Tested on the desktop
+  with the offscreen driver (also GLES/EGL) and a pbuffer standing in for
+  the window: menus match the software path, render targets and the LCD
+  grid work, the game screen is unaffected. Screenshots read the second
+  screen back while it is the current surface.
 - Start-up (5-10 s of black reported): the ROM pick reads every ROM's
   header (unpacking archives) until it finds one with a map profile; the
   result is now kept in `last-rom.txt` in the app folder and reused.
