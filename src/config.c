@@ -11,6 +11,7 @@ void config_defaults(Config* c) {
 	strcpy(c->scale, "integer");
 	strcpy(c->mapScale, "integer");
 	strcpy(c->hotkey, "guide");
+	strcpy(c->menuCombo, "none");
 	strcpy(c->romDir, "/storage/roms/gba");
 	strcpy(c->screenshotDir, "/storage/roms/screenshots");
 	strcpy(c->cheatDir, "/config/retroarch/cheats:/storage/.config/retroarch/cheats");
@@ -76,6 +77,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	INT("map_interval", mapInterval)
 	BOOL("ab_swap", abSwap)
 	STR("hotkey", hotkey)
+	STR("menu_combo", menuCombo)
 	INT("home_button", homeButton)
 	BOOL("show_fps", showFps)
 	BOOL("sway", sway)
@@ -187,6 +189,7 @@ void config_usage(const char* argv0) {
 	        "  --map-interval=N       frames between map refreshes (90)\n"
 	        "  --ab-swap              GBA A on the bottom face button\n"
 	        "  --hotkey=guide|back    menu / hotkey button (guide = HOME)\n"
+	        "  --menu-combo=select+start|none   buttons that open the menu together (none)\n"
 	        "  --home-button=N        raw joystick button that acts as HOME (see GBADS_DEBUG=1 log)\n"
 	        "  --no-auto-resume       don't save on exit / resume on launch\n"
 	        "  --show-fps\n"

@@ -25,6 +25,7 @@ typedef struct Config {
 	int mapInterval;   /* frames between periodic map refreshes */
 	bool abSwap;       /* GBA A on the bottom face button instead of the right one */
 	char hotkey[16];   /* guide | back */
+	char menuCombo[16]; /* select+start | none: buttons held together that open the pause menu */
 	int homeButton;    /* raw joystick button number that acts as HOME (-1 = off) */
 	bool showFps;
 	bool sway;         /* ask sway to fullscreen the window across all outputs */

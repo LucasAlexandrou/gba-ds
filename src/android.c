@@ -75,6 +75,8 @@ void android_config_defaults(Config* c) {
 	snprintf(c->cheatDir, sizeof(c->cheatDir), "/storage/emulated/0/RetroArch/cheats");
 	c->esConfigDir[0] = 0;
 	c->sway = false;
+	/* Android keeps HOME for itself */
+	snprintf(c->menuCombo, sizeof(c->menuCombo), "select+start");
 }
 
 static int cmp_names(const void* a, const void* b) {

@@ -1218,6 +1218,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	bool hotkeyBack = !strcmp(cfg->hotkey, "back");
 	int modBtn = hotkeyBack ? B_SELECT : B_HOME;
 	bool comboUsed = false;
+	int comboHold = -1, comboFrames = 0; /* menu combo: the button held back, frames since */
+	int comboPulse[2] = { 0, 0 };        /* SELECT, START handed to the game late */
 	int selectPulse = 0;
 	unsigned ffPhase = 0;
 	bool noPace = getenv("GBADS_NOPACE") != NULL;
@@ -1313,6 +1315,36 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		if (done) break;
 
+		/* ---- the menu combo (menu_combo = select+start; on Android, where HOME
+		 * belongs to the system): pressing both opens the menu. The first of
+		 * the two is held back from the game for a few frames, so that a combo
+		 * doesn't also press SELECT (a map in some games) or START (pause);
+		 * if the other doesn't follow, it goes to the game after all. */
+		bool comboOpened = false;
+		if (!menuOpen && !strcmp(cfg->menuCombo, "select+start")) {
+			if (comboHold < 0) {
+				if (btn_pressed(B_SELECT) && btn_pressed(B_START)) comboHold = B_START, comboFrames = 0;
+				else if (btn_pressed(B_SELECT) && !btnNow[B_START]) comboHold = B_SELECT, comboFrames = 0;
+				else if (btn_pressed(B_START) && !btnNow[B_SELECT]) comboHold = B_START, comboFrames = 0;
+			}
+			if (comboHold >= 0) {
+				int other = comboHold == B_SELECT ? B_START : B_SELECT;
+				if (btnNow[comboHold] && btnNow[other]) {
+					open_menu();
+					comboOpened = true;
+					comboUsed = true; /* not a hotkey, nor a plain SELECT for the game */
+					comboHold = -1;
+				} else if (!btnNow[comboHold]) {
+					comboPulse[comboHold == B_START] = 4; /* a quick tap: give it to the game now */
+					comboHold = -1;
+				} else if (++comboFrames > 5) {
+					comboHold = -1; /* just held: the game gets it from here */
+				}
+			}
+		} else {
+			comboHold = -1;
+		}
+
 		/* ---- HOME (or the hotkey modifier) alone toggles the menu; with a button it's a hotkey */
 		bool mod = btnNow[modBtn];
 		if (mod && !menuOpen) {
@@ -1349,12 +1381,14 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (btn_pressed(B_B)) cheatsOpen = false;
 			if (btn_pressed(B_START)) cheatsOpen = false, menuOpen = false;
 		} else if (menuOpen) {
-			if (btn_pressed(B_L) && curPage > 0) set_page(curPage - 1);
-			if (btn_pressed(B_R) && curPage < 1) set_page(curPage + 1);
-			if (btn_pressed(B_DOWN)) menuSel = (menuSel + 1) % nMenuItems;
-			if (btn_pressed(B_UP)) menuSel = (menuSel + nMenuItems - 1) % nMenuItems;
-			if (btn_pressed(B_B) || btn_pressed(B_START)) menuOpen = false;
-			else if (btn_pressed(B_A) && activate(menuItems[menuSel], &exitTo)) break;
+			if (!comboOpened) { /* (START just opened it: not also a close) */
+				if (btn_pressed(B_L) && curPage > 0) set_page(curPage - 1);
+				if (btn_pressed(B_R) && curPage < 1) set_page(curPage + 1);
+				if (btn_pressed(B_DOWN)) menuSel = (menuSel + 1) % nMenuItems;
+				if (btn_pressed(B_UP)) menuSel = (menuSel + nMenuItems - 1) % nMenuItems;
+				if (btn_pressed(B_B) || btn_pressed(B_START)) menuOpen = false;
+				else if (btn_pressed(B_A) && activate(menuItems[menuSel], &exitTo)) break;
+			}
 			if (menuOpen && !wasMenu && audio) {
 				SDL_PauseAudioDevice(audio, 1);
 				SDL_ClearQueuedAudio(audio);
@@ -1400,8 +1434,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				if (HELD(B_A)) keys |= K_A;
 				if (HELD(B_B)) keys |= K_B;
 			}
-			if (HELD(B_START) && !(hotkeyBack && btnNow[B_SELECT])) keys |= K_START;
-			if (HELD(B_SELECT) && !hotkeyBack) keys |= K_SELECT;
+			if (HELD(B_START) && !(hotkeyBack && btnNow[B_SELECT]) && comboHold != B_START) keys |= K_START;
+			if (HELD(B_SELECT) && !hotkeyBack && comboHold != B_SELECT) keys |= K_SELECT;
 			if (HELD(B_L)) keys |= K_L;
 			if (HELD(B_R)) keys |= K_R;
 			if (HELD(B_UP)) keys |= K_UP;
@@ -1411,6 +1445,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (hotkeyBack && btnNow[B_SELECT]) keys &= ~(K_L | K_R | K_START);
 		}
 		if (selectPulse > 0) keys |= K_SELECT, --selectPulse;
+		if (comboPulse[0] > 0) keys |= K_SELECT, --comboPulse[0];
+		if (comboPulse[1] > 0) keys |= K_START, --comboPulse[1];
 		{
 			static uint32_t lastKeys;
 			if (debug && keys != lastKeys) fprintf(stderr, "frame %llu: game keys %03x\n", (unsigned long long) frameCount, keys);
