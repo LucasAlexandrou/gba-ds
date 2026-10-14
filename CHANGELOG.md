@@ -1,5 +1,7 @@
 # Changelog
 
+## v1.1.1 (not yet released)
+
 ## v1.1 (2026-10-14)
 
 - **Android version** (an APK, first tested on the RG DS Plus with GammaOS): the game on the top screen and the map or logo on the bottom touchscreen, as on ROCKNIX, with the game list, pause menu, cheats and map capture. SELECT+START opens the pause menu (Android keeps HOME), and BACK does too. Save states, cheats, overlays and screenshots live in a `GBA DS` folder on the internal storage. See the README.
