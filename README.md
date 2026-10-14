@@ -42,6 +42,8 @@ You see the real in-game map with every detail the game draws (explored rooms, s
 
 ## Install on ROCKNIX
 
+Works on stock [ROCKNIX](https://rocknix.org) and on ROCKNIXDS. On stock ROCKNIX the bottom screen is normally switched off; GBA DS switches it on while it runs (and lines up the touchscreen with it), and puts things back when it closes. See `screens.sh` in the `gba-ds` folder.
+
 1. Download the latest `gba-ds-v…-rocknix-aarch64.zip` from the [Releases page](https://github.com/kyannon/gba-ds/releases) and unzip it into `/storage/roms/ports/`. You'll get a `gba-ds/` folder and a **GBA DS** entry.
 2. Keep your ROMs in `/storage/roms/gba/` (subfolders are fine): `.gba`, or zipped as `.zip` or `.7z` (the first GBA ROM in the archive is used). Saves and states are named after the file, so `Game.zip` and an unzipped `Game.gba` share them.
 3. In EmulationStation, update the game lists and launch **GBA DS** from Ports.

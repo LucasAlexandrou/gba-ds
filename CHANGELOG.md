@@ -2,6 +2,7 @@
 
 ## v1.0.4 (not yet released)
 
+- **Works on stock ROCKNIX.** The bottom screen stayed dark (taps still reached the hidden menus): stock ROCKNIX keeps the second screen switched off and the touchscreen tied to the top one. GBA DS now switches the bottom screen on and lines the screens and touchscreen up while it runs, and puts everything back the way it was when it closes. ROCKNIXDS keeps working as before.
 - Game list: a folder that appears twice in `rom_dir` (or through a link) is only listed once.
 - New option `menu_combo = select+start` in gba-ds.cfg: pressing SELECT and START together opens the pause menu, without the game seeing either button. Off by default.
 

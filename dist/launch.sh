@@ -40,4 +40,10 @@ if [ -d "$OLD/states" ] && [ ! -d "$DIR/states" ]; then
 	done
 fi
 
-./gba-ds "$@" > "$DIR/gba-ds.log" 2>&1
+# Second screen on and in place for the run (stock ROCKNIX keeps it off),
+# put back afterwards; see screens.sh. The trap also covers being killed.
+"$DIR/screens.sh" on > "$DIR/gba-ds.log" 2>&1
+trap '"$DIR/screens.sh" off >> "$DIR/gba-ds.log" 2>&1' EXIT
+trap 'exit 143' TERM INT HUP
+
+./gba-ds "$@" >> "$DIR/gba-ds.log" 2>&1

@@ -1,8 +1,8 @@
 # GBA DS: notes for Claude sessions
 
 GBA DS is a GBA emulator (libmgba) for dual-screen handhelds, built for the
-**Anbernic RG DS Plus on ROCKNIX** (two 640x480 screens, the bottom one a
-touchscreen). The game runs on one screen; the other shows the game's own
+**Anbernic RG DS Plus on ROCKNIX** (two 1024x768 screens, the bottom one a
+touchscreen; the RG DS has two 640x480 ones). The game runs on one screen; the other shows the game's own
 map (captured from a hidden second copy of the game) or the game's logo.
 The README covers user-facing behaviour; CHANGELOG.md the history.
 
@@ -49,7 +49,7 @@ with photos and screenshots; nothing ships untested on the device.
 ## Testing without the device
 
 - The app runs headless: `SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy
-  GBADS_WINDOW=640x960 build/host/gba-ds --state-dir=DIR [--load-state=X.ss]
+  GBADS_WINDOW=1024x1536 build/host/gba-ds --state-dir=DIR [--load-state=X.ss]
   --input-script=SCRIPT ROM`. Script lines: `TICK BUTTONS` (A, B+UP, - for
   none), `TICK SHOT:file.bmp` (both screens), `TICK TAP:x,y` (fractions of
   the whole window), `TICK QUIT`. `GBADS_DEBUG=1` logs map captures,
@@ -83,9 +83,21 @@ with photos and screenshots; nothing ships untested on the device.
 
 ## Device facts
 
-- ROCKNIX on the RG DS Plus, sway compositor; the app spans both screens.
-  Face buttons arrive by position: SDL "B" is the right button (GBA A),
-  "A" the bottom, "X" the top, "Y" the left.
+- ROCKNIX on the RG DS Plus, sway compositor; the app spans both screens
+  with one window ("fullscreen global"). Face buttons arrive by position:
+  SDL "B" is the right button (GBA A), "A" the bottom, "X" the top, "Y" the
+  left.
+- Outputs: DSI-2 is the top panel (ROCKNIX's main output, `$WLR_CON`), DSI-1
+  the bottom. **Stock ROCKNIX keeps DSI-1 powered off**, gives it no fixed
+  position, and its sway-touch service maps the touchscreen to DSI-2. ROCKNIX's
+  udev calibration puts bottom-panel touches in the right half of the layout.
+  `dist/screens.sh` (run by launch.sh) powers DSI-1 on, places it right of
+  DSI-2, maps touch to the whole layout, and restores all of it on exit.
+- ROCKNIXDS (github.com/JorreFog/ROCKNIXDS, no longer developed) is ROCKNIX
+  with dual-screen fixes (DSI-1 on, side by side, sway-touch off). The owner
+  developed against it at first; GBA DS must work on stock ROCKNIX on its own.
+  For how ROCKNIX drives the screens, see its `sway` package (111-sway-init),
+  `vertical-check` and the RG DS device quirks.
 - Installed at `/storage/roms/ports/gba-ds/`, ROMs in `/storage/roms/gba/`.
 - EmulationStation: `/usr/bin/runemu.sh` launches games; the GBA command is
   `/usr/bin/runemu.sh %ROM% -P%SYSTEM% --core=%CORE% --emulator=%EMULATOR%
