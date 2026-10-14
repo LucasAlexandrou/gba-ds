@@ -106,3 +106,6 @@ with photos and screenshots; nothing ships untested on the device.
 ## Ongoing work
 
 - Android version: see `docs/ANDROID.md`.
+- The next release is **v1.1** (VERSION `1.1-dev`): the first with the Android
+  APK. Its release also attaches the APK built by GitHub Actions from the
+  release commit (`gba-ds-v1.1-android.apk`), with install notes for it.
