@@ -393,11 +393,10 @@ static int probes_hit(const uint32_t* fb, const Probe* p, int tol) {
 	return n;
 }
 
-/* Renders the current frame again with sprites off into out, then puts the
- * game back exactly as it was (state, picture, sound). Layer switches only
- * take effect when the game writes its display registers, hence loading
- * the state after switching. */
-static void snapshot_without_sprites(uint32_t* out) {
+/* Renders the current frame again without the profile's snap.hide sprites
+ * into out, then puts the game back exactly as it was (state, picture,
+ * sound). */
+static void snapshot_hiding_sprites(uint32_t* out) {
 	static void* st;
 	static size_t stSize;
 	static uint32_t raw[GBA_W * GBA_H];
@@ -412,11 +411,14 @@ static void snapshot_without_sprites(uint32_t* out) {
 		return;
 	}
 	memcpy(raw, emu.fb, sizeof(raw));
-	emu_layers(&emu, 0x0F);
+	const SpriteRule* hide = snapProf->snap.hide;
+	int n = 0;
+	while (n < 4 && hide[n].x1) ++n;
+	emu_hide_sprites(&emu, hide, n);
 	emu_state_load(&emu, st);
 	emu_frame(&emu, 0);
 	memcpy(out, emu.fb, sizeof(raw));
-	emu_layers(&emu, 0x1F);
+	emu_hide_sprites(&emu, NULL, 0);
 	emu_state_load(&emu, st);
 	int16_t drop[2048];
 	while (emu_audio_read(&emu, drop, 1024) > 0) {}
@@ -432,12 +434,12 @@ static void update_snapshot(void) {
 		snapRevert = 0;
 		if (++snapShow >= SDL_max(1, sn->stable)) {
 			const uint32_t* px = emu.fb;
-			if (sn->noSprites) {
+			if (sn->hide[0].x1) {
 				/* only when the picture changes (the sheets are still) */
 				static uint32_t last[GBA_W * GBA_H], clean[GBA_W * GBA_H];
 				if (mapShownIdx < 0 || memcmp(last, emu.fb, sizeof(last))) {
 					memcpy(last, emu.fb, sizeof(last));
-					snapshot_without_sprites(clean);
+					snapshot_hiding_sprites(clean);
 					for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, clean, GBA_W * 4);
 				}
 				px = NULL;
@@ -475,6 +477,23 @@ static const MapProfile* ctlProf; /* NULL: no alternate layout for this game */
 static int ctlMode;
 static bool ctlPlaying; /* Auto: the player is controlling the character */
 static char ctlPath[1400];
+
+/* The game's own HUD is up (display mode and a sprite at each position). */
+static bool ctl_playing_now(void) {
+	const typeof(ctlProf->controls)* c = &ctlProf->controls;
+	if ((emu_read16(&emu, 0x04000000) & 7) != c->mode) return false;
+	int want = 0, found = 0;
+	while (want < 4 && (c->hud[want].x || c->hud[want].y)) ++want;
+	for (int i = 0; i < 128 && found != (1 << want) - 1; ++i) {
+		uint16_t a0 = emu_read16(&emu, 0x07000000 + i * 8);
+		if ((a0 & 0x0300) == 0x0200) continue; /* disabled */
+		int y = a0 & 0xFF, x = emu_read16(&emu, 0x07000002 + i * 8) & 0x1FF;
+		for (int k = 0; k < want; ++k) {
+			if (x == c->hud[k].x && y == c->hud[k].y) found |= 1 << k;
+		}
+	}
+	return want && found == (1 << want) - 1;
+}
 
 static bool ctl_four(void) {
 	return ctlProf && (ctlMode == CTL_FOUR || (ctlMode == CTL_AUTO && ctlPlaying));
@@ -1533,11 +1552,16 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 
 		if (snapProf) update_snapshot();
 		if (ctlProf) {
-			bool playing = memprobes_match(ctlProf->controls.playing, 2, &emu);
-			if (playing != ctlPlaying && debug && ctlMode == CTL_AUTO) {
-				fprintf(stderr, "frame %llu: auto controls: %s\n", (unsigned long long) frameCount, playing ? "four-face" : "GBA");
+			/* switch after a few frames in the new state, not on one odd frame */
+			static int ctlStreak;
+			ctlStreak = ctl_playing_now() != ctlPlaying ? ctlStreak + 1 : 0;
+			if (ctlStreak >= 3) {
+				ctlPlaying = !ctlPlaying;
+				ctlStreak = 0;
+				if (debug && ctlMode == CTL_AUTO) {
+					fprintf(stderr, "frame %llu: auto controls: %s\n", (unsigned long long) frameCount, ctlPlaying ? "four-face" : "GBA");
+				}
 			}
-			ctlPlaying = playing;
 		}
 
 		for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(gameTex[i], NULL, emu.fb, GBA_W * 4);

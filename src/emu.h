@@ -31,7 +31,7 @@ struct mCore;
 typedef struct SpriteRule {
 	int x0, y0, x1, y1;
 	int tileMin, tileMax;
-	int prio;
+	int prio; /* -1: any */
 } SpriteRule;
 
 typedef struct Emu {

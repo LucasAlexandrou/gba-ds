@@ -219,15 +219,19 @@ static const MapProfile profiles[] = {
 		.revertMin = { 7 },
 		.stable = 3,
 		.tol = 12,
-		.noSprites = true, /* CAREER / CASH and the button prompts are sprites; the sheet is BG */
+		/* CAREER / CASH along the top and the button prompts along the bottom
+		 * are sprites; so are the career sheet's scratch-outs and ticks
+		 * in between, which stay */
+		.hide = { { -64, -64, 255, 8, 0, 1023, -1 }, { -64, 144, 255, 159, 0, 1023, -1 } },
 	},
 	/* console layout: grind (A) top, ollie (B) bottom, flip (L) left, grab (R)
-	 * right. The game's current screen: 0x60 while skating (pause 0x5C,
-	 * results 0x77, goal sheet and loading 0x7C, menus 0x6A-0x7B), and the
-	 * screen object it points at; the same addresses in every region. */
+	 * right. Skating: display mode 2 (menus and goal sheets are mode 1) and
+	 * the SCORE / SPECIAL / meter sprites in the top-left corner, which the
+	 * pause screen hides; the same in every region and mode. */
 	.controls = {
 		.fourFace = true,
-		.playing = { { 0x02000548, 0xFF, 0x60, 1 }, { 0x02000340, 0, 0x02000B4C, 4 } },
+		.mode = 2,
+		.hud = { { 2, 2 }, { 2, 24 }, { 4, 35 } },
 	},
 	},
 };

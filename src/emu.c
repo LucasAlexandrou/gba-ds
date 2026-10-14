@@ -192,7 +192,7 @@ static bool hidden(const HideSlot* s, const struct GBAObj* obj) {
 	for (int i = 0; i < s->n; ++i) {
 		const SpriteRule* r = &s->rules[i];
 		if (x >= r->x0 && x <= r->x1 && y >= r->y0 && y <= r->y1 && tile >= r->tileMin && tile <= r->tileMax &&
-		    prio == r->prio) {
+		    (r->prio < 0 || prio == r->prio)) {
 			return true;
 		}
 	}
