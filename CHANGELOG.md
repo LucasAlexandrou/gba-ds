@@ -1,5 +1,7 @@
 # Changelog
 
+## v1.0.2 (not yet released)
+
 ## v1.0.1 (2026-10-13)
 
 - **Cheats**: RetroArch `.cht` files (Code Breaker, GameShark, Action Replay) from RetroArch's cheats folder, switched on and off from a new Cheats screen on the pause menu's Game page.
