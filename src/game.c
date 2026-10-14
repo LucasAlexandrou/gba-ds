@@ -643,6 +643,12 @@ static void auto_save(void) {
 	}
 }
 
+/* The app is being put in the background (Android may kill it there):
+ * keep a resume point. Called between frames, from ui_events. */
+static void on_background(void) {
+	auto_save();
+}
+
 /* generated surround (built-in overlay), see mapframe.c */
 static MapFrame mf;
 static SDL_Texture* canvasTex[2];
@@ -1104,6 +1110,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	cheats_load(&cheats, cfg, rom, emu.gameCode, gp.cheats);
 	if (cheats_on(&cheats)) cheats_apply(&cheats, &emu);
 	cheatsOpen = false;
+	ui_on_background(on_background);
 
 	mc = NULL;
 	mapW = GBA_W;
@@ -1650,6 +1657,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 	}
 
+	ui_on_background(NULL);
 	fprintf(stderr, "leaving game after %llu frames\n", (unsigned long long) frameCount);
 	auto_save();
 	if (audio) SDL_CloseAudioDevice(audio);

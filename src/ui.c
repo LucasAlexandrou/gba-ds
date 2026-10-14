@@ -402,6 +402,11 @@ bool ui_next_pointer(Pointer* p) {
 }
 
 static bool mouseDown;
+static void (*backgroundFn)(void);
+
+void ui_on_background(void (*fn)(void)) {
+	backgroundFn = fn;
+}
 
 bool ui_events(void) {
 	SDL_Event ev;
@@ -409,6 +414,14 @@ bool ui_events(void) {
 		switch (ev.type) {
 		case SDL_QUIT:
 			uiQuit = 1;
+			break;
+		case SDL_APP_WILLENTERBACKGROUND:
+			/* now: SDL stops this thread at its next event pump (Android) */
+			fprintf(stderr, "going to the background\n");
+			if (backgroundFn) backgroundFn();
+			break;
+		case SDL_APP_DIDENTERFOREGROUND:
+			fprintf(stderr, "back in the foreground\n");
 			break;
 		case SDL_CONTROLLERDEVICEADDED:
 		case SDL_JOYDEVICEADDED:

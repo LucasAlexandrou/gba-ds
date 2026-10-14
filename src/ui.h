@@ -63,6 +63,10 @@ int ui_other_screen(void); /* the non-touch screen, or the touch screen if there
 /* Pump SDL events. Returns false when the app should quit. Pointer events are
  * queued for ui_next_pointer(); window changes re-run the layout. */
 bool ui_events(void);
+/* Called from ui_events when the app is about to be put in the background
+ * (Android: Home, the task switcher, the screen turning off...), where it
+ * may be killed without notice. NULL: nothing. */
+void ui_on_background(void (*fn)(void));
 bool ui_next_pointer(Pointer* p);
 void ui_read_buttons(void);
 
