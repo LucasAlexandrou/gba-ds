@@ -7,6 +7,7 @@
  *   ui.c       windows, screens, touch/buttons, drawing
  */
 #include "config.h"
+#include "esinteg.h"
 #include "game.h"
 #include "library.h"
 #include "logo.h"
@@ -66,6 +67,9 @@ int main(int argc, char** argv) {
 	snprintf(path, sizeof(path), "%s/prefs.cfg", cfg.stateDir);
 	config_load_file(&cfg, path);
 	config_parse_args(&cfg, argc, argv);
+
+	/* keep EmulationStation's entry for GBA DS current, if it's switched on */
+	es_integration_refresh(&cfg);
 
 	signal(SIGTERM, on_signal);
 	signal(SIGINT, on_signal);

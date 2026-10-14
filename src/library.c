@@ -5,6 +5,7 @@
 #include "logo.h"
 #include "brand.h"
 #include "emu.h"
+#include "esinteg.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -375,6 +376,13 @@ static void free_tiles(void) {
 	}
 }
 
+static SDL_Rect settings_button(int scr) {
+	SDL_Rect r = screens[scr].rect;
+	int px = ui_px(scr);
+	int h = px * 14, w = px * 44;
+	return (SDL_Rect) { r.w - w - px * 4, (px * 20 - h) / 2, w, h };
+}
+
 static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 	SDL_Rect r = screens[scr].rect;
 	int px = ui_px(scr);
@@ -436,7 +444,81 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 	}
 	/* header drawn last so tiles scroll underneath it */
 	ui_fill(scr, (SDL_Rect) { 0, 0, r.w, g.headerH }, C_HEADER);
-	ui_label(scr, r.w / 2, g.headerH / 2, px * 5, "Touch or use the D-Pad to select a game", C_TEXT);
+	SDL_Rect sb = settings_button(scr);
+	ui_label(scr, sb.x / 2, g.headerH / 2, px * 5, "Touch or use the D-Pad to select a game", C_TEXT);
+	ui_fill_round(scr, sb, C_ROW, px * 3);
+	ui_label(scr, sb.x + sb.w / 2, sb.y + sb.h / 2, px * 5, "Settings", C_TEXT);
+}
+
+/* ------------------------------------------------------------ settings */
+
+static char settingsMsg[128];
+
+typedef struct {
+	SDL_Rect panel, toggle, back;
+	int textY, px;
+} SettingsGeom;
+
+static SettingsGeom settings_geom(int scr) {
+	SettingsGeom g;
+	SDL_Rect r = screens[scr].rect;
+	int px = ui_px(scr);
+	g.px = px;
+	int m = px * 6, rowH = px * 18;
+	g.panel = (SDL_Rect) { m, m, r.w - m * 2, r.h - m * 2 };
+	g.toggle = (SDL_Rect) { g.panel.x + px * 6, g.panel.y + px * 26, g.panel.w - px * 12, rowH };
+	g.textY = g.toggle.y + rowH + px * 8;
+	g.back = (SDL_Rect) { g.panel.x + (g.panel.w - px * 60) / 2, g.panel.y + g.panel.h - rowH - px * 6, px * 60, rowH };
+	return g;
+}
+
+/* Upper-case pixel text, wrapped to width; returns the y below it. */
+static int draw_wrapped(int scr, int x, int y, int width, int px, const char* text, SDL_Color c) {
+	int perLine = SDL_max(8, width / (px * 6));
+	char line[160];
+	const char* p = text;
+	while (*p) {
+		int n = (int) strlen(p);
+		if (n > perLine) {
+			n = perLine;
+			while (n > 0 && p[n] != ' ') --n;
+			if (n == 0) n = perLine;
+		}
+		snprintf(line, sizeof(line), "%.*s", n, p);
+		ui_text(scr, x, y, px, line, c);
+		y += px * 10;
+		p += n;
+		while (*p == ' ') ++p;
+	}
+	return y;
+}
+
+static void draw_settings(const Config* cfg, int scr, int sel) {
+	SettingsGeom g = settings_geom(scr);
+	int px = g.px;
+	ui_dim(scr, 200);
+	ui_fill_round(scr, g.panel, C_HEADER, px * 4);
+	ui_label(scr, g.panel.x + g.panel.w / 2, g.panel.y + px * 12, px * 6, "Settings", C_TEXT);
+	bool on = es_integration_on(cfg);
+	SDL_Rect b[2] = { g.toggle, g.back };
+	for (int i = 0; i < 2; ++i) {
+		if (i == sel) ui_fill_round(scr, (SDL_Rect) { b[i].x - px, b[i].y - px, b[i].w + px * 2, b[i].h + px * 2 }, C_EDGE, px * 4);
+		ui_fill_round(scr, b[i], i == sel ? C_SEL : C_ROW, px * 3);
+	}
+	ui_label(scr, g.toggle.x + g.toggle.w / 2, g.toggle.y + g.toggle.h / 2, px * 5,
+	         on ? "GBA DS in EmulationStation: On" : "GBA DS in EmulationStation: Off", C_TEXT);
+	ui_label(scr, g.back.x + g.back.w / 2, g.back.y + g.back.h / 2, px * 5, "Back", C_TEXT);
+	int tx = g.toggle.x + px * 2, tw = g.toggle.w - px * 4;
+	int y = draw_wrapped(scr, tx, g.textY, tw, px,
+	                     "ADDS GBA DS TO THE EMULATORS FOR GAME BOY ADVANCE GAMES IN EMULATIONSTATION. PICK IT FOR ONE GAME "
+	                     "(ITS ADVANCED GAME OPTIONS: EMULATOR) OR FOR ALL OF THEM (THE SYSTEM'S ADVANCED SETTINGS). "
+	                     "THE OTHER EMULATORS KEEP WORKING AS BEFORE.",
+	                     C_DIM);
+	if (settingsMsg[0]) draw_wrapped(scr, tx, y + px * 6, tw, px, settingsMsg, C_GOLD);
+}
+
+static void settings_toggle(const Config* cfg) {
+	es_integration_set(cfg, !es_integration_on(cfg), settingsMsg, sizeof(settingsMsg));
 }
 
 /* "Preparing games" over a dimmed screen, with a progress bar. */
@@ -496,6 +578,9 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 	int waiting = -1; /* chosen, but the background extraction isn't done yet */
 	bool quit = false;
 	int repeat = 0;
+	bool settingsOpen = false;
+	int settingsSel = 0;
+	settingsMsg[0] = 0;
 
 	while (!quit && chosen < 0) {
 		if (logo_generation() != logoGen) { /* a logo finished extracting */
@@ -536,6 +621,37 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 			continue;
 		}
 
+		if (settingsOpen) {
+			if (btn_pressed(B_UP) || btn_pressed(B_DOWN)) settingsSel = !settingsSel;
+			if (btn_pressed(B_A) || btn_pressed(B_START)) {
+				if (settingsSel == 0) settings_toggle(cfg);
+				else settingsOpen = false;
+			}
+			if (btn_pressed(B_B) || btn_pressed(B_SELECT) || btn_released(B_HOME)) settingsOpen = false;
+			Pointer p;
+			while (ui_next_pointer(&p)) {
+				if (p.screen != ls || p.kind != 1) continue;
+				SettingsGeom sg = settings_geom(ls);
+				SDL_Point pt = { p.x, p.y };
+				if (SDL_PointInRect(&pt, &sg.toggle)) settingsSel = 0, settings_toggle(cfg);
+				else if (SDL_PointInRect(&pt, &sg.back) || !SDL_PointInRect(&pt, &sg.panel)) settingsSel = 1, settingsOpen = false;
+			}
+			pressed = false;
+			ui_clear();
+			draw_list(cfg, ls, sel, scroll);
+			if (settingsOpen) draw_settings(cfg, ls, settingsSel);
+			if (nScreens > 1) draw_preview(cfg, ui_other_screen(), sel);
+			ui_present();
+			SDL_Delay(15);
+			continue;
+		}
+		if (btn_pressed(B_SELECT)) {
+			settingsOpen = true;
+			settingsSel = 0;
+			settingsMsg[0] = 0;
+			continue;
+		}
+
 		if (nGames) {
 			/* up/down: a row, left/right: a column, L/R: a screenful */
 			int dir = 0;
@@ -563,6 +679,15 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 		while (ui_next_pointer(&p)) {
 			if (p.screen != ls) continue;
 			if (p.kind == 1) {
+				SDL_Rect sb = settings_button(ls);
+				SDL_Point pt = { p.x, p.y };
+				if (SDL_PointInRect(&pt, &sb)) {
+					settingsOpen = true;
+					settingsSel = 0;
+					settingsMsg[0] = 0;
+					pressed = false;
+					break;
+				}
 				pressed = true;
 				dragging = false;
 				pressY = p.y;

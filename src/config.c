@@ -14,6 +14,7 @@ void config_defaults(Config* c) {
 	strcpy(c->romDir, "/storage/roms/gba");
 	strcpy(c->screenshotDir, "/storage/roms/screenshots");
 	strcpy(c->cheatDir, "/config/retroarch/cheats:/storage/.config/retroarch/cheats");
+	strcpy(c->esConfigDir, "/storage/.config/emulationstation");
 	strcpy(c->touchScreen, "second");
 	strcpy(c->touchMap, "window");
 	c->map = true;
@@ -92,6 +93,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	BOOL("show_all", showAll)
 	STR("load_state", loadState)
 	INT("quit_after", quitAfter)
+	STR("es_config_dir", esConfigDir)
 	STR("input_script", inputScript)
 	return false;
 #undef STR

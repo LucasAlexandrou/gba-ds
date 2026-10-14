@@ -169,6 +169,7 @@ MENU_TEXTS = [
     "Controls", "Auto",
     # game list
     "Play", "Quit", "Touch or use the D-Pad to select a game", "Loading thumbnail...",
+    "Settings", "GBA DS in EmulationStation: On", "GBA DS in EmulationStation: Off",
 ]
 
 

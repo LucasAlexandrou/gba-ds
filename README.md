@@ -53,6 +53,16 @@ The app opens on a game list: two columns of tiles on the touchscreen, each show
 - The top screen shows the game's logo, or where it will resume once you've played it.
 - The first time the list opens, each game's logo and map border art are pulled out of the ROMs in the background (about a minute on the RG DS Plus); tiles say "Loading thumbnail..." until their logo is ready. If you pick a game before that's done, a "Preparing games" screen waits for it, so the game doesn't start with crackling audio. This only happens once; the results are kept in `gba-ds/states/`.
 
+### Launching games from EmulationStation
+
+GBA DS can also be one of the emulators for the **Game Boy Advance** system in EmulationStation, so you can start a game from there instead of opening GBA DS first. In the game list, tap **Settings** (top right) or press **SELECT**, and switch **GBA DS in EmulationStation** on. Then restart EmulationStation (Start → Quit → Restart EmulationStation), and pick GBA DS:
+- for one game: select it, open its game options (usually **SELECT**), **Advanced game options** → **Emulator** → GBADS;
+- for every GBA game: in the Game Boy Advance system's advanced settings, set the emulator to GBADS.
+
+Closing GBA DS goes straight back to EmulationStation. Your other GBA emulators work as before.
+
+How it works: the setting writes two files into `/storage/.config/emulationstation/` (`es_config_dir` changes the folder). `es_systems_gbads.cfg`, which EmulationStation merges into its system list, copies the GBA system's emulator list with GBA DS added and points the GBA launch command at `gbads-launch.sh`. That script starts GBA DS when it's the chosen emulator, run by ROCKNIX's launcher as a Port (so your settings for Ports apply). Every other launch goes to `/usr/bin/runemu.sh` exactly as before. GBA DS rewrites the copied list each time it starts, so it keeps up with ROCKNIX updates. Switching the setting off deletes both files. If you delete the GBA DS folder without switching it off first, games set to GBA DS fall back to mGBA; delete the two files to tidy up.
+
 **Upgrading from gbadual** (this app's old name): unzip as above, then launch **GBA DS** once. On that first run it copies your save states, resume points, menu settings and any custom logos or overlays from the old `gbadual/` folder. After that, delete the old `gbadual/` folder and the **GBA Dual Screen** entry (`GBA Dual Screen.sh`) from `/storage/roms/ports/`. If you had edited `gbadual.cfg`, copy your changes into `gba-ds/gba-ds.cfg`; battery saves (`.sav`) stay next to your ROMs and aren't affected.
 
 ## Playing
@@ -106,6 +116,7 @@ The choice is remembered per game.
 | A / Start, or tap a game | Play |
 | Drag | Scroll the list |
 | B, HOME, or QUIT | Back to EmulationStation |
+| SELECT, or tap Settings | Settings (GBA DS in EmulationStation) |
 
 ### Where files go
 
