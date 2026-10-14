@@ -1369,11 +1369,12 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		if (!btnNow[modBtn] || hotkeyBack) {
 			if (ctl_four()) {
-				/* by position: top A, bottom B, left L, right R */
+				/* by position: top A, bottom B, left L, right R (on the RG DS
+				 * the top face button arrives as X, the left one as Y) */
 				int right = cfg->abSwap ? B_B : B_A, bottom = cfg->abSwap ? B_A : B_B;
-				if (HELD(B_Y)) keys |= K_A;
+				if (HELD(B_X)) keys |= K_A;
 				if (HELD(bottom)) keys |= K_B;
-				if (HELD(B_X)) keys |= K_L;
+				if (HELD(B_Y)) keys |= K_L;
 				if (HELD(right)) keys |= K_R;
 			} else {
 				if (HELD(B_A)) keys |= K_A;
