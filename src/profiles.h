@@ -48,6 +48,18 @@ typedef struct MapProfile {
 	/* No map yet: the game is listed and the second screen shows its logo,
 	 * but nothing is captured. */
 	bool logoOnly;
+	/* Logo-only games: screens worth copying to the second screen (Tony
+	 * Hawk's goal sheets). When `show` matches (at least showMin probes, for
+	 * `stable` frames) the game screen is copied there and stays through play,
+	 * pauses and loading; it goes back to the logo when one of the `revert`
+	 * screens (menus) matches. Probe colours within `tol` per channel. */
+	struct {
+		Probe show[8];
+		int showMin;
+		Probe revert[2][8];
+		int revertMin[2];
+		int stable, tol;
+	} snap;
 	int stableFrames;  /* consecutive "quiet" frames required */
 	int maxDiff;       /* pixels allowed to change between quiet frames (blinking markers) */
 	int crop_x, crop_y, crop_w, crop_h;

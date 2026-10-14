@@ -20,7 +20,7 @@ The idea here is "what if the Game Boy Advance had a second screen" -- part of w
 | Metroid: Zero Mission | Start | working |
 | Metroid Fusion | Start | working |
 | The Legend of Zelda: A Link to the Past | L | working |
-| Tony Hawk's Pro Skater 2 (incl. SK8, Japan) | — | logo on the second screen; more to come |
+| Tony Hawk's Pro Skater 2 (incl. SK8, Japan) | — | working: the goal sheet for the current run on the second screen |
 
 The European and Japanese releases are supported as well as the USA ones: map, logo and border. (The European Metroids' label erasing was checked in English and German.) Any other GBA game also runs; it just gets no map screen.
 

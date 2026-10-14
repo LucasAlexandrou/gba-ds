@@ -44,6 +44,9 @@ static bool stillValid;
  * without a map): keep showing the last map, dimmed. */
 static bool mapInactive;
 static bool logoOnly; /* the game has a profile but no map: logo on the second screen */
+static const MapProfile* snapProf; /* logo-only game with screens copied to the second screen */
+static int snapShow, snapRevert;   /* consecutive frames matching show / a revert screen */
+
 static uint64_t mapAnimStart, frameCount;
 static bool singleShowsMap;
 static double fps, speedPct;
@@ -377,6 +380,47 @@ static void draw_menu(void) {
 }
 
 /* ---------------------------------------------------------------- helpers */
+
+static int probes_hit(const uint32_t* fb, const Probe* p, int tol) {
+	int n = 0;
+	for (int i = 0; i < 8 && (p[i].x || p[i].y || p[i].rgb); ++i) {
+		uint32_t c = fb[p[i].y * GBA_W + p[i].x];
+		int dr = (int) (c & 0xFF) - (int) ((p[i].rgb >> 16) & 0xFF);
+		int dg = (int) ((c >> 8) & 0xFF) - (int) ((p[i].rgb >> 8) & 0xFF);
+		int db = (int) ((c >> 16) & 0xFF) - (int) (p[i].rgb & 0xFF);
+		n += abs(dr) <= tol && abs(dg) <= tol && abs(db) <= tol;
+	}
+	return n;
+}
+
+/* Logo-only games: copy a recognised screen (THPS2 goal sheet) to the second
+ * screen; back to the logo at the menus. */
+static void update_snapshot(void) {
+	const typeof(snapProf->snap)* sn = &snapProf->snap;
+	int tol = sn->tol ? sn->tol : 12;
+	if (probes_hit(emu.fb, sn->show, tol) >= sn->showMin) {
+		snapRevert = 0;
+		if (++snapShow >= SDL_max(1, sn->stable)) {
+			for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, emu.fb, GBA_W * 4);
+			if (mapShownIdx < 0 && debug) fprintf(stderr, "frame %llu: screen copied to the second screen\n", (unsigned long long) frameCount);
+			mapShownIdx = 0;
+		}
+		return;
+	}
+	snapShow = 0;
+	if (mapShownIdx < 0) return;
+	bool menu = false;
+	for (int k = 0; k < 2; ++k) {
+		if (sn->revertMin[k] && probes_hit(emu.fb, sn->revert[k], tol) >= sn->revertMin[k]) menu = true;
+	}
+	if (!menu) {
+		snapRevert = 0;
+	} else if (++snapRevert >= SDL_max(1, sn->stable)) {
+		mapShownIdx = -1;
+		snapRevert = 0;
+		if (debug) fprintf(stderr, "frame %llu: back at the menus, logo\n", (unsigned long long) frameCount);
+	}
+}
 
 static void save_thumbs(void) {
 	SDL_Surface* s = SDL_CreateRGBSurfaceWithFormatFrom(emu.fb, GBA_W, GBA_H, 32, GBA_W * 4, SDL_PIXELFORMAT_XBGR8888);
@@ -800,7 +844,7 @@ static bool activate(int item, enum GameExit* exitTo) {
 		break;
 	case M_MAPANIM:
 		cfg->mapAnim = !cfg->mapAnim;
-		if (mapShownIdx >= 0) {
+		if (mc && mapShownIdx >= 0) {
 			mapAnimStart = frameCount;
 			upload_map_frame(cfg->mapAnim ? 0 : STILL_IDX);
 		}
@@ -876,10 +920,13 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	singleShowsMap = false;
 	menuOpen = false;
 	logoOnly = false;
+	snapProf = NULL;
 	if (cfg->map) {
 		mc = mapcap_create(rom, emu.gameCode, cfg->mapCrop);
 		const MapProfile* lp = profile_find(emu.gameCode);
 		logoOnly = lp && lp->logoOnly;
+		snapProf = logoOnly && lp->snap.showMin ? lp : NULL;
+		snapShow = snapRevert = 0;
 		if (mc) mapcap_set_still(mc, !cfg->mapAnim);
 		if (logoOnly) fprintf(stderr, "logo only: %s\n", lp->title);
 		if (mc) {
@@ -1291,6 +1338,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				upload_map_frame(idx);
 			}
 		}
+
+		if (snapProf) update_snapshot();
 
 		for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(gameTex[i], NULL, emu.fb, GBA_W * 4);
 		ui_clear();

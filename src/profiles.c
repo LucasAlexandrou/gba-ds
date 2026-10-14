@@ -203,6 +203,22 @@ static const MapProfile profiles[] = {
 		 * cut out by its shape (the USA/Europe, French and German titles are
 		 * identical), on the frame after 920 */
 		.logo = { .wait = 920, .mask = &logoMaskTHPS2 },
+	/* goal sheet before a run (Free Skate, Single Session, career checklist);
+	 * back to the logo on the menus with the blue banner (main menu, skater
+	 * and level select). The results screen after a run keeps it: Retry
+	 * goes straight back in without the sheet. */
+	.snap = {
+		.show = { { 16, 12, 0x392931 }, { 52, 29, 0x7B7B7B }, { 5, 49, 0x294252 }, { 214, 71, 0x943908 },
+		          { 7, 92, 0x29949C }, { 27, 112, 0x9C8410 }, { 87, 130, 0xA5ADAD }, { 86, 146, 0xC6CED6 } },
+		.showMin = 7,
+		.revert = {
+			{ { 238, 6, 0x94A5DE }, { 180, 24, 0x8494CE }, { 203, 24, 0x8494CE }, { 27, 69, 0x313939 },
+			  { 116, 86, 0x313942 }, { 194, 102, 0x31424A }, { 66, 131, 0x000829 }, { 217, 136, 0xADBDD6 } },
+		},
+		.revertMin = { 7 },
+		.stable = 3,
+		.tol = 12,
+	},
 	},
 };
 
