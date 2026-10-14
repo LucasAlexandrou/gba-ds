@@ -289,6 +289,10 @@ After the first milestone:
   Daijisho player: package io.github.kyannon.gbads, activity
   .LauncherActivity, `-a android.intent.action.VIEW -d {file.uri}` (or
   `-e rom {file.path}`).
+- Cheats: `cheat_dir` on Android is `<GBADS_HOME>/cheats`
+  (Android/data/io.github.kyannon.gbads/files/cheats), made at start-up
+  with a README.txt; RetroArch's own folders aren't readable by other
+  apps on newer Android. README's Cheats section says where to put them.
 - Back from Home / the app switcher mid-game, the pause menu is open
   (SDL_APP_DIDENTERFOREGROUND -> game.c on_foreground).
 

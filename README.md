@@ -82,6 +82,7 @@ GBA DS reads RetroArch's cheat files (`.cht`, the format of the [libretro cheat 
 - **Cheats** on the Game page lists them with an On/Off switch each: D-pad and A, L1/R1 a page at a time, B to go back; or tap a cheat to switch it, and drag to scroll. A long name is shown in full at the bottom.
 - Code Breaker files usually start with an "Enable Code (Must Be On)" cheat: switch that on along with the others, as on the real device.
 - Choices take effect immediately and are remembered per game (`gba-ds/states/<game>.cheats`); the files' own `cheatN_enable` values are used until you change something.
+- **Android:** put the `.cht` files in GBA DS's own folder, `Android/data/io.github.kyannon.gbads/files/cheats` on the internal storage (subfolders are fine). The folder is made the first time GBA DS starts. Newer Android versions keep other apps out of `Android/data`, so copy them from a computer over USB, or with a file manager that can open that folder.
 - Cheats can crash or soft-lock a game, and anything they change is kept in your saves. Make a save state first.
 
 ### Buttons

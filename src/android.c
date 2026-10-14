@@ -4,6 +4,7 @@
 
 #include "android.h"
 #include "emu.h"
+#include "paths.h"
 #include "profiles.h"
 
 #include <EGL/egl.h>
@@ -72,7 +73,21 @@ void android_config_defaults(Config* c) {
 	/* shared storage ignores case: this is also a folder called GBA */
 	snprintf(c->romDir, sizeof(c->romDir), "/storage/emulated/0/ROMs/gba");
 	snprintf(c->screenshotDir, sizeof(c->screenshotDir), "/storage/emulated/0/Pictures/GBA DS");
-	snprintf(c->cheatDir, sizeof(c->cheatDir), "/storage/emulated/0/RetroArch/cheats");
+	/* RetroArch's own folders are out of reach on newer Android, so cheats get
+	 * a folder of their own in the app's folder */
+	if (android_home()) {
+		snprintf(c->cheatDir, sizeof(c->cheatDir), "%s/cheats", android_home());
+		mkdirs(c->cheatDir);
+		char readme[1100];
+		snprintf(readme, sizeof(readme), "%s/README.txt", c->cheatDir);
+		FILE* f = fopen(readme, "wx"); /* only if it isn't there yet */
+		if (f) {
+			fprintf(f, "Put RetroArch cheat files (.cht) here, subfolders are fine.\n"
+			           "A file goes with the ROM of the same name: Metroid Fusion (World) (Code Breaker).cht\n"
+			           "with Metroid Fusion (USA).gba. Switch cheats on in the pause menu: Game > Cheats.\n");
+			fclose(f);
+		}
+	}
 	c->esConfigDir[0] = 0;
 	c->sway = false;
 	/* Android keeps HOME for itself */
