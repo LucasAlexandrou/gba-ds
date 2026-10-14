@@ -157,6 +157,23 @@ What the device test should answer (`adb logcat -s GBADS`):
 - Do buttons keep working after touching the second screen? (The
   Presentation is non-focusable so it shouldn't take key focus.)
 
+First device test (2026-10-14): game playable, buttons, menu and touch
+work; both screens only with GammaOS's "Run on primary screen"; A and B
+swapped; 20-30 fps. Changes since:
+
+- A/B: GammaOS reports face buttons by their Nintendo labels (SDL A =
+  right). ui.c swaps SDL A/B back on Android, so everything stays
+  positional as on ROCKNIX (X top, Y left already match).
+- Speed: the second screen's frame is handed to the display by a thread
+  of its own (ANativeWindow_lock waits for that display's refresh; doing it
+  on the game loop on top of the game screen's own wait capped it at 30).
+  Logged every 5 s: fps from game.c, and from ui.c the time spent per
+  frame on the game screen, drawing the second screen (software), and
+  handing it over.
+- Display: GbaDsActivity has a task affinity of its own and is started
+  with FLAG_ACTIVITY_NEW_TASK, so the display-0 launch request isn't
+  ignored when the launcher's task sits on the other display.
+
 Not done yet (next): game list and pause menu polish, SELECT+START menu
 combo, saving when Android pauses or kills the app, file access settings,
 frontend launch intents.

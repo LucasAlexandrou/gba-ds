@@ -128,10 +128,21 @@ bool android_pick_rom(const Config* cfg, char* out, size_t size) {
 
 /* ------------------------------------------------------------- second screen */
 
+/* Frames go to the second display from a thread of their own: handing a
+ * buffer to a window (ANativeWindow_lock) waits for that display's refresh,
+ * and doing it on the game loop on top of the game screen's own wait capped
+ * the game at 30 fps. The loop copies the finished frame into "back" and
+ * moves on; the thread takes the newest frame and posts it. */
 static pthread_mutex_t winLock = PTHREAD_MUTEX_INITIALIZER;
 static ANativeWindow* secondWin;
 static int dispW, dispH;
 static bool geometrySet;
+
+static pthread_mutex_t bufLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t bufCond = PTHREAD_COND_INITIALIZER;
+static uint8_t *back, *front;
+static int bufW, bufH;
+static bool fresh;
 
 bool android_second_size(int* w, int* h) {
 	pthread_mutex_lock(&winLock);
@@ -141,25 +152,65 @@ bool android_second_size(int* w, int* h) {
 	return *w > 0 && *h > 0;
 }
 
-void android_second_present(SDL_Surface* s) {
+static void post_frame(const uint8_t* px, int fw, int fh) {
 	pthread_mutex_lock(&winLock);
 	if (secondWin) {
 		if (!geometrySet) {
 			/* the compositor scales our buffer to the surface if they differ */
-			ANativeWindow_setBuffersGeometry(secondWin, s->w, s->h, WINDOW_FORMAT_RGBX_8888);
+			ANativeWindow_setBuffersGeometry(secondWin, fw, fh, WINDOW_FORMAT_RGBX_8888);
 			geometrySet = true;
 		}
 		ANativeWindow_Buffer b;
 		if (ANativeWindow_lock(secondWin, &b, NULL) == 0) {
-			int w = SDL_min(b.width, s->w), h = SDL_min(b.height, s->h);
+			int w = SDL_min(b.width, fw), h = SDL_min(b.height, fh);
 			for (int y = 0; y < h; ++y) {
-				memcpy((uint8_t*) b.bits + (size_t) y * b.stride * 4, (const uint8_t*) s->pixels + (size_t) y * s->pitch,
-				       (size_t) w * 4);
+				memcpy((uint8_t*) b.bits + (size_t) y * b.stride * 4, px + (size_t) y * fw * 4, (size_t) w * 4);
 			}
 			ANativeWindow_unlockAndPost(secondWin);
 		}
 	}
 	pthread_mutex_unlock(&winLock);
+}
+
+static void* present_thread(void* arg) {
+	for (;;) {
+		pthread_mutex_lock(&bufLock);
+		while (!fresh) pthread_cond_wait(&bufCond, &bufLock);
+		uint8_t* t = front;
+		front = back;
+		back = t;
+		fresh = false;
+		int w = bufW, h = bufH;
+		pthread_mutex_unlock(&bufLock);
+		post_frame(front, w, h);
+	}
+	return NULL;
+}
+
+void android_second_present(SDL_Surface* s) {
+	static bool started;
+	pthread_mutex_lock(&bufLock);
+	if (!back || bufW != s->w || bufH != s->h) {
+		free(back);
+		free(front);
+		back = malloc((size_t) s->w * s->h * 4);
+		front = malloc((size_t) s->w * s->h * 4);
+		bufW = s->w;
+		bufH = s->h;
+	}
+	if (back && front) {
+		for (int y = 0; y < s->h; ++y) {
+			memcpy(back + (size_t) y * s->w * 4, (const uint8_t*) s->pixels + (size_t) y * s->pitch, (size_t) s->w * 4);
+		}
+		fresh = true;
+		pthread_cond_signal(&bufCond);
+	}
+	pthread_mutex_unlock(&bufLock);
+	if (!started) {
+		started = true;
+		pthread_t t;
+		if (pthread_create(&t, NULL, present_thread, NULL) == 0) pthread_detach(t);
+	}
 }
 
 JNIEXPORT void JNICALL Java_io_github_kyannon_gbads_SecondScreen_nativeSetDisplay(JNIEnv* env, jclass cls, jint w, jint h) {

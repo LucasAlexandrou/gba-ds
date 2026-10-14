@@ -461,6 +461,17 @@ void ui_read_buttons(void) {
 			if (j && cfg->homeButton < SDL_JoystickNumButtons(j) && SDL_JoystickGetButton(j, cfg->homeButton)) rawHome = true;
 		}
 	}
+#ifdef __ANDROID__
+	{
+		/* GammaOS reports the face buttons by their printed (Nintendo) labels,
+		 * so SDL's A is the right button and B the bottom one. Everything below
+		 * works by position (as on ROCKNIX: B right, A bottom), so swap back.
+		 * X (top) and Y (left) already match. */
+		bool a = phys[SDL_CONTROLLER_BUTTON_A];
+		phys[SDL_CONTROLLER_BUTTON_A] = phys[SDL_CONTROLLER_BUTTON_B];
+		phys[SDL_CONTROLLER_BUTTON_B] = a;
+	}
+#endif
 	/* GBA-style: A is the right face button, B the bottom one */
 	btnNow[B_A] = cfg->abSwap ? phys[SDL_CONTROLLER_BUTTON_A] : phys[SDL_CONTROLLER_BUTTON_B];
 	btnNow[B_B] = cfg->abSwap ? phys[SDL_CONTROLLER_BUTTON_B] : phys[SDL_CONTROLLER_BUTTON_A];
@@ -519,12 +530,31 @@ void ui_present(void) {
 		ui_screenshot(pendingShot);
 		pendingShot[0] = 0;
 	}
-	for (int i = 0; i < nViews; ++i) {
-		SDL_RenderPresent(views[i].ren);
 #ifdef __ANDROID__
-		if (views[i].surf) android_second_present(views[i].surf);
-#endif
+	/* time spent here per view (the software view does all its drawing in
+	 * RenderPresent, when SDL flushes its command queue), logged every 5 s */
+	static Uint64 spent[2], copy;
+	static int frames;
+	Uint64 f = SDL_GetPerformanceFrequency();
+	for (int i = 0; i < nViews; ++i) {
+		Uint64 t0 = SDL_GetPerformanceCounter();
+		SDL_RenderPresent(views[i].ren);
+		Uint64 t1 = SDL_GetPerformanceCounter();
+		spent[i] += t1 - t0;
+		if (views[i].surf) {
+			android_second_present(views[i].surf);
+			copy += SDL_GetPerformanceCounter() - t1;
+		}
 	}
+	if (++frames == 300) {
+		fprintf(stderr, "present (avg per frame): game screen %.2f ms, second screen drawing %.2f ms, handing it over %.2f ms\n",
+		        spent[0] * 1000.0 / f / frames, spent[1] * 1000.0 / f / frames, copy * 1000.0 / f / frames);
+		spent[0] = spent[1] = copy = 0;
+		frames = 0;
+	}
+#else
+	for (int i = 0; i < nViews; ++i) SDL_RenderPresent(views[i].ren);
+#endif
 }
 
 SDL_Renderer* ui_ren(int screen) {

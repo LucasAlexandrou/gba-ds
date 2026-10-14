@@ -63,6 +63,12 @@ public class LauncherActivity extends Activity {
     private void startGame() {
         Intent game = new Intent(this, GbaDsActivity.class);
         if (getIntent() != null && getIntent().getExtras() != null) game.putExtras(getIntent().getExtras());
+        /* A task of its own (see taskAffinity in the manifest): started inside
+         * this launcher's task, it would open on whatever display the launcher
+         * was put on (GammaOS: often the bottom one), ignoring the display asked for. */
+        game.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Log.i(TAG, "launcher on display " + getWindowManager().getDefaultDisplay().getDisplayId()
+                + ", starting the game on display " + Display.DEFAULT_DISPLAY);
         ActivityOptions options = ActivityOptions.makeBasic();
         options.setLaunchDisplayId(Display.DEFAULT_DISPLAY);
         try {

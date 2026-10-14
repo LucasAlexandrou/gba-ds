@@ -1437,10 +1437,15 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (audio && frameCount > 120 && queuedNow == 0 && !ff) ++underruns;
 			if (mc && mapcap_busy(mc)) ++captureBusy;
 			if (++n >= 300) {
-				if (underruns || slow || debug) {
-					fprintf(stderr, "frame %llu: last 5 s: %d audio underrun(s), %d slow frame(s), map capture busy %d%%, "
+#ifdef __ANDROID__
+				const bool report = true; /* performance on Android devices is still being measured */
+#else
+				const bool report = underruns || slow || debug;
+#endif
+				if (report) {
+					fprintf(stderr, "frame %llu: last 5 s: %.1f fps, %d audio underrun(s), %d slow frame(s), map capture busy %d%%, "
 					                "audio queue %d ms\n",
-					        (unsigned long long) frameCount, underruns, slow, captureBusy * 100 / n,
+					        (unsigned long long) frameCount, fps, underruns, slow, captureBusy * 100 / n,
 					        queuedNow * 1000 / want.freq);
 				}
 				underruns = slow = captureBusy = n = 0;

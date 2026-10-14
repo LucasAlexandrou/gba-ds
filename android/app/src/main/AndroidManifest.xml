@@ -40,6 +40,7 @@
             android:name=".GbaDsActivity"
             android:exported="false"
             android:launchMode="singleTask"
+            android:taskAffinity="io.github.kyannon.gbads.game"
             android:alwaysRetainTaskState="true"
             android:screenOrientation="landscape"
             android:preferMinimalPostProcessing="true"
