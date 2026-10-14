@@ -14,6 +14,7 @@ def need = { String name ->
 def sdlDir = need("sdlDir")
 def mgbaSrc = need("mgbaSrc")
 def mgbaBuild = need("mgbaBuild")
+def cpuFlags = project.hasProperty("cpuFlags") ? project.property("cpuFlags") : ""
 def appVersion = rootProject.file("../VERSION").text.trim()
 def runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1") as int
 def keystore = System.getenv("GBADS_KEYSTORE")
@@ -68,7 +69,7 @@ android {
             externalNativeBuild {
                 cmake {
                     arguments "-DCMAKE_BUILD_TYPE=Release"
-                    cFlags "-O2"
+                    cFlags "-O2", *(cpuFlags ? [cpuFlags] : [])
                 }
             }
         }

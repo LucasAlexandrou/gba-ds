@@ -17,6 +17,7 @@ typedef struct {
 	 * renderer into surf, which is then copied over. */
 	bool offwin;
 	SDL_Surface* surf;
+	bool retained; /* drawn from recorded calls at ui_present, only when they change (Android) */
 } View;
 
 /* A physical screen: a rectangle inside one view's output. */

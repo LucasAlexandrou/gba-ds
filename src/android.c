@@ -8,6 +8,7 @@
 
 #include <EGL/egl.h>
 #include <android/log.h>
+#include <dlfcn.h>
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 #include <jni.h>
@@ -76,6 +77,40 @@ void android_config_defaults(Config* c) {
 	c->sway = false;
 	/* Android keeps HOME for itself */
 	snprintf(c->menuCombo, sizeof(c->menuCombo), "select+start");
+}
+
+/* ------------------------------------------------------------- performance hint
+ * Android lowers the CPU clock when the load looks moderate; at ~9 ms of
+ * work per 16.7 ms frame that made busy scenes miss frames. A performance
+ * hint session (Android 13+, looked up at run time) tells the scheduler
+ * the frame deadline and each frame's actual work, so it raises the clock
+ * before frames run late. */
+typedef struct APerformanceHintManager APerformanceHintManager;
+typedef struct APerformanceHintSession APerformanceHintSession;
+static APerformanceHintSession* hintSession;
+static int (*hintReport)(APerformanceHintSession*, int64_t);
+
+void android_perf_init(int64_t targetNs) {
+	static bool tried;
+	if (tried) return;
+	tried = true;
+	void* lib = dlopen("libandroid.so", RTLD_NOW);
+	APerformanceHintManager* (*getManager)(void) = lib ? dlsym(lib, "APerformanceHint_getManager") : NULL;
+	APerformanceHintSession* (*create)(APerformanceHintManager*, const int32_t*, size_t, int64_t) =
+		lib ? dlsym(lib, "APerformanceHint_createSession") : NULL;
+	hintReport = lib ? dlsym(lib, "APerformanceHint_reportActualWorkDuration") : NULL;
+	if (!getManager || !create || !hintReport) {
+		fprintf(stderr, "performance hint: not available on this Android version\n");
+		return;
+	}
+	APerformanceHintManager* m = getManager();
+	int32_t tid = gettid();
+	hintSession = m ? create(m, &tid, 1, targetNs) : NULL;
+	fprintf(stderr, "performance hint: %s\n", hintSession ? "on (game thread)" : "refused by the system");
+}
+
+void android_perf_report(int64_t workNs) {
+	if (hintSession && workNs > 0) hintReport(hintSession, workNs);
 }
 
 /* ------------------------------------------------------------- ROM folder picker */
@@ -225,9 +260,6 @@ static int gpuW, gpuH;
 static EGLDisplay surf2Dpy = EGL_NO_DISPLAY;
 static EGLSurface surf2 = EGL_NO_SURFACE;
 static bool surf2Interval;
-static EGLDisplay savedDpy;
-static EGLSurface savedDraw, savedRead;
-static EGLContext savedCtx;
 
 bool android_second_gpu_init(int w, int h) {
 	EGLDisplay d = eglGetCurrentDisplay();
@@ -243,11 +275,29 @@ bool android_second_gpu_init(int w, int h) {
 	return true;
 }
 
+/* The second display's surface stays current after a redraw (onSurf2)
+ * until the game activity's screen draws again: while only one screen
+ * changes, frames don't pay for switching surfaces twice. */
+static bool onSurf2;
+static EGLDisplay sdlDpy;
+static EGLSurface sdlDraw, sdlRead;
+static EGLContext sdlCtx;
+static Uint64 tBegin, tSwap, tRestore; /* for the log */
+static int nBegin, nRestore;
+
 bool android_second_begin(void) {
+	Uint64 t0 = SDL_GetPerformanceCounter();
 	pthread_mutex_lock(&winLock);
 	EGLDisplay d = eglGetCurrentDisplay();
 	EGLContext c = eglGetCurrentContext();
 	if (!gpuOn || !secondWin || d == EGL_NO_DISPLAY || c == EGL_NO_CONTEXT) goto fail;
+	if (!onSurf2) {
+		/* what SDL had current: its window's surface */
+		sdlDpy = d, sdlCtx = c;
+		sdlDraw = eglGetCurrentSurface(EGL_DRAW);
+		sdlRead = eglGetCurrentSurface(EGL_READ);
+	}
+	bool fresh = false;
 	if (surf2 == EGL_NO_SURFACE) {
 		EGLint fmt = 0;
 		eglGetConfigAttrib(d, gpuConfig, EGL_NATIVE_VISUAL_ID, &fmt);
@@ -262,21 +312,23 @@ bool android_second_begin(void) {
 		}
 		surf2Dpy = d;
 		surf2Interval = false;
+		fresh = true;
 		fprintf(stderr, "second screen: drawing with the GPU (%dx%d)\n", gpuW, gpuH);
 	}
-	savedDpy = d;
-	savedCtx = c;
-	savedDraw = eglGetCurrentSurface(EGL_DRAW);
-	savedRead = eglGetCurrentSurface(EGL_READ);
-	if (!eglMakeCurrent(d, surf2, surf2, c)) {
-		static int logged;
-		if (logged++ < 3) fprintf(stderr, "second screen: eglMakeCurrent failed (0x%x)\n", eglGetError());
-		goto fail;
+	if (!onSurf2 || fresh) {
+		if (!eglMakeCurrent(d, surf2, surf2, c)) {
+			static int logged;
+			if (logged++ < 3) fprintf(stderr, "second screen: eglMakeCurrent failed (0x%x)\n", eglGetError());
+			goto fail;
+		}
+		onSurf2 = true;
 	}
 	if (!surf2Interval) {
 		eglSwapInterval(d, 0); /* never wait for the second display's refresh */
 		surf2Interval = true;
 	}
+	tBegin += SDL_GetPerformanceCounter() - t0;
+	++nBegin;
 	return true; /* winLock stays held until android_second_end */
 fail:
 	pthread_mutex_unlock(&winLock);
@@ -284,9 +336,28 @@ fail:
 }
 
 void android_second_end(void) {
-	eglSwapBuffers(savedDpy, surf2);
-	eglMakeCurrent(savedDpy, savedDraw, savedRead, savedCtx);
+	Uint64 t0 = SDL_GetPerformanceCounter();
+	eglSwapBuffers(surf2Dpy, surf2);
+	tSwap += SDL_GetPerformanceCounter() - t0;
 	pthread_mutex_unlock(&winLock);
+}
+
+void android_second_restore(void) {
+	if (!onSurf2) return;
+	Uint64 t0 = SDL_GetPerformanceCounter();
+	eglMakeCurrent(sdlDpy, sdlDraw, sdlRead, sdlCtx);
+	onSurf2 = false;
+	tRestore += SDL_GetPerformanceCounter() - t0;
+	++nRestore;
+}
+
+void android_second_log_timing(int frames) {
+	if (!nBegin && !nRestore) return;
+	double ms = 1000.0 / SDL_GetPerformanceFrequency();
+	fprintf(stderr, "second display GL: %d redraws, switching to it %.2f ms, swap %.2f ms; %d switches back, %.2f ms each\n", nBegin,
+	        nBegin ? tBegin * ms / nBegin : 0.0, nBegin ? tSwap * ms / nBegin : 0.0, nRestore, nRestore ? tRestore * ms / nRestore : 0.0);
+	tBegin = tSwap = tRestore = 0;
+	nBegin = nRestore = 0;
 }
 
 JNIEXPORT void JNICALL Java_io_github_kyannon_gbads_SecondScreen_nativeSetDisplay(JNIEnv* env, jclass cls, jint w, jint h) {
@@ -300,7 +371,8 @@ JNIEXPORT void JNICALL Java_io_github_kyannon_gbads_SecondScreen_nativeSetDispla
  * with the old surface before Java lets it go. */
 JNIEXPORT void JNICALL Java_io_github_kyannon_gbads_SecondScreen_nativeSetSurface(JNIEnv* env, jclass cls, jobject surface) {
 	pthread_mutex_lock(&winLock);
-	/* never current here: the game thread only makes it current while holding winLock */
+	/* may still be current on the game thread (until it next switches): EGL
+	 * then frees it once it isn't */
 	if (surf2 != EGL_NO_SURFACE) eglDestroySurface(surf2Dpy, surf2);
 	surf2 = EGL_NO_SURFACE;
 	if (secondWin) ANativeWindow_release(secondWin);

@@ -26,19 +26,28 @@ bool android_pick_folder(void);
 /* 1: a folder was picked (its path in out), -1: cancelled, 0: no answer yet. */
 int android_take_picked_folder(char* out, size_t size);
 
+/* Performance hint (Android 13+): on the game thread, once; then each
+ * frame's work time (excluding the wait for the next frame). */
+void android_perf_init(int64_t targetNs);
+void android_perf_report(int64_t workNs);
+
 /* Size of the second display, if there is one. */
 bool android_second_size(int* w, int* h);
 /* Copies a finished frame (ABGR8888, i.e. R,G,B,A bytes) to the second
  * display's surface, if it has one right now. */
 void android_second_present(SDL_Surface* frame);
 
-/* GPU path: draw the second screen with the game screen's OpenGL ES
+/* GPU path: draw the second screen with the game activity's OpenGL ES
  * context. _gpu_init on the game thread with the context current (w x h: the
- * game screen's size); then each redraw between _begin (false: no window
- * yet, or it failed) and _end. */
+ * activity's screen size); then each redraw between _begin (false: no window
+ * yet, or it failed) and _end, after which that surface stays current. */
 bool android_second_gpu_init(int w, int h);
 bool android_second_begin(void);
 void android_second_end(void);
+/* Back to SDL's own window surface (before drawing the game activity's
+ * screen, and before Android pauses the app). */
+void android_second_restore(void);
+void android_second_log_timing(int frames);
 
 #endif
 #endif

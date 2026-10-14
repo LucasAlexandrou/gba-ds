@@ -24,6 +24,8 @@ fi
 export ANDROID_NDK_HOME="$NDK"
 ABI=arm64-v8a
 API=26
+# tuned for the RG DS's Cortex-A55 cores, as the ROCKNIX build is (runs on any arm64)
+CPU_FLAGS="-mcpu=cortex-a55"
 
 # --- sources ---------------------------------------------------------------
 if [ ! -d "$DEPS/mgba" ]; then
@@ -37,12 +39,13 @@ fi
 # --- libmgba for Android ----------------------------------------------------
 MGBA_BUILD="$DEPS/mgba/build-android-$ABI"
 cmake -S "$DEPS/mgba" -B "$MGBA_BUILD" -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-	-DANDROID_ABI=$ABI -DANDROID_PLATFORM=android-$API "${MGBA_OPTS[@]}"
+	-DANDROID_ABI=$ABI -DANDROID_PLATFORM=android-$API "${MGBA_OPTS[@]}" \
+	-DCMAKE_C_FLAGS="$CPU_FLAGS"
 cmake --build "$MGBA_BUILD" -j"$(nproc)" --target mgba zlibstatic
 
 # --- APK ---------------------------------------------------------------------
 gradle -p android --no-daemon assembleRelease \
-	-PsdlDir="$DEPS/SDL2" -PmgbaSrc="$DEPS/mgba" -PmgbaBuild="$MGBA_BUILD"
+	-PsdlDir="$DEPS/SDL2" -PmgbaSrc="$DEPS/mgba" -PmgbaBuild="$MGBA_BUILD" -PcpuFlags="$CPU_FLAGS"
 
 VERSION=$(cat VERSION)
 APK="dist/gba-ds-v$VERSION-android.apk"

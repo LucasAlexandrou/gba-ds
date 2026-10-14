@@ -1,5 +1,6 @@
 /* One play session: the emulator, the second-screen map, and the pause menu. */
 #include "game.h"
+#include "android.h"
 #include "brand.h"
 #include "emu.h"
 #include "mapcap.h"
@@ -853,7 +854,14 @@ static void save_prefs(void) {
 	}
 }
 
+static bool gameTexAll = true; /* upload the game's frame to every view next time */
+
 static void swap_screens(void) {
+	/* the game moves to the other view, whose copy of the frame may be old
+	 * (frames go only where the game is shown; the menu uploads none) */
+	if (emu.fb) {
+		for (int i = 0; i < nViews; ++i) ui_update_texture(gameTex[i], emu.fb, GBA_W * 4);
+	}
 	if (nScreens < 2) {
 		singleShowsMap = !singleShowsMap;
 		return;
@@ -1113,6 +1121,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	ui_on_background(on_background);
 
 	mc = NULL;
+	gameTexAll = true;
 	mapW = GBA_W;
 	mapH = GBA_H;
 	memset(&mapRes, 0, sizeof(mapRes));
@@ -1240,7 +1249,13 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	double fpsT0 = next;
 	int fpsFrames = 0;
 
+#ifdef __ANDROID__
+	android_perf_init((int64_t) (frameSec * 1e9));
+#endif
 	while (!done) {
+#ifdef __ANDROID__
+		Uint64 workT0 = SDL_GetPerformanceCounter();
+#endif
 		if (mf.prof && mf.prof->frame.t && !mf.atlas && logo_generation() != frameGen) {
 			frameGen = logo_generation();
 			if (mapframe_load_atlas(&mf, framePath)) canvasDirty = true;
@@ -1618,7 +1633,12 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 
 		Uint64 drawT0 = SDL_GetPerformanceCounter();
-		for (int i = 0; i < nViews; ++i) ui_update_texture(gameTex[i], emu.fb, GBA_W * 4);
+		/* only the view the game is on needs it (all of them right after a swap,
+		 * since the menu draws the game without uploading) */
+		for (int i = 0; i < nViews; ++i) {
+			if (gameTexAll || i == screens[game_screen()].view) ui_update_texture(gameTex[i], emu.fb, GBA_W * 4);
+		}
+		gameTexAll = false;
 		ui_clear();
 		draw_game();
 		if (shotPending) {
@@ -1650,6 +1670,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		if (next < now - 4 * frameSec) next = now;
 		if (noPace) next = now; /* benchmarking: run as fast as possible */
+#ifdef __ANDROID__
+		android_perf_report((int64_t) ((SDL_GetPerformanceCounter() - workT0) * 1e9 / freq));
+#endif
 		double wait = next - now;
 		if (wait > 0) {
 			struct timespec ts = { 0, (long) (wait * 1e9) };

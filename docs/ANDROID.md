@@ -238,6 +238,19 @@ After the first milestone:
   ROMs/gba and ROMs/GBA, and shared storage ignores case, so they're the
   same folder. Default is now ROMs/gba alone, and the library skips a
   folder it has already read in a scan (by device + inode).
+- Tony Hawk dipped into the low 50s (log: emulating ~9 ms, drawing ~7 ms;
+  the THPS2 extras measured at ~0 on the desktop). With the game on top,
+  the top screen is the second display, redrawn every frame, and each
+  frame switched the GPU between the two surfaces twice and redrew the
+  static bottom too. Now both screens are retained (recorded, replayed only
+  on change; `View.retained`), the second surface stays current after a
+  redraw until the bottom needs drawing (android_second_restore), and the
+  game's frame is uploaded only to the view that shows it. Emulation:
+  a performance hint session (APerformanceHint, Android 13+, via dlsym)
+  reports each frame's work against the 16.7 ms deadline so the CPU clock
+  is raised in time; libmgba and the app are compiled with
+  -mcpu=cortex-a55 like the ROCKNIX build. The 5 s log now has per-screen
+  redraw counts and the second display's switch/swap timings.
 - `menu_combo = select+start` (Android default; `none` elsewhere): opens
   the pause menu. The first of the two buttons is held back from the game
   for up to 5 frames; a quick tap is passed on after that.
