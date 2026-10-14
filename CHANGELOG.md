@@ -4,6 +4,7 @@
 
 - **Tony Hawk's Pro Skater 2** (USA/Europe, France, Germany, and SK8 for Japan) is in the game list. For now the second screen shows its logo, cut out of the title screen (it has no layer of its own).
 - Game list: French and German flags for single-country releases when you have more than one region of a game.
+
 ## v1.0.2 (2026-10-13)
 
 - Metroid map screens: the scroll arrows and play-time clock are left out (both games), as is Fusion's row of ticked item icons along the top (the item counters stay), and Zero Mission's corner minimap and its A button give way to the map underneath. Both Metroids are now marked "working".
