@@ -1,7 +1,9 @@
 # Android version: plan
 
-Status: first milestone done and tested on the device (branch `android`,
-2026-10-14). See "Progress" at the end.
+Status: milestones 1 and 2 done and merged into `dev`; the third
+(frontends, the GBA DS data folder) on `android`, for release in v1.1.
+The APK ships with the ROCKNIX zip from then on (CLAUDE.md, Release).
+See "Progress" at the end.
 
 ## Goal
 

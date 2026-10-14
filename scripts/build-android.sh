@@ -44,10 +44,18 @@ cmake -S "$DEPS/mgba" -B "$MGBA_BUILD" -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/
 cmake --build "$MGBA_BUILD" -j"$(nproc)" --target mgba zlibstatic
 
 # --- APK ---------------------------------------------------------------------
+# licences, inside the APK (assets/licenses): mGBA is statically linked (MPL-2.0), SDL2 is zlib-licensed
+VERSION=$(cat VERSION)
+LIC=android/app/src/main/assets/licenses
+rm -rf "$LIC" && mkdir -p "$LIC"
+cp "$DEPS/mgba/LICENSE" "$LIC/mGBA-LICENSE.txt"
+cp "$DEPS/SDL2/LICENSE.txt" "$LIC/SDL2-LICENSE.txt"
+printf "GBA DS %s statically links libmgba (c) Jeffrey Pfau, MPL-2.0.\nmGBA source: https://github.com/mgba-emu/mgba (commit %s)\nSDL2 (c) Sam Lantinga, zlib licence: https://github.com/libsdl-org/SDL (%s)\nGBA DS source: https://github.com/kyannon/gba-ds\n" \
+	"$VERSION" "$(git -C "$DEPS/mgba" rev-parse --short HEAD)" "$SDL_BRANCH" > "$LIC/README.txt"
+
 gradle -p android --no-daemon assembleRelease \
 	-PsdlDir="$DEPS/SDL2" -PmgbaSrc="$DEPS/mgba" -PmgbaBuild="$MGBA_BUILD" -PcpuFlags="$CPU_FLAGS"
 
-VERSION=$(cat VERSION)
 APK="dist/gba-ds-v$VERSION-android.apk"
 rm -f dist/gba-ds-*-android.apk
 cp android/app/build/outputs/apk/release/app-release.apk "$APK"

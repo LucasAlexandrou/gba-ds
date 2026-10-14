@@ -1,7 +1,8 @@
 # Changelog
 
-## v1.0.4 (not yet released)
+## v1.1 (not yet released)
 
+- **Android version** (an APK, first tested on the RG DS Plus with GammaOS): the game on the top screen and the map or logo on the bottom touchscreen, as on ROCKNIX, with the game list, pause menu, cheats and map capture. SELECT+START opens the pause menu (Android keeps HOME), and BACK does too. Games can be started from frontends such as ES-DE and Daijisho. Save states, cheats, overlays and screenshots live in a `GBA DS` folder on the internal storage. See the README.
 - Game list: a folder that appears twice in `rom_dir` (or through a link) is only listed once.
 - New option `menu_combo = select+start` in gba-ds.cfg: pressing SELECT and START together opens the pause menu, without the game seeing either button. Off by default.
 

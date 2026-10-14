@@ -16,17 +16,26 @@ with photos and screenshots; nothing ships untested on the device.
   and tags by hand (sessions get HTTP 403 on releases and can't push tags).
 - **Commits:** author `kyannon <341221214+kyannon@users.noreply.github.com>`,
   with the Co-Authored-By / Claude-Session trailers the session asks for.
-- **VERSION** holds `X.Y.Z-dev` on `dev`; CHANGELOG.md has a
+- **VERSION** holds `X.Y.Z-dev` (or `X.Y-dev`) on `dev`; CHANGELOG.md has a
   `## vX.Y.Z (not yet released)` section on top. Add a line there for every
   user-visible change, written for players (not implementation notes).
-- **Release:** set VERSION to `X.Y.Z` and date the changelog section, commit
-  "Release vX.Y.Z", push `dev`, push that commit to `main`. Build the zip
-  from a fresh clone of the release commit (`scripts/build-rocknix.sh`),
-  write release notes (What's new / Fixes / Install / upgrade, SHA-256 of
-  the zip) and send both to the owner. Then bump `dev` to the next
-  `-dev` version with an empty changelog section.
+- **Release:** merge `android` into `dev` if it has anything new. Set
+  VERSION to `X.Y.Z` and date the changelog section, commit
+  "Release vX.Y.Z", push `dev`, push that commit to `main`. Two files:
+  - the ROCKNIX zip, built from a fresh clone of the release commit
+    (`scripts/build-rocknix.sh`);
+  - the APK, `gba-ds-vX.Y.Z-android.apk`: the artifact of the Android
+    workflow run for the release commit on `dev` (built and signed with the
+    release key by CI; the owner downloads it from the run page, the zip
+    holds the APK). Check that run shows no "debug-signed" warning.
+  Write release notes (What's new / Fixes / Install / upgrade, for both
+  platforms, with the SHA-256 of both files; the owner gives the APK's, or
+  it's read from the run's artifact digest) and send them with the zip.
+  Then bump `dev` to the next `-dev` version with an empty changelog
+  section.
 - Test builds for the device: `dist/gba-ds-vX.Y.Z-dev-rocknix-aarch64.zip`,
-  sent to the owner after each change.
+  sent to the owner after each change; Android test APKs are the artifacts
+  of the workflow runs on `android` / `dev` (link the run).
 
 ## Building
 

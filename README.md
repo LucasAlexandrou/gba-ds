@@ -1,6 +1,6 @@
 # GBA DS
 
-A Game Boy Advance emulator for dual-screen handhelds (built for the Anbernic RG DS Plus on ROCKNIX). The game runs on one screen, and the game's own map stays up on the other screen and keeps itself current as you explore, the way the DS Castlevanias work.
+A Game Boy Advance emulator for dual-screen handhelds (built for the Anbernic RG DS Plus, on ROCKNIX and on Android with GammaOS). The game runs on one screen, and the game's own map stays up on the other screen and keeps itself current as you explore, the way the DS Castlevanias work.
 
 The idea here is "what if the Game Boy Advance had a second screen" -- part of what this means is that, at least for now, neither screen is treated like a touchscreen. Instead the secondary screen is used similarly to how the DS Castlevania games use it -- displaying maps or other secondary information to make the gameplay experience a little more pleasant on a device with the space to accommodate it. (This whole project was inspired by playing through all the DS Castlevania games and then feeling a little sad about the prospect of going back in time to the GBA games...)
 
@@ -65,6 +65,33 @@ How it works: the setting writes two files into `/storage/.config/emulationstati
 
 **Upgrading from gbadual** (this app's old name): unzip as above, then launch **GBA DS** once. On that first run it copies your save states, resume points, menu settings and any custom logos or overlays from the old `gbadual/` folder. After that, delete the old `gbadual/` folder and the **GBA Dual Screen** entry (`GBA Dual Screen.sh`) from `/storage/roms/ports/`. If you had edited `gbadual.cfg`, copy your changes into `gba-ds/gba-ds.cfg`; battery saves (`.sav`) stay next to your ROMs and aren't affected.
 
+## Install on Android
+
+Made for the RG DS Plus on GammaOS (Android 14); it needs a device whose second screen Android shows as a second display.
+
+1. Download the latest `gba-ds-v…-android.apk` from the [Releases page](https://github.com/kyannon/gba-ds/releases) and install it (allow installing from your file manager or browser when Android asks). Updates install over it and keep everything.
+2. Open **GBA DS**. The first time, it asks for **All files access**: switch it on and go back. It needs it to read your ROM folder and to keep its files where you can reach them.
+3. Keep your ROMs in `ROMs/gba` on the internal storage, or pick another folder in the game list's **Settings** (tap it, or press **SELECT**) → **ROM Folder**.
+
+The game plays on the top screen; the map or logo, the pause menu and the game list are on the bottom touchscreen. Android keeps HOME for itself, so **SELECT + START** (pressed together) or **BACK** opens the pause menu. Coming back to GBA DS from the home screen or the app switcher, the game is paused with the menu open, and its resume point was saved when you left (Android may close apps in the background).
+
+Everything except the battery saves (`.sav`, next to the ROMs) is in the `GBA DS` folder on the internal storage: `states/`, `cheats/` (RetroArch `.cht` files), `overlays/`, `logos/`, `screenshots/` and `gba-ds.log`. Settings from `gba-ds.cfg` can go in `GBA DS/gba-ds.cfg`.
+
+**Starting games from a frontend.** GBA DS plays a game it's given straight away, without the game list; closing it goes back to the frontend.
+- **ES-DE**: add GBA DS to your custom systems. In `es_find_rules.xml`:
+  ```xml
+  <emulator name="GBA-DS">
+      <rule type="androidpackage">
+          <entry>io.github.kyannon.gbads/.LauncherActivity</entry>
+      </rule>
+  </emulator>
+  ```
+  and in the `gba` system of `es_systems.xml`:
+  ```xml
+  <command label="GBA DS (Standalone)">%EMULATOR_GBA-DS% %ACTIVITY_CLEAR_TASK% %ACTIVITY_CLEAR_TOP% %DATA%=%ROMSAF%</command>
+  ```
+- **Daijisho** (or other frontends): package `io.github.kyannon.gbads`, activity `.LauncherActivity`, with `-a android.intent.action.VIEW -d {file.uri}`, or the file path in an extra: `-e rom {file.path}`.
+
 ## Playing
 
 - **Resume:** leaving a game saves its state automatically, and launching it again picks up exactly there. Turn this off with `auto_resume = 0`. Battery saves are written as usual too, so in-game saves are never at risk.
@@ -94,7 +121,7 @@ GBA DS reads RetroArch's cheat files (`.cht`, the format of the [libretro cheat 
 | Bottom face button | GBA B |
 | L1 / R1 | GBA L / R |
 | Start / Select | Start / Select |
-| HOME, or tap the touchscreen | Pause menu |
+| HOME, or tap the touchscreen | Pause menu (Android: SELECT + START, or BACK) |
 | L2 | Swap screens |
 | R2 (hold) | Fast-forward |
 | HOME + R1 / L1 | Quick save / load state |
