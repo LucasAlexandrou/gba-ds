@@ -34,7 +34,10 @@ with photos and screenshots; nothing ships untested on the device.
   and builds mGBA and SDL2 into `deps/`), then `make` and `make tools`.
 - Device: `scripts/build-rocknix.sh` (fetches an aarch64 toolchain, mGBA
   and SDL2 into `deps/`) produces the release zip in `dist/`.
-- libmgba options live in `scripts/mgba-options.sh` (shared by both). It's
+- Android: `scripts/build-android.sh` (needs the Android SDK/NDK, so it
+  runs on GitHub Actions: `.github/workflows/android.yml`, APK in the run's
+  artifacts). See `docs/ANDROID.md`.
+- libmgba options live in `scripts/mgba-options.sh` (shared by all builds). It's
   a full mGBA configuration with everything optional off, not
   `LIBMGBA_ONLY` (that forces zlib off; .zip ROMs need it), and LTO off.
 - Generated sources: `src/brand_data.c` (`tools/make_brand.py` with the

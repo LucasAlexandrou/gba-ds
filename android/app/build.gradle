@@ -22,7 +22,13 @@ android {
     namespace "io.github.kyannon.gbads"
     compileSdk 34
     def ndkDir = System.getenv("ANDROID_NDK_HOME") ?: System.getenv("ANDROID_NDK_LATEST_HOME")
-    if (ndkDir) ndkPath ndkDir
+    if (ndkDir) {
+        ndkPath ndkDir
+        // AGP insists ndkVersion matches the NDK at ndkPath
+        def props = new Properties()
+        new File(ndkDir, "source.properties").withInputStream { props.load(it) }
+        ndkVersion props.getProperty("Pkg.Revision")
+    }
 
     defaultConfig {
         applicationId "io.github.kyannon.gbads"
