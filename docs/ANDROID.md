@@ -224,7 +224,7 @@ After the first milestone:
   maps analog trigger axes). ui.c reads them directly on Android; raw
   buttons from 15 up are logged.
 
-### Second milestone (in progress, branch `android`; first merged into `dev` at 68572d1)
+### Second milestone (done, tested on the device; merged into `dev` at c1e9070, the first milestone at 68572d1)
 
 - Game list on Android (main.c no longer picks a game; the milestone-1
   `last-rom.txt` is gone). Its Settings screen (SELECT, or the Settings
