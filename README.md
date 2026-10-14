@@ -17,13 +17,15 @@ The idea here is "what if the Game Boy Advance had a second screen" -- part of w
 | Castlevania: Aria of Sorrow | Select | working |
 | Castlevania: Harmony of Dissonance | Select | working |
 | Castlevania: Circle of the Moon | Select | working |
-| Metroid: Zero Mission | Start | working (not fully playtested) |
-| Metroid Fusion | Start | working (not fully playtested) |
+| Metroid: Zero Mission | Start | working |
+| Metroid Fusion | Start | working |
 | The Legend of Zelda: A Link to the Past | L | working |
 
 The European and Japanese releases are supported as well as the USA ones: map, logo and border. (The European Metroids' label erasing was checked in English and German.) Any other GBA game also runs; it just gets no map screen.
 
 **Metroid mini-map:** with the full map always up, the small 3×3 mini-map in the top-right corner of the Metroid games is hidden. It's left out when the picture is drawn, so the game itself is unchanged; set `map = 0` and it comes back along with the normal one-screen view.
+
+**Metroid map screens:** the second screen shows the pause screen's map in its frame, tidied up: the button labels and area name are erased, the scroll arrows and play-time clock are left out, Fusion's "A OBJECTIVE" prompt is left out, and Zero Mission's corner minimap gives way to the map underneath, with its "SELECT / CHANGE AREAS" prompt covered by a piece of the bezel. `map_crop = 0` shows the pause screen exactly as the game draws it.
 
 **A Link to the Past:** the cartridge also holds Four Swords, which needs linked GBAs, so the game list shows only A Link to the Past and maps are only captured while it's being played. L brings up the world map outdoors (GBA DS shows the zoomed-out whole-world view, which doesn't scroll with Link) and the dungeon map once you have it; where L does nothing (houses, caves, dungeons without their map), the last map stays up, dimmed. After Save and Quit, the second screen goes back to the logo.
 
@@ -206,6 +208,12 @@ The tools in `tools/` are for finding these values:
 - **`harness`**: runs a ROM headless from a small script. Script commands: `tap A`, `hold RIGHT 60`, `shot name`, `save`/`load` states, `dumpram name`, `map name` (runs the real capture code).
 - **`ramdiff.py`**: given RAM dumps taken with the map open and closed, lists the addresses that cleanly separate them.
 - **`sheet.py`**: tiles screenshots into a contact sheet.
+
+## Roadmap
+
+- RetroAchievements (softcore-only, probably)
+- HUD elements as well as maps on the second screen
+- More games!
 
 ## AI Disclosure
 

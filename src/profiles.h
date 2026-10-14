@@ -133,6 +133,13 @@ typedef struct MapProfile {
 	 * game draws over the map as sprites (Fusion's "A OBJECTIVE"), so the map
 	 * underneath shows instead. */
 	SpriteRule captureHide[4];
+	/* Parts of the map capture (screen rects, inclusive) taken from a render
+	 * of only `underLayers` (bits 0-3 BG0-3, bit 4 sprites), made once per
+	 * capture: bezel pieces drawn over the map, like Zero Mission's corner
+	 * minimap, give way to the map underneath. */
+	struct { int x0, y0, x1, y1; } underRect[2];
+	unsigned underLayers;
+	SpriteRule underHide[2]; /* also left out of that render (on top of captureHide) */
 
 	/* A raised piece of bezel painted over a prompt that sits in a notch of
 	 * the bottom bezel bar (Zero Mission's "SELECT / CHANGE AREAS"), when

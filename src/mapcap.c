@@ -29,6 +29,9 @@ struct MapCapture {
 	/* scratch buffers used by the capture routine (worker thread only) */
 	uint32_t* work[MAP_MAX_FRAMES];
 	uint32_t* prev;
+	uint32_t* under;   /* full-screen render of underLayers (profile.underRect) */
+	void* underState;
+	bool underValid;
 	int workFrames;
 	int workStep;     /* emulated frames between work[] frames */
 	volatile bool still; /* "Map Animations: Off": record the whole loop (animCycle) */
@@ -380,11 +383,44 @@ static void paint_tab(MapCapture* mc, uint32_t* out) {
 	}
 }
 
+static void patch_under(MapCapture* mc, uint32_t* out) {
+	const MapProfile* p = mc->prof;
+	for (int r = 0; r < 2 && p->underRect[r].x1; ++r) {
+		int x0 = IMAX(p->underRect[r].x0, mc->cx), x1 = IMIN(p->underRect[r].x1, mc->cx + mc->cw - 1);
+		int y0 = IMAX(p->underRect[r].y0, mc->cy), y1 = IMIN(p->underRect[r].y1, mc->cy + mc->ch - 1);
+		for (int y = y0; y <= y1; ++y) {
+			for (int x = x0; x <= x1; ++x) out[(y - mc->cy) * mc->cw + (x - mc->cx)] = mc->under[y * GBA_W + x];
+		}
+	}
+}
+
+/* Renders the current frame with only the profile's underLayers, then puts
+ * the core back exactly as it was (layer switches apply on the state reload). */
+static void grab_under(MapCapture* mc, Emu* s) {
+	const MapProfile* p = mc->prof;
+	if (!emu_state_save(s, mc->underState)) return;
+	SpriteRule rules[6];
+	int n = 0, base;
+	while (n < 4 && p->captureHide[n].x1) rules[n] = p->captureHide[n], ++n;
+	base = n;
+	for (int i = 0; i < 2 && p->underHide[i].x1; ++i) rules[n++] = p->underHide[i];
+	if (n > base) emu_hide_sprites(s, rules, n);
+	emu_layers(s, p->underLayers);
+	emu_state_load(s, mc->underState);
+	emu_frame(s, 0);
+	memcpy(mc->under, s->fb, GBA_W * GBA_H * sizeof(uint32_t));
+	emu_layers(s, 0x1F);
+	if (n > base) emu_hide_sprites(s, rules, base);
+	emu_state_load(s, mc->underState);
+	mc->underValid = true;
+}
+
 static void crop(MapCapture* mc, const uint32_t* fb, uint32_t* out) {
 	const MapProfile* p = mc->prof;
 	for (int y = 0; y < mc->ch; ++y) {
 		memcpy(&out[y * mc->cw], &fb[(mc->cy + y) * GBA_W + mc->cx], mc->cw * sizeof(uint32_t));
 	}
+	if (mc->clean && mc->underValid) patch_under(mc, out);
 	if (mc->clean && p->glyphs[0].w) remove_glyphs(mc, out);
 	if (mc->clean && p->recolor[0].w) recolor(mc, out);
 	if (mc->clean && p->tab.n) paint_tab(mc, out);
@@ -436,6 +472,7 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 	size_t n = mc->cropPixels;
 	mc->workFrames = 0;
 	mc->tileValid = false;
+	mc->underValid = false;
 	if (!emu_state_load(s, state)) {
 		return "state load failed";
 	}
@@ -491,6 +528,10 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 	}
 	if (f >= p->settleMax) {
 		return everUp ? "map screen never settled" : "map screen did not appear";
+	}
+	if (mc->clean && p->underRect[0].x1) {
+		grab_under(mc, s);
+		if (mc->underValid) patch_under(mc, mc->work[0]);
 	}
 	mc->workFrames = 1;
 	int want = p->animFrames > MAP_MAX_FRAMES ? MAP_MAX_FRAMES : p->animFrames;
@@ -693,6 +734,10 @@ MapCapture* mapcap_create(const char* romPath, const char* gameCode, bool tight)
 		mc->published[i] = calloc(mc->cropPixels, sizeof(uint32_t));
 	}
 	mc->prev = calloc(mc->cropPixels, sizeof(uint32_t));
+	if (mc->clean && p->underRect[0].x1) {
+		mc->under = calloc((size_t) GBA_W * GBA_H, sizeof(uint32_t));
+		mc->underState = malloc(mc->stateSize);
+	}
 	mc->rateRef = calloc(mc->cropPixels, sizeof(uint32_t));
 	pthread_mutex_init(&mc->lock, NULL);
 	pthread_cond_init(&mc->cond, NULL);
@@ -723,6 +768,8 @@ void mapcap_destroy(MapCapture* mc) {
 		free(mc->published[i]);
 	}
 	free(mc->prev);
+	free(mc->under);
+	free(mc->underState);
 	free(mc->rateRef);
 	free(mc->snapshot);
 	pthread_mutex_destroy(&mc->lock);

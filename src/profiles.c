@@ -80,16 +80,25 @@ static const MapProfile profiles[] = {
 		.probes = { { 0, 0, 0xCEDECE }, { 239, 0, 0xCEDECE }, { 2, 80, 0x212921 }, { 237, 80, 0x212921 } },
 		.tolerance = 8,
 		/* the whole pause screen, frame included; map_crop erases its lettering:
-		 * the L and R keys, SLEEP, the area name, STATUS, and the A on the
-		 * button beside the minimap (the keys, plates and button stay) */
+		 * the L and R keys, SLEEP, the area name and STATUS (the keys and
+		 * plates stay) */
 		.glyphs = { { 3, 3, 6, 5, 2, { 0x000000, 0x314231 }, true },     /* L */
 		            { 232, 3, 5, 5, 2, { 0x000000, 0x314231 }, true },   /* R */
 		            { 13, 2, 35, 7, 2, { 0xFFFF73, 0xFFBD00 }, true },         /* SLEEP */
 		            { 98, 3, 44, 8, -1, { 0xCE21D6 } },              /* area name (animates), */
 		            { 99, 3, 1, 8, -1, { 0xE742EF } },               /* with the plate's */
 		            { 140, 3, 1, 8, -1, { 0xE742EF } },              /* inner bevel */
-		            { 192, 2, 35, 7, 2, { 0xFFFF73, 0xFFBD00 }, true },        /* STATUS */
-		            { 176, 140, 14, 12, 1, { 0x001831 } } },       /* A */
+		            { 192, 2, 35, 7, 2, { 0xFFFF73, 0xFFBD00 }, true } },      /* STATUS */
+		/* left out of the capture: the purple scroll arrows (tiles 512-515),
+		 * the play-time clock (916-927) and the corner minimap's own markers
+		 * (priority 1, bottom right) */
+		.captureHide = { { -256, -128, 255, 159, 512, 515, 3 }, { -256, 130, 255, 159, 916, 927, 3 } },
+		/* the corner minimap and its A button are part of the bezel layers:
+		 * there the capture shows the map layer (and sprites) on their own */
+		.underRect = { { 160, 90, 231, 151 } }, .underLayers = 0x18,
+		/* without the minimap's own sprites (priority 1, bottom right; hiding
+		 * them all the time stops the map screen from ever settling early on) */
+		.underHide = { { 150, 80, 255, 159, 540, 700, 1 } },
 		/* the now-blank magenta plates and orange L/R keys, in the grey-green of
 		 * the curved pieces beside the area name: edge/shade, body, bevel/highlight */
 		.recolor = { { 13, 2, 35, 7, 3, { 0xAD18B5, 0xCE21D6, 0xE742EF }, { 0x212921, 0x314231, 0x637363 } },
@@ -128,7 +137,11 @@ static const MapProfile profiles[] = {
 		            { 97, 0, 46, 7, -1, { 0xADC6BD } } },                       /* area name */
 		/* "A OBJECTIVE" is sprites (A button tile 942, OBJECTIVE 976/980,
 		 * priority 2): left out of the capture, so the map under it shows */
-		.captureHide = { { 160, 130, 239, 159, 940, 1023, 2 } },
+		.captureHide = { { 160, 130, 239, 159, 940, 1023, 2 },
+		                 /* the yellow scroll arrows (tiles 512-515) */
+		                 { -256, -128, 255, 159, 512, 515, 2 },
+		                 /* and the play-time clock, bottom left (408-415) */
+		                 { -256, 130, 255, 159, 408, 415, 3 } },
 		/* the blank plates and keys, in the bezel's greys */
 		.recolor = { { 2, 1, 42, 10, 13, PLATE_FROM, PLATE_TO },
 		             { 196, 1, 42, 10, 13, PLATE_FROM, PLATE_TO },

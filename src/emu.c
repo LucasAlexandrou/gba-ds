@@ -238,6 +238,10 @@ void emu_hide_sprites(Emu* e, const SpriteRule* rules, int n) {
 	((struct GBAVideoSoftwareRenderer*) r)->oamDirty = true;
 }
 
+void emu_layers(Emu* e, unsigned mask) {
+	for (int i = 0; i < 5; ++i) e->core->enableVideoLayer(e->core, i, (mask >> i) & 1);
+}
+
 static void hide_release(Emu* e) {
 	struct GBA* gba = e->core->board;
 	pthread_mutex_lock(&hideLock);

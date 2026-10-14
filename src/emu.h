@@ -69,6 +69,9 @@ bool write_png(const char* path, const uint32_t* px, int w, int h, int stride);
 /* Hide sprites matching any of the n rules (n = 0 turns it off). Display only:
  * the game's memory and state are untouched. One emulator at a time. */
 void emu_hide_sprites(Emu* e, const SpriteRule* rules, int n);
+/* Which layers are drawn: bits 0-3 BG0-3, bit 4 sprites (0x1F = all). Takes
+ * effect when the display registers are next written (e.g. a state load). */
+void emu_layers(Emu* e, unsigned mask);
 
 /* Cheats. emu_cheats_clear removes them all; emu_cheats_add adds one set
  * (applied every frame) from codes in RetroArch's .cht form: hex words
