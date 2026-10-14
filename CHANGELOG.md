@@ -1,5 +1,7 @@
 # Changelog
 
+## v1.0.3 (not yet released)
+
 ## v1.0.2 (2026-10-13)
 
 - Metroid map screens: the scroll arrows and play-time clock are left out (both games), as is Fusion's row of ticked item icons along the top (the item counters stay), and Zero Mission's corner minimap and its A button give way to the map underneath. Both Metroids are now marked "working".
