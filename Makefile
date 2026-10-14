@@ -4,7 +4,7 @@
 #   make CROSS=aarch64-linux-gnu- MGBA_BUILD=../mgba/build-aarch64 SDL_PREFIX=../sdl-aarch64
 #
 # MGBA_SRC   mGBA source tree (headers)
-# MGBA_BUILD a cmake build dir of mGBA configured with -DLIBMGBA_ONLY=ON -DBUILD_STATIC=ON
+# MGBA_BUILD a cmake build dir of mGBA (see scripts/build-rocknix.sh for the options), targets mgba and zlibstatic built
 # SDL_PREFIX an SDL2 install prefix (include/SDL2, lib/libSDL2.so)
 
 CROSS      ?=
@@ -20,7 +20,9 @@ OPTFLAGS   ?= -O2 -g
 override CFLAGS := $(OPTFLAGS) -std=gnu11 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
               -DGBADS_VERSION='"$(VERSION)"' $(MGBA_DEFS) -I$(MGBA_SRC)/include -I$(MGBA_BUILD)/include -I$(SDL_PREFIX)/include/SDL2 -D_REENTRANT
 LDFLAGS    += -L$(SDL_PREFIX)/lib -Wl,-rpath-link,$(SDL_PREFIX)/lib
-LIBS       := $(MGBA_BUILD)/libmgba.a -lSDL2 -lpthread -lm
+# mGBA's bundled zlib (for .zip ROMs), when it was built with it
+ZLIB_A     := $(wildcard $(MGBA_BUILD)/zlib/libz.a)
+LIBS       := $(MGBA_BUILD)/libmgba.a $(ZLIB_A) -lSDL2 -lpthread -lm
 
 CORE_SRC   := src/emu.c src/mapcap.c src/profiles.c src/logo_masks.c
 APP_SRC    := src/main.c src/config.c src/font.c src/ui.c src/library.c src/game.c src/paths.c src/image.c src/brand_data.c src/logo.c src/mapframe.c src/cheats.c $(CORE_SRC)
@@ -36,7 +38,7 @@ tools: $(OUT)/harness
 
 $(OUT)/harness: tools/harness.c tools/png.c $(CORE_SRC) src/logo.c src/*.h
 	@mkdir -p $(OUT)
-	$(CC) $(CFLAGS) -o $@ tools/harness.c tools/png.c $(CORE_SRC) src/logo.c $(MGBA_BUILD)/libmgba.a -lpng -lpthread -lm
+	$(CC) $(CFLAGS) -o $@ tools/harness.c tools/png.c $(CORE_SRC) src/logo.c $(MGBA_BUILD)/libmgba.a $(ZLIB_A) -lpng -lpthread -lm
 
 clean:
 	rm -rf build

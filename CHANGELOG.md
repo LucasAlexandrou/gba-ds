@@ -5,6 +5,7 @@
 - **Tony Hawk's Pro Skater 2** (USA/Europe, France, Germany, and SK8 for Japan) is in the game list. For now the second screen shows its logo, cut out of the title screen (it has no layer of its own).
 - Tony Hawk's Pro Skater 2: the goal sheet shown before a run (Free Skate or Single Session rules, or the career level's checklist) is copied to the second screen, without the CAREER / CASH counters and button prompts drawn over it (the career checklist's scratch-outs and ticks stay), and stays there for the run, through pauses and Retry. Back at the menus (level select, main menu) the second screen goes back to the logo.
 - Tony Hawk's Pro Skater 2: a **Controls** picker on the second screen (touch) chooses the GBA buttons, a four-face-button layout like the console games (top grind, bottom ollie, left flip, right grab), or **Auto**: four buttons while skating, the GBA layout in menus, pause and results. Remembered per game.
+- **Zipped ROMs**: `.zip` and `.7z` files work in the game list and when launched directly (the first GBA ROM inside is used). The game list remembers what's in each archive, so a big `.7z` is only unpacked to look inside once.
 - Game list: French and German flags for single-country releases when you have more than one region of a game.
 
 ## v1.0.2 (2026-10-13)

@@ -38,12 +38,25 @@ if [ ! -d "$DEPS/mgba" ]; then
 	git clone https://github.com/mgba-emu/mgba.git "$DEPS/mgba"
 	git -C "$DEPS/mgba" checkout "$MGBA_COMMIT"
 fi
-MGBA_OPTS=(-DLIBMGBA_ONLY=ON -DBUILD_STATIC=ON -DBUILD_SHARED=OFF -DCMAKE_BUILD_TYPE=Release
-	-DUSE_DEBUGGERS=OFF -DUSE_EDITLINE=OFF -DUSE_GDB_STUB=OFF -DUSE_SQLITE3=OFF -DUSE_ELF=OFF
-	-DUSE_LZMA=OFF -DUSE_ZLIB=OFF -DUSE_PNG=OFF -DUSE_LIBZIP=OFF -DUSE_MINIZIP=OFF -DUSE_FFMPEG=OFF
-	-DUSE_LUA=OFF -DUSE_JSON_C=OFF -DUSE_DISCORD_RPC=OFF -DM_CORE_GB=OFF -DENABLE_SCRIPTING=OFF)
+# Not LIBMGBA_ONLY: that switches every dependency off, and .zip ROMs need
+# zlib. Frontends and optional libraries are off one by one instead; zlib
+# (with minizip) and LZMA (.7z) come from mGBA's bundled copies, so the
+# binary needs nothing new on the device.
+MGBA_OPTS=(-DLIBMGBA_ONLY=OFF -DBUILD_STATIC=ON -DBUILD_SHARED=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_LTO=OFF
+	-DBUILD_SDL=OFF -DBUILD_QT=OFF -DBUILD_LIBRETRO=OFF -DBUILD_GL=OFF -DBUILD_GLES2=OFF -DBUILD_GLES3=OFF
+	-DBUILD_PERF=OFF -DBUILD_TEST=OFF -DBUILD_SUITE=OFF -DBUILD_CINEMA=OFF -DBUILD_ROM_TEST=OFF
+	-DBUILD_UPDATER=OFF -DBUILD_HEADLESS=OFF -DBUILD_PYTHON=OFF -DUSE_EPOXY=OFF
+	-DENABLE_DEBUGGERS=OFF -DENABLE_GDB_STUB=OFF -DUSE_EDITLINE=OFF -DUSE_SQLITE3=OFF -DUSE_ELF=OFF
+	-DUSE_LZMA=ON -DUSE_ZLIB=ON -DUSE_PNG=OFF -DUSE_LIBZIP=OFF -DUSE_MINIZIP=OFF -DUSE_FFMPEG=OFF
+	-DUSE_LUA=OFF -DUSE_JSON_C=OFF -DUSE_DISCORD_RPC=OFF -DUSE_FREETYPE=OFF -DM_CORE_GB=OFF
+	-DENABLE_SCRIPTING=OFF -DDISABLE_DEPS=OFF
+	-DCMAKE_DISABLE_FIND_PACKAGE_ZLIB=ON -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON)
+# a build dir configured the old way (LIBMGBA_ONLY) is started over
+if grep -q "^LIBMGBA_ONLY:UNINITIALIZED=ON" "$DEPS/mgba/build-aarch64/CMakeCache.txt" 2>/dev/null; then
+	rm -rf "$DEPS/mgba/build-aarch64"
+fi
 cmake -S "$DEPS/mgba" -B "$DEPS/mgba/build-aarch64" -DCMAKE_TOOLCHAIN_FILE="$ROOT/cmake/aarch64.cmake" "${MGBA_OPTS[@]}"
-make -C "$DEPS/mgba/build-aarch64" -j"$(nproc)" mgba
+make -C "$DEPS/mgba/build-aarch64" -j"$(nproc)" mgba zlibstatic
 
 # --- SDL2 (only to link against; the device's own libSDL2 is used at runtime) ---
 if [ ! -d "$DEPS/SDL2" ]; then

@@ -4,6 +4,7 @@
 #include "ui.h"
 #include "logo.h"
 #include "brand.h"
+#include "emu.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -37,6 +38,89 @@ static int cmp_games(const void* a, const void* b) {
 	return strcasecmp(((const GameEntry*) a)->name, ((const GameEntry*) b)->name);
 }
 
+/* Game codes of archived ROMs, remembered by path, size and date: reading
+ * one means unpacking the whole ROM, which is slow for a .7z. Saved as
+ * <state_dir>/archives.cache, lines "size mtime code path". */
+typedef struct {
+	long long size, mtime;
+	char code[5];
+	char path[1024];
+	bool used;
+} CodeCache;
+static CodeCache* codeCache;
+static int nCodeCache;
+static bool codeCacheDirty;
+
+static void code_cache_load(const Config* cfg) {
+	free(codeCache);
+	codeCache = NULL;
+	nCodeCache = 0;
+	codeCacheDirty = false;
+	char path[1100];
+	snprintf(path, sizeof(path), "%s/archives.cache", cfg->stateDir);
+	FILE* f = fopen(path, "r");
+	if (!f) return;
+	char line[1200];
+	while (fgets(line, sizeof(line), f)) {
+		CodeCache c = { 0 };
+		int off = 0;
+		if (sscanf(line, "%lld %lld %4s %n", &c.size, &c.mtime, c.code, &off) < 3 || !off) continue;
+		line[strcspn(line, "\n")] = 0;
+		snprintf(c.path, sizeof(c.path), "%s", line + off);
+		codeCache = realloc(codeCache, sizeof(*codeCache) * (nCodeCache + 1));
+		codeCache[nCodeCache++] = c;
+	}
+	fclose(f);
+}
+
+static void code_cache_save(const Config* cfg) {
+	bool unused = false;
+	for (int i = 0; i < nCodeCache; ++i) unused |= !codeCache[i].used;
+	if (!codeCacheDirty && !unused) return;
+	char path[1100];
+	snprintf(path, sizeof(path), "%s/archives.cache", cfg->stateDir);
+	FILE* f = fopen(path, "w");
+	if (!f) return;
+	for (int i = 0; i < nCodeCache; ++i) {
+		if (codeCache[i].used) fprintf(f, "%lld %lld %s %s\n", codeCache[i].size, codeCache[i].mtime, codeCache[i].code, codeCache[i].path);
+	}
+	fclose(f);
+}
+
+/* The 4-letter game code from the ROM header (offset 0xAC). */
+static bool game_code(const char* path, const struct stat* st, char code[5]) {
+	bool archive = emu_is_archive_name(path);
+	if (archive) {
+		for (int i = 0; i < nCodeCache; ++i) {
+			CodeCache* c = &codeCache[i];
+			if (c->size == (long long) st->st_size && c->mtime == (long long) st->st_mtime && !strcmp(c->path, path)) {
+				c->used = true;
+				memcpy(code, c->code, 5);
+				return true;
+			}
+		}
+	}
+	uint8_t hdr[0xB0];
+	if (!emu_rom_header(path, hdr, sizeof(hdr))) {
+		if (archive) fprintf(stderr, "library: no GBA ROM in %s\n", path);
+		return false;
+	}
+	memcpy(code, hdr + 0xAC, 4);
+	code[4] = 0;
+	for (int i = 0; i < 4; ++i) {
+		if (!code[i] || !isprint((unsigned char) code[i])) code[i] = '_';
+	}
+	if (archive) {
+		CodeCache c = { st->st_size, st->st_mtime, "", "", true };
+		memcpy(c.code, code, 5);
+		snprintf(c.path, sizeof(c.path), "%s", path);
+		codeCache = realloc(codeCache, sizeof(*codeCache) * (nCodeCache + 1));
+		codeCache[nCodeCache++] = c;
+		codeCacheDirty = true;
+	}
+	return true;
+}
+
 static void scan_dir(Config* cfg, const char* d, int depth) {
 	DIR* dir = opendir(d);
 	if (!dir) {
@@ -57,16 +141,12 @@ static void scan_dir(Config* cfg, const char* d, int depth) {
 			}
 			continue;
 		}
+		if (!emu_is_rom_name(de->d_name)) continue;
 		const char* ext = strrchr(de->d_name, '.');
-		if (!ext || strcasecmp(ext, ".gba")) continue;
 		GameEntry g;
 		memset(&g, 0, sizeof(g));
 		snprintf(g.path, sizeof(g.path), "%s", full);
-		FILE* f = fopen(g.path, "rb");
-		if (!f) continue;
-		unsigned char hdr[16] = { 0 };
-		if (fseek(f, 0xA0, SEEK_SET) == 0 && fread(hdr, 1, 16, f) == 16) memcpy(g.code, hdr + 12, 4);
-		fclose(f);
+		if (!game_code(g.path, &st, g.code)) continue;
 		g.supported = profile_find(g.code) != NULL;
 		if (!g.supported && !cfg->showAll) continue;
 		int n = (int) (ext - de->d_name);
@@ -101,7 +181,9 @@ static void scan(Config* cfg) {
 	char dirs[1024];
 	snprintf(dirs, sizeof(dirs), "%s", cfg->romDir);
 	char* save;
+	code_cache_load(cfg);
 	for (char* d = strtok_r(dirs, ":", &save); d; d = strtok_r(NULL, ":", &save)) scan_dir(cfg, d, 0);
+	code_cache_save(cfg);
 	qsort(games, nGames, sizeof(*games), cmp_games);
 	/* Region flags, only where the library holds the same game from more
 	 * than one region: same first three code letters, different last one. */

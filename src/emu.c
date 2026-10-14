@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <fcntl.h>
 
 static void quiet_log(struct mLogger* l, int cat, enum mLogLevel level, const char* fmt, va_list args) {
@@ -149,6 +150,38 @@ uint16_t emu_read16(Emu* e, uint32_t a) {
 }
 uint32_t emu_read32(Emu* e, uint32_t a) {
 	return e->core->rawRead32(e->core, a, -1);
+}
+
+static bool has_ext(const char* name, const char* const* exts) {
+	const char* dot = strrchr(name, '.');
+	if (!dot) return false;
+	for (int i = 0; exts[i]; ++i) {
+		if (!strcasecmp(dot, exts[i])) return true;
+	}
+	return false;
+}
+
+bool emu_is_archive_name(const char* name) {
+	static const char* const exts[] = { ".zip", ".7z", NULL };
+	return has_ext(name, exts);
+}
+
+bool emu_is_rom_name(const char* name) {
+	static const char* const exts[] = { ".gba", ".zip", ".7z", NULL };
+	return has_ext(name, exts);
+}
+
+bool emu_rom_header(const char* path, uint8_t* out, size_t n) {
+	if (n > 0xC0) n = 0xC0;
+	struct VDir* archive = emu_is_archive_name(path) ? VDirOpenArchive(path) : NULL;
+	struct VFile* vf = archive ? VDirFindFirst(archive, GBAIsROM) : VFileOpen(path, O_RDONLY);
+	bool ok = false;
+	if (vf) {
+		ok = vf->seek(vf, 0, SEEK_SET) == 0 && vf->read(vf, out, n) == (ssize_t) n;
+		vf->close(vf);
+	}
+	if (archive) archive->close(archive);
+	return ok;
 }
 
 size_t emu_audio_read(Emu* e, int16_t* out, size_t maxFrames) {

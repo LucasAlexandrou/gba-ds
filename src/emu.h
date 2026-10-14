@@ -43,6 +43,12 @@ typedef struct Emu {
 
 /* savePath may be NULL (no battery save attached). */
 bool emu_open(Emu* e, const char* romPath, const char* savePath, bool audio);
+/* ROMs may also be in a .zip or .7z (the first GBA ROM inside is used). */
+bool emu_is_rom_name(const char* name);   /* .gba, .zip, .7z */
+bool emu_is_archive_name(const char* name); /* .zip, .7z */
+/* Reads the first n bytes of the ROM header (n <= 0xC0), from inside an
+ * archive if need be. */
+bool emu_rom_header(const char* path, uint8_t* out, size_t n);
 void emu_close(Emu* e);
 void emu_frame(Emu* e, uint32_t keys);
 void emu_reset(Emu* e);

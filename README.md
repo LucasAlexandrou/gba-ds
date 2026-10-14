@@ -43,13 +43,13 @@ You see the real in-game map with every detail the game draws (explored rooms, s
 ## Install on ROCKNIX
 
 1. Download the latest `gba-ds-v…-rocknix-aarch64.zip` from the [Releases page](https://github.com/kyannon/gba-ds/releases) and unzip it into `/storage/roms/ports/`. You'll get a `gba-ds/` folder and a **GBA DS** entry.
-2. Keep your **unzipped** `.gba` ROMs in `/storage/roms/gba/` (subfolders are fine). Zipped ROMs aren't supported yet.
+2. Keep your ROMs in `/storage/roms/gba/` (subfolders are fine): `.gba`, or zipped as `.zip` or `.7z` (the first GBA ROM in the archive is used). Saves and states are named after the file, so `Game.zip` and an unzipped `Game.gba` share them.
 3. In EmulationStation, update the game lists and launch **GBA DS** from Ports.
 4. Optional: the zip also puts an icon at `/storage/roms/ports/images/GBA DS.png`. To show it, select **GBA DS** in Ports, open the game options (usually **SELECT**), choose **Edit this game's metadata**, and set **Image** to that file.
 
 The app opens on a game list: two columns of tiles on the touchscreen, each showing the game's own logo. Tap a tile to play, or move with the D-pad (L/R jump a screenful) and press A.
 - The list is rebuilt from the ROM folder every time it opens, so games you add or remove show up with nothing to re-run.
-- Only games with map support are listed. Set `show_all = 1` to list every `.gba`; games without map support play normally on one screen.
+- Only games with map support are listed. Set `show_all = 1` to list every GBA ROM; games without map support play normally on one screen.
 - The top screen shows the game's logo, or where it will resume once you've played it.
 - The first time the list opens, each game's logo and map border art are pulled out of the ROMs in the background (about a minute on the RG DS Plus); tiles say "Loading thumbnail..." until their logo is ready. If you pick a game before that's done, a "Preparing games" screen waits for it, so the game doesn't start with crackling audio. This only happens once; the results are kept in `gba-ds/states/`.
 
