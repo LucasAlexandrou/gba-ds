@@ -10,14 +10,12 @@
 #include <android/log.h>
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
-#include <dirent.h>
 #include <jni.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <time.h>
 #include <unistd.h>
 
 #define TAG "GBADS"
@@ -79,90 +77,55 @@ void android_config_defaults(Config* c) {
 	snprintf(c->menuCombo, sizeof(c->menuCombo), "select+start");
 }
 
-static int cmp_names(const void* a, const void* b) {
-	return strcasecmp(*(char* const*) a, *(char* const*) b);
-}
+/* ------------------------------------------------------------- ROM folder picker */
 
-static double now_ms(void) {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
-}
+static pthread_mutex_t pickLock = PTHREAD_MUTEX_INITIALIZER;
+static char picked[1024];
+static int pickState; /* 0 nothing, 1 a folder picked, -1 cancelled */
 
-static bool scan_rom_dirs(const Config* cfg, char* out, size_t size);
-
-/* The scan reads every ROM's header (unpacking .zip / .7z) until it finds a
- * game with a map profile, which can take seconds; its answer is kept in
- * <GBADS_HOME>/last-rom.txt for the next start. */
-bool android_pick_rom(const Config* cfg, char* out, size_t size) {
-	char remembered[1100] = "";
-	if (android_home()) snprintf(remembered, sizeof(remembered), "%s/last-rom.txt", android_home());
-	FILE* f = remembered[0] ? fopen(remembered, "r") : NULL;
-	if (f) {
-		char line[1024] = "";
-		if (fgets(line, sizeof(line), f)) line[strcspn(line, "\r\n")] = 0;
-		fclose(f);
-		if (line[0] && access(line, R_OK) == 0) {
-			fprintf(stderr, "rom from last-rom.txt (delete it to pick again): %s\n", line);
-			snprintf(out, size, "%s", line);
-			return true;
-		}
+bool android_pick_folder(void) {
+	JNIEnv* env = (JNIEnv*) SDL_AndroidGetJNIEnv();
+	jobject activity = (jobject) SDL_AndroidGetActivity();
+	if (!env || !activity) return false;
+	/* by the activity's class: FindClass on this thread wouldn't see the app's classes */
+	jclass cls = (*env)->GetObjectClass(env, activity);
+	jmethodID m = (*env)->GetMethodID(env, cls, "pickRomFolder", "()V");
+	bool ok = m != NULL;
+	if (ok) {
+		pthread_mutex_lock(&pickLock);
+		pickState = 0;
+		pthread_mutex_unlock(&pickLock);
+		(*env)->CallVoidMethod(env, activity, m);
 	}
-	double t0 = now_ms();
-	bool ok = scan_rom_dirs(cfg, out, size);
-	fprintf(stderr, "rom folder scan took %.0f ms\n", now_ms() - t0);
-	if (ok && remembered[0] && (f = fopen(remembered, "w"))) {
-		fprintf(f, "%s\n", out);
-		fclose(f);
+	if ((*env)->ExceptionCheck(env)) {
+		(*env)->ExceptionClear(env);
+		ok = false;
 	}
+	(*env)->DeleteLocalRef(env, cls);
+	(*env)->DeleteLocalRef(env, activity);
 	return ok;
 }
 
-static bool scan_rom_dirs(const Config* cfg, char* out, size_t size) {
-	char dirs[sizeof(cfg->romDir)];
-	snprintf(dirs, sizeof(dirs), "%s", cfg->romDir);
-	char first[1024] = "";
-	for (char* d = strtok(dirs, ":"); d; d = strtok(NULL, ":")) {
-		DIR* dir = opendir(d);
-		if (!dir) {
-			fprintf(stderr, "rom folder %s: not readable\n", d);
-			continue;
-		}
-		char** names = NULL;
-		int n = 0;
-		struct dirent* de;
-		while ((de = readdir(dir))) {
-			if (de->d_name[0] == '.' || !emu_is_rom_name(de->d_name)) continue;
-			names = realloc(names, sizeof(*names) * (n + 1));
-			names[n++] = strdup(de->d_name);
-		}
-		closedir(dir);
-		qsort(names, n, sizeof(*names), cmp_names);
-		fprintf(stderr, "rom folder %s: %d game(s)\n", d, n);
-		bool found = false;
-		for (int i = 0; i < n && !found; ++i) {
-			char path[1024];
-			snprintf(path, sizeof(path), "%s/%s", d, names[i]);
-			uint8_t hdr[0xB0];
-			if (!emu_rom_header(path, hdr, sizeof(hdr))) continue;
-			char code[5];
-			memcpy(code, hdr + 0xAC, 4);
-			code[4] = 0;
-			if (!first[0]) snprintf(first, sizeof(first), "%s", path);
-			if (profile_find(code)) {
-				snprintf(out, size, "%s", path);
-				found = true;
-			}
-		}
-		for (int i = 0; i < n; ++i) free(names[i]);
-		free(names);
-		if (found) return true;
+int android_take_picked_folder(char* out, size_t size) {
+	pthread_mutex_lock(&pickLock);
+	int st = pickState;
+	if (st == 1) snprintf(out, size, "%s", picked);
+	pickState = 0;
+	pthread_mutex_unlock(&pickLock);
+	return st;
+}
+
+JNIEXPORT void JNICALL Java_io_github_kyannon_gbads_GbaDsActivity_nativeFolderPicked(JNIEnv* env, jclass cls, jstring path) {
+	const char* p = path ? (*env)->GetStringUTFChars(env, path, NULL) : NULL;
+	pthread_mutex_lock(&pickLock);
+	if (p && *p) {
+		snprintf(picked, sizeof(picked), "%s", p);
+		pickState = 1;
+	} else {
+		pickState = -1;
 	}
-	if (first[0]) {
-		snprintf(out, size, "%s", first);
-		return true;
-	}
-	return false;
+	pthread_mutex_unlock(&pickLock);
+	if (p) (*env)->ReleaseStringUTFChars(env, path, p);
 }
 
 /* ------------------------------------------------------------- second screen */

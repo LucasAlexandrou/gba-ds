@@ -20,9 +20,11 @@ void android_init_log(void);
 const char* android_home(void);
 /* Android defaults: ROM folders, screenshots, cheats, no sway. */
 void android_config_defaults(Config* cfg);
-/* No game given: the first game in the ROM folders that has a map profile
- * (else the first game at all). False if there's none. */
-bool android_pick_rom(const Config* cfg, char* out, size_t size);
+/* Opens Android's folder picker (the activity goes to the background while
+ * it's up). False if it couldn't. The answer comes later: */
+bool android_pick_folder(void);
+/* 1: a folder was picked (its path in out), -1: cancelled, 0: no answer yet. */
+int android_take_picked_folder(char* out, size_t size);
 
 /* Size of the second display, if there is one. */
 bool android_second_size(int* w, int* h);

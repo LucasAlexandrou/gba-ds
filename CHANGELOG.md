@@ -2,6 +2,8 @@
 
 ## v1.0.4 (not yet released)
 
+- New option `menu_combo = select+start` in gba-ds.cfg: pressing SELECT and START together opens the pause menu, without the game seeing either button. Off by default.
+
 ## v1.0.3 (2026-10-14)
 
 - **Tony Hawk's Pro Skater 2** (USA/Europe, France, Germany, and SK8 for Japan) is in the game list. The goal sheet shown before a run (Free Skate or Single Session rules, or the career level's checklist with its scratch-outs and ticks) is copied to the second screen, without the CAREER / CASH counters and button prompts drawn over it, and stays there for the run, through pauses and Retry. At the menus the second screen shows the game's logo, cut out of the title screen.

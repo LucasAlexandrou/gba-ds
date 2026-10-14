@@ -177,6 +177,7 @@ Settings live in `gba-ds.cfg` next to the binary. The file is commented. The opt
   1. Start once with `GBADS_DEBUG=1` in `launch.sh`.
   2. Press HOME.
   3. Put the button number the log shows into `home_button`.
+- `menu_combo = select+start`: SELECT and START pressed together also open the menu (the game doesn't see the pair; either button alone still goes to the game).
 - `layout`:
   - `auto` is the default. On ROCKNIX's sway setup, GBA DS asks sway to make its window full screen across both 1024×768 outputs and splits the window in half.
   - `dual` uses one window per display.

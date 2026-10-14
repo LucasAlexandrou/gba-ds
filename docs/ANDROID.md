@@ -224,6 +224,25 @@ After the first milestone:
   maps analog trigger axes). ui.c reads them directly on Android; raw
   buttons from 15 up are logged.
 
+### Second milestone (in progress, branch `android`; first merged into `dev` at 68572d1)
+
+- Game list on Android (main.c no longer picks a game; the milestone-1
+  `last-rom.txt` is gone). Its Settings screen (SELECT, or the Settings
+  button) holds "ROM Folder" on Android instead of the EmulationStation
+  switch: Android's folder picker (ACTION_OPEN_DOCUMENT_TREE, opened from
+  the game thread through JNI on the activity), the tree URI turned into a
+  plain path (All files access), saved as `rom_dir` in
+  `<state_dir>/library.cfg` (loaded after prefs.cfg on every platform).
+  "ROM Folder" is in MENU_TEXTS but brand_data.c isn't regenerated yet
+  (needs the fonts): it shows in the pixel font meanwhile.
+- `menu_combo = select+start` (Android default; `none` elsewhere): opens
+  the pause menu. The first of the two buttons is held back from the game
+  for up to 5 frames; a quick tap is passed on after that.
+- Resume point saved on SDL_APP_WILLENTERBACKGROUND (ui.c calls the
+  game's handler from ui_events; SDL 2.30 blocks the thread at the next
+  pump). Battery saves were already safe: mGBA syncs the mapped .sav
+  shortly after each write.
+
 Not done yet (next): game list and pause menu polish, SELECT+START menu
 combo, saving when Android pauses or kills the app, file access settings,
 frontend launch intents.

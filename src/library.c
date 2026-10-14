@@ -1,4 +1,5 @@
 #include "library.h"
+#include "android.h"
 #include "paths.h"
 #include "profiles.h"
 #include "ui.h"
@@ -493,6 +494,71 @@ static int draw_wrapped(int scr, int x, int y, int width, int px, const char* te
 	return y;
 }
 
+#ifdef __ANDROID__
+/* Android: Settings is the ROM folder, chosen with Android's folder picker
+ * (android.c), kept in <state_dir>/library.cfg. */
+static bool pickPending;
+
+static void draw_settings(const Config* cfg, int scr, int sel) {
+	SettingsGeom g = settings_geom(scr);
+	int px = g.px;
+	ui_dim(scr, 200);
+	ui_fill_round(scr, g.panel, C_HEADER, px * 4);
+	ui_label(scr, g.panel.x + g.panel.w / 2, g.panel.y + px * 12, px * 6, "Settings", C_TEXT);
+	SDL_Rect b[2] = { g.toggle, g.back };
+	for (int i = 0; i < 2; ++i) {
+		if (i == sel) ui_fill_round(scr, (SDL_Rect) { b[i].x - px, b[i].y - px, b[i].w + px * 2, b[i].h + px * 2 }, C_EDGE, px * 4);
+		ui_fill_round(scr, b[i], i == sel ? C_SEL : C_ROW, px * 3);
+	}
+	ui_label(scr, g.toggle.x + g.toggle.w / 2, g.toggle.y + g.toggle.h / 2, px * 5, "ROM Folder", C_TEXT);
+	ui_label(scr, g.back.x + g.back.w / 2, g.back.y + g.back.h / 2, px * 5, "Back", C_TEXT);
+	int tx = g.toggle.x + px * 2, tw = g.toggle.w - px * 4;
+	char dirs[sizeof(cfg->romDir)], line[1200];
+	snprintf(dirs, sizeof(dirs), "%s", cfg->romDir);
+	for (char* p = dirs; *p; ++p) {
+		if (*p == ':') *p = ' ';
+	}
+	snprintf(line, sizeof(line), "GAMES ARE READ FROM: %s", dirs);
+	int y = draw_wrapped(scr, tx, g.textY, tw, px, line, C_DIM);
+	y = draw_wrapped(scr, tx, y + px * 4, tw, px,
+	                 pickPending ? "CHOOSE A FOLDER IN ANDROID'S FILE PICKER..."
+	                             : "ROM FOLDER OPENS ANDROID'S FILE PICKER. GAMES IN ITS SUBFOLDERS ARE FOUND TOO.",
+	                 C_DIM);
+	if (settingsMsg[0]) draw_wrapped(scr, tx, y + px * 6, tw, px, settingsMsg, C_GOLD);
+}
+
+static void settings_toggle(Config* cfg) {
+	(void) cfg;
+	if (android_pick_folder()) {
+		pickPending = true;
+		settingsMsg[0] = 0;
+	} else {
+		snprintf(settingsMsg, sizeof(settingsMsg), "COULD NOT OPEN THE FILE PICKER");
+	}
+}
+
+/* The picker's answer, once it comes. True if the folder changed. */
+static bool settings_poll(Config* cfg) {
+	if (!pickPending) return false;
+	char path[1024];
+	int st = android_take_picked_folder(path, sizeof(path));
+	if (!st) return false;
+	pickPending = false;
+	if (st < 0) {
+		snprintf(settingsMsg, sizeof(settingsMsg), "NO FOLDER CHOSEN");
+		return false;
+	}
+	snprintf(cfg->romDir, sizeof(cfg->romDir), "%s", path);
+	char file[1100];
+	snprintf(file, sizeof(file), "%s/library.cfg", cfg->stateDir);
+	FILE* f = fopen(file, "w");
+	if (f) {
+		fprintf(f, "# written by the game list's Settings\nrom_dir = %s\n", path);
+		fclose(f);
+	}
+	return true;
+}
+#else
 static void draw_settings(const Config* cfg, int scr, int sel) {
 	SettingsGeom g = settings_geom(scr);
 	int px = g.px;
@@ -517,9 +583,15 @@ static void draw_settings(const Config* cfg, int scr, int sel) {
 	if (settingsMsg[0]) draw_wrapped(scr, tx, y + px * 6, tw, px, settingsMsg, C_GOLD);
 }
 
-static void settings_toggle(const Config* cfg) {
+static void settings_toggle(Config* cfg) {
 	es_integration_set(cfg, !es_integration_on(cfg), settingsMsg, sizeof(settingsMsg));
 }
+
+static bool settings_poll(Config* cfg) {
+	(void) cfg;
+	return false;
+}
+#endif
 
 /* "Preparing games" over a dimmed screen, with a progress bar. */
 static void draw_wait(int scr, int done, int total) {
@@ -622,6 +694,16 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 		}
 
 		if (settingsOpen) {
+			if (settings_poll(cfg)) {
+				/* a new ROM folder: list it */
+				free_thumbs();
+				free_tiles();
+				scan(cfg);
+				thumbFor = -2;
+				sel = nGames ? 0 : -1;
+				scroll = 0;
+				snprintf(settingsMsg, sizeof(settingsMsg), "%d GAME%s FOUND", nGames, nGames == 1 ? "" : "S");
+			}
 			if (btn_pressed(B_UP) || btn_pressed(B_DOWN)) settingsSel = !settingsSel;
 			if (btn_pressed(B_A) || btn_pressed(B_START)) {
 				if (settingsSel == 0) settings_toggle(cfg);

@@ -77,14 +77,14 @@ int main(int argc, char** argv) {
 	mkdirs(cfg.stateDir);
 	snprintf(path, sizeof(path), "%s/prefs.cfg", cfg.stateDir);
 	config_load_file(&cfg, path);
+	/* the game list's Settings (Android: the ROM folder) */
+	snprintf(path, sizeof(path), "%s/library.cfg", cfg.stateDir);
+	config_load_file(&cfg, path);
 	config_parse_args(&cfg, argc, argv);
 
 #ifndef __ANDROID__
 	/* keep EmulationStation's entry for GBA DS current, if it's switched on */
 	es_integration_refresh(&cfg);
-#else
-	/* first milestone: no game given -> the first game with a map in the ROM folder */
-	if (!cfg.rom[0] && android_pick_rom(&cfg, cfg.rom, sizeof(cfg.rom))) fprintf(stderr, "playing %s\n", cfg.rom);
 #endif
 
 	signal(SIGTERM, on_signal);

@@ -1,9 +1,14 @@
 package io.github.kyannon.gbads;
 
+import android.content.ActivityNotFoundException;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Point;
 import android.hardware.display.DisplayManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.DocumentsContract;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.util.Log;
@@ -86,6 +91,60 @@ public class GbaDsActivity extends SDLActivity {
             SecondScreen.nativeSetDisplay(0, 0);
             second = null;
         }
+    }
+
+    /* ------------------------------------------------------------ ROM folder picker */
+
+    private static final int PICK_FOLDER = 4711;
+
+    static native void nativeFolderPicked(String path);
+
+    /** Called by the native side (game thread): opens Android's folder picker. */
+    public void pickRomFolder() {
+        runOnUiThread(() -> {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            try {
+                startActivityForResult(i, PICK_FOLDER);
+            } catch (ActivityNotFoundException e) {
+                Log.e(TAG, "no folder picker: " + e);
+                nativeFolderPicked("");
+            }
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode != PICK_FOLDER) {
+            super.onActivityResult(requestCode, resultCode, data);
+            return;
+        }
+        String path = "";
+        if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+            path = treeUriToPath(data.getData());
+            Log.i(TAG, "folder picked: " + data.getData() + " -> " + path);
+        }
+        nativeFolderPicked(path);
+    }
+
+    /**
+     * content://com.android.externalstorage.documents/tree/primary%3AROMs%2Fgba
+     * -> /storage/emulated/0/ROMs/gba (with All files access, the plain path
+     * is readable). Other volumes ("1234-ABCD:...") are under /storage.
+     */
+    private static String treeUriToPath(Uri uri) {
+        String id;
+        try {
+            id = DocumentsContract.getTreeDocumentId(uri);
+        } catch (IllegalArgumentException e) {
+            return "";
+        }
+        int colon = id.indexOf(':');
+        if (colon < 0) return "";
+        String volume = id.substring(0, colon), rest = id.substring(colon + 1);
+        String root = "primary".equalsIgnoreCase(volume)
+                ? Environment.getExternalStorageDirectory().getAbsolutePath()
+                : "/storage/" + volume;
+        return rest.isEmpty() ? root : root + "/" + rest;
     }
 
     @Override
