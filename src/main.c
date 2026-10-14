@@ -92,6 +92,9 @@ int main(int argc, char** argv) {
 	signal(SIGHUP, on_signal);
 
 	if (!ui_init(&cfg, true)) return 1;
+#ifdef __ANDROID__
+	fprintf(stderr, "startup: screens ready\n"); /* logcat's timestamps time the start-up steps */
+#endif
 	if (cfg.inputScript[0]) ui_load_script(cfg.inputScript);
 
 	if (cfg.rom[0]) {

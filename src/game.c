@@ -1584,6 +1584,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		ui_present();
 		drawTicks += SDL_GetPerformanceCounter() - drawT0;
+#ifdef __ANDROID__
+		if (frameCount == 1) fprintf(stderr, "startup: first frame shown\n");
+#endif
 
 		/* ---- pacing: real-time clock nudged by audio queue depth */
 		double now = SDL_GetPerformanceCounter() / freq;

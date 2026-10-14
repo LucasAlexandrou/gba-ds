@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 #include <unistd.h>
 
 #define TAG "GBADS"
@@ -79,7 +80,42 @@ static int cmp_names(const void* a, const void* b) {
 	return strcasecmp(*(char* const*) a, *(char* const*) b);
 }
 
+static double now_ms(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+}
+
+static bool scan_rom_dirs(const Config* cfg, char* out, size_t size);
+
+/* The scan reads every ROM's header (unpacking .zip / .7z) until it finds a
+ * game with a map profile, which can take seconds; its answer is kept in
+ * <GBADS_HOME>/last-rom.txt for the next start. */
 bool android_pick_rom(const Config* cfg, char* out, size_t size) {
+	char remembered[1100] = "";
+	if (android_home()) snprintf(remembered, sizeof(remembered), "%s/last-rom.txt", android_home());
+	FILE* f = remembered[0] ? fopen(remembered, "r") : NULL;
+	if (f) {
+		char line[1024] = "";
+		if (fgets(line, sizeof(line), f)) line[strcspn(line, "\r\n")] = 0;
+		fclose(f);
+		if (line[0] && access(line, R_OK) == 0) {
+			fprintf(stderr, "rom from last-rom.txt (delete it to pick again): %s\n", line);
+			snprintf(out, size, "%s", line);
+			return true;
+		}
+	}
+	double t0 = now_ms();
+	bool ok = scan_rom_dirs(cfg, out, size);
+	fprintf(stderr, "rom folder scan took %.0f ms\n", now_ms() - t0);
+	if (ok && remembered[0] && (f = fopen(remembered, "w"))) {
+		fprintf(f, "%s\n", out);
+		fclose(f);
+	}
+	return ok;
+}
+
+static bool scan_rom_dirs(const Config* cfg, char* out, size_t size) {
 	char dirs[sizeof(cfg->romDir)];
 	snprintf(dirs, sizeof(dirs), "%s", cfg->romDir);
 	char first[1024] = "";

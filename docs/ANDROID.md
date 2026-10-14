@@ -181,6 +181,10 @@ swapped; 20-30 fps. Changes since:
   screen was redrawn and at what cost (ui.c). Checked on the desktop with
   the Android paths and stub glue: the replayed pause menu matches the
   directly drawn one, and it redraws only on changes.
+- Start-up (5-10 s of black reported): the ROM pick reads every ROM's
+  header (unpacking archives) until it finds one with a map profile; the
+  result is now kept in `last-rom.txt` in the app folder and reused.
+  Start-up steps are logged (`startup:` lines; logcat timestamps time them).
 - Display: GbaDsActivity has a task affinity of its own and is started
   with FLAG_ACTIVITY_NEW_TASK, so the display-0 launch request isn't
   ignored when the launcher's task sits on the other display.
