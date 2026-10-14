@@ -748,6 +748,34 @@ void ui_screenshot(const char* path) {
 	SDL_FreeSurface(s);
 }
 
+/* stb_image_write is compiled in logo.c */
+int stbi_write_png(char const* filename, int w, int h, int comp, const void* data, int stride_in_bytes);
+
+bool ui_screenshot_stacked(const char* pngPath) {
+	int W = 0, H = 0;
+	for (int i = 0; i < nScreens; ++i) {
+		W = SDL_max(W, screens[i].rect.w);
+		H += screens[i].rect.h;
+	}
+	if (!W || !H) return false;
+	unsigned char* img = calloc((size_t) W * H, 4);
+	if (!img) return false;
+	bool ok = true;
+	int y = 0;
+	for (int i = 0; i < nScreens && ok; ++i) {
+		SDL_Rect r = screens[i].rect;
+		/* ABGR8888 is R, G, B, A in memory: what the PNG writer wants */
+		unsigned char* dst = img + (size_t) y * W * 4 + (size_t) (W - r.w) / 2 * 4;
+		ok = SDL_RenderReadPixels(views[screens[i].view].ren, &r, SDL_PIXELFORMAT_ABGR8888, dst, W * 4) == 0;
+		y += r.h;
+	}
+	for (size_t p = 0; ok && p < (size_t) W * H; ++p) img[p * 4 + 3] = 255;
+	if (ok) ok = stbi_write_png(pngPath, W, H, 4, img, W * 4) != 0;
+	fprintf(stderr, "screenshot %dx%d -> %s: %s\n", W, H, pngPath, ok ? "ok" : SDL_GetError());
+	free(img);
+	return ok;
+}
+
 void ui_osd(const char* fmt, ...) {
 	va_list ap;
 	va_start(ap, fmt);

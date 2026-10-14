@@ -33,6 +33,7 @@ typedef struct Config {
 	char saveDir[512]; /* battery saves; default: next to the ROM */
 	char stateDir[512]; /* save states, thumbnails, prefs; default: <app>/states */
 	char romDir[1024]; /* library folders, ':'-separated */
+	char screenshotDir[512]; /* "Take Screenshot" saves here */
 	char cheatDir[1024]; /* RetroArch .cht folders, ':'-separated (searched two levels deep) */
 	char assetDir[512]; /* logos etc.; default: next to the binary */
 	char touchScreen[16]; /* first | second: which screen has the touch panel */

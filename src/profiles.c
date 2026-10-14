@@ -154,6 +154,7 @@ static const MapProfile profiles[] = {
 		 * scroll along with Link like the close-up does */
 		.open2If = { { 0x03002BDD, 0xFF, 0x07, 1 } }, .open2Delay = 30, .open2 = { { K_L, 4 } },
 		.settleMax = 150, .openWithin = 30, .stableFrames = 3, .maxDiff = 300,
+		.dimWhenUnavailable = true,
 		.crop_x = 0, .crop_y = 0, .crop_w = 240, .crop_h = 160,
 		/* not still black: dungeon maps can sit on a black screen for a few
 		 * frames before fading in (dark rooms), which otherwise looks "settled" */

@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #define GBA_FPS (16777216.0 / 280896.0)
 
@@ -49,11 +50,11 @@ static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_CHEATS, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
+enum MenuItem { M_RESUME, M_CHEATS, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
 static const char* menuLabels[] = {
 	/* title case: drawn in Futura from the built-in images (tools/make_brand.py) */
 	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_RESTART] = "Restart Game",
-	[M_LOAD] = "Load State", [M_CHEATS] = "Cheats", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
+	[M_LOAD] = "Load State", [M_CHEATS] = "Cheats", [M_SHOT] = "Take Screenshot", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
 };
 static int menuItems[9], nMenuItems;
 /* two pages, switched with L1/R1 or the tabs */
@@ -666,9 +667,11 @@ static int small_text_px(int s, int gap) {
 
 /* Messages ("RESUMED", "STATE SAVED"...): bottom left of the touchscreen (the
  * bottom screen), in the band below the picture, at the FPS counter's size. */
+static bool shotPending; /* Take Screenshot: capture the next frame drawn */
+
 static void draw_osd(void) {
 	const char* osd = ui_osd_text();
-	if (!osd || menuOpen) return;
+	if (!osd || menuOpen || shotPending) return;
 	int s = ui_touch_screen();
 	SDL_Rect r = screens[s].rect;
 	bool gameHere = nScreens == 1 || s == game_screen() || !(mc && cfg->map);
@@ -741,6 +744,10 @@ static bool activate(int item, enum GameExit* exitTo) {
 	switch (item) {
 	case M_RESUME:
 		menuOpen = false;
+		break;
+	case M_SHOT:
+		menuOpen = false; /* taken from the next frame, without the menu */
+		shotPending = true;
 		break;
 	case M_CHEATS:
 		if (!cheats.n) snprintf(menuNote, sizeof(menuNote), "NO CHEATS FOUND (SEE README)");
@@ -821,6 +828,27 @@ static bool activate(int item, enum GameExit* exitTo) {
 	return false;
 }
 
+/* Saves what's on the screens now (before ui_present) as
+ * <screenshot_dir>/<game>-YYYYMMDD-HHMMSS.png, screens stacked top to bottom. */
+static void take_screenshot(void) {
+	char dir[600], path[1400];
+	snprintf(dir, sizeof(dir), "%s", cfg->screenshotDir);
+	mkdirs(dir);
+	struct stat st;
+	if (stat(dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
+		snprintf(dir, sizeof(dir), "%s/screenshots", cfg->stateDir);
+		mkdirs(dir);
+	}
+	time_t now = time(NULL);
+	struct tm tmv;
+	localtime_r(&now, &tmv);
+	char stamp[32];
+	strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", &tmv);
+	snprintf(path, sizeof(path), "%s/%s-%s.png", dir, gp.base, stamp);
+	for (int n = 2; file_exists(path) && n < 100; ++n) snprintf(path, sizeof(path), "%s/%s-%s-%d.png", dir, gp.base, stamp, n);
+	ui_osd(ui_screenshot_stacked(path) ? "SCREENSHOT SAVED" : "SCREENSHOT FAILED");
+}
+
 /* ---------------------------------------------------------------- session */
 
 enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
@@ -887,6 +915,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[0][pageLen[0]++] = M_SAVE;
 	pages[0][pageLen[0]++] = M_LOAD;
 	pages[0][pageLen[0]++] = M_CHEATS;
+	pages[0][pageLen[0]++] = M_SHOT;
 	if (fromLibrary) pages[0][pageLen[0]++] = M_LIBRARY;
 	pages[0][pageLen[0]++] = M_EXIT;
 	pages[1][pageLen[1]++] = M_SWAP;
@@ -1218,7 +1247,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (fails != lastFails) {
 				if (debug && fails) fprintf(stderr, "frame %llu: map capture failed (%d in a row): %s\n",
 				                            (unsigned long long) frameCount, fails, why ? why : "?");
-				if (fails && why && (!strcmp(why, "map screen did not appear") || !strcmp(why, "map button did nothing"))) {
+				const MapProfile* dp = mapcap_profile(mc);
+				if (fails && why && dp && dp->dimWhenUnavailable &&
+				    (!strcmp(why, "map screen did not appear") || !strcmp(why, "map button did nothing"))) {
 					mapInactive = true;
 				}
 				lastFails = fails;
@@ -1259,6 +1290,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(gameTex[i], NULL, emu.fb, GBA_W * 4);
 		ui_clear();
 		draw_game();
+		if (shotPending) {
+			shotPending = false;
+			take_screenshot();
+		}
 		ui_present();
 
 		/* ---- pacing: real-time clock nudged by audio queue depth */

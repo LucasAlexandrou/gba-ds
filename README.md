@@ -56,7 +56,7 @@ The app opens on a game list: two columns of tiles on the touchscreen, each show
 
 - **Resume:** leaving a game saves its state automatically, and launching it again picks up exactly there. Turn this off with `auto_resume = 0`. Battery saves are written as usual too, so in-game saves are never at risk.
 - **Pause menu:** tap the touchscreen or press **HOME**. Both screens dim, the game and its sound pause, and the menu appears on the touchscreen. It has two pages. Switch between them with **L1/R1** or by tapping the tabs at the top.
-  - **Game:** Resume · Restart game (tap twice; unsaved progress is lost) · Save state · Load state (greyed out until you've saved one) · Cheats (see below) · Close game (back to the game list) · Close GBA DS (back to EmulationStation). Both save a resume point first.
+  - **Game:** Resume · Restart game (tap twice; unsaved progress is lost) · Save state · Load state (greyed out until you've saved one) · Cheats (see below) · Take screenshot (both screens as they look right now, with your display settings, stacked top to bottom into one PNG in `/storage/roms/screenshots`; `screenshot_dir` changes the folder) · Close game (back to the game list) · Close GBA DS (back to EmulationStation). Both save a resume point first.
   - **Display:** Swap screens · Scale (pixel perfect / full width) · LCD grid · Overlays (primary / secondary / both / none) · Map animations (off shows a still map, without the blinking markers) · Show FPS (frames per second and % of full speed).
 
   Display choices are remembered for next time. The menu works by touch or with the D-pad and A; B, Start or HOME closes it.

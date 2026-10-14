@@ -39,6 +39,11 @@ typedef struct MapProfile {
 	MacroStep open2[4];
 	int settleMax;     /* frames to wait after the macro for the map to settle */
 	int openWithin;    /* give up if the memory probes don't match within this many frames (0 = settleMax) */
+	/* Dim the last map while the map can't be brought up (A Link to the
+	 * Past: L does nothing indoors without a dungeon map). Other games keep
+	 * the last map at full brightness: their captures also fail briefly
+	 * during room transitions. */
+	bool dimWhenUnavailable;
 	int stableFrames;  /* consecutive "quiet" frames required */
 	int maxDiff;       /* pixels allowed to change between quiet frames (blinking markers) */
 	int crop_x, crop_y, crop_w, crop_h;

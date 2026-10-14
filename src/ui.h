@@ -100,6 +100,9 @@ bool ui_load_logo(const Config* cfg, const char* rom, const char* code, SDL_Text
                   bool* pixelArt);
 
 void ui_screenshot(const char* path);
+/* The screens as currently drawn (call before ui_present), stacked top to
+ * bottom in screen order, saved as PNG. */
+bool ui_screenshot_stacked(const char* pngPath);
 void ui_osd(const char* fmt, ...);
 const char* ui_osd_text(void); /* NULL when expired */
 
