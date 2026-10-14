@@ -79,11 +79,32 @@ settings, file access.
 
 ## Facts from the owner (fill in before starting)
 
-- Device model and GammaOS version:
-- Android version (Settings > About):
+- Device model and GammaOS version: RG DS Plus, GammaOS 1.4.4 (core)
+- Android version (Settings > About): Android 14 (20261002)
 - Output of `adb shell dumpsys display | grep -E "mDisplayId|DisplayDeviceInfo"`
   (how the second screen is exposed):
-- Which screen has touch, and does touch on it reach apps?
+
+1|tdgsi_arm64_ab:/ # dumpsys display | grep -E "mDisplayId|DisplayDeviceInfo"
+  DisplayDeviceInfo{"Built-in Screen (port 0)": uniqueId="local:0", 1024 x 768, modeId 1, renderFrameRate 60.000004, defaultModeId 1, userPreferredModeId -1, supportedModes [{id=1, width=1024, height=768, fps=60.000004, vsync=60.000004, alternativeRefreshRates=[], supportedHdrTypes=[]}], colorMode 0, supportedColorModes [0], hdrCapabilities HdrCapabilities{mSupportedHdrTypes=[], mMaxLuminance=500.0, mMaxAverageLuminance=500.0, mMinLuminance=0.0}, allmSupported false, gameContentTypeSupported false, density 240, 218.568 x 136.413 dpi, appVsyncOff 1000000, presDeadline 16666666, touch INTERNAL, rotation 0, type INTERNAL, address {port=0}, deviceProductInfo null, state ON, committedState ON, frameRateOverride , brightnessMinimum 0.0, brightnessMaximum 1.0, brightnessDefault 0.39763778, hdrSdrRatio NaN, FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY, FLAG_ROTATES_WITH_CONTENT, FLAG_SECURE, FLAG_SUPPORTS_PROTECTED_BUFFERS, FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS, FLAG_TRUSTED, installOrientation 0, displayShape DisplayShape{ spec=-1440493287 displayWidth=1024 displayHeight=768 physicalPixelDisplaySizeRatio=1.0 rotation=0 offsetX=0 offsetY=0 scale=1.0}}
+  DisplayDeviceInfo{"Built-in Screen (port 1)": uniqueId="local:1", 1024 x 768, modeId 2, renderFrameRate 60.000004, defaultModeId 2, userPreferredModeId -1, supportedModes [{id=2, width=1024, height=768, fps=60.000004, vsync=60.000004, alternativeRefreshRates=[], supportedHdrTypes=[]}], colorMode 0, supportedColorModes [0], hdrCapabilities HdrCapabilities{mSupportedHdrTypes=[], mMaxLuminance=500.0, mMaxAverageLuminance=500.0, mMinLuminance=0.0}, allmSupported false, gameContentTypeSupported false, density 240, 113.579 x 136.413 dpi, appVsyncOff 1000000, presDeadline 16666666, touch INTERNAL, rotation 0, type INTERNAL, address {port=1}, deviceProductInfo null, state ON, committedState ON, frameRateOverride , brightnessMinimum 0.0, brightnessMaximum 1.0, brightnessDefault 0.5, hdrSdrRatio NaN, FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY, FLAG_ROTATES_WITH_CONTENT, FLAG_SECURE, FLAG_SUPPORTS_PROTECTED_BUFFERS, FLAG_PRESENTATION, FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS, FLAG_TRUSTED, FLAG_OWN_DISPLAY_GROUP, installOrientation 2, displayShape DisplayShape{ spec=-1440493287 displayWidth=1024 displayHeight=768 physicalPixelDisplaySizeRatio=1.0 rotation=0 offsetX=0 offsetY=0 scale=1.0}}
+    mDisplayId=0
+    mDisplayId=2
+  mDisplayId=0
+  mDisplayId=0
+  mDisplayId=0
+  mDisplayId=: 0
+  mDisplayId= 0
+  mDisplayId=0
+  mDisplayId=0
+  mDisplayId=2
+  mDisplayId=2
+  mDisplayId=2
+  mDisplayId=: 2
+  mDisplayId= 2
+  mDisplayId=2
+  mDisplayId=2
+  
+- Which screen has touch, and does touch on it reach apps? Bottom screen. Yes.
 - Does the device have the RG DS Plus's button layout? Anything special
-  about HOME / BACK / SELECT+START in GammaOS?
-- Where ROMs live on the device:
+  about HOME / BACK / SELECT+START in GammaOS? It is an RG DS Plus.
+- Where ROMs live on the device: Uri is content://com.android.externalstorage.documents/document/primary%3AROMs
