@@ -233,8 +233,7 @@ After the first milestone:
   the game thread through JNI on the activity), the tree URI turned into a
   plain path (All files access), saved as `rom_dir` in
   `<state_dir>/library.cfg` (loaded after prefs.cfg on every platform).
-  "ROM Folder" is in MENU_TEXTS but brand_data.c isn't regenerated yet
-  (needs the fonts): it shows in the pixel font meanwhile.
+  "ROM Folder" is a Futura label (MENU_TEXTS; brand_data.c regenerated).
 - `menu_combo = select+start` (Android default; `none` elsewhere): opens
   the pause menu. The first of the two buttons is held back from the game
   for up to 5 frames; a quick tap is passed on after that.
