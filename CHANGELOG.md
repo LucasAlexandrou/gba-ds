@@ -3,7 +3,7 @@
 ## v1.0.3 (not yet released)
 
 - **Tony Hawk's Pro Skater 2** (USA/Europe, France, Germany, and SK8 for Japan) is in the game list. For now the second screen shows its logo, cut out of the title screen (it has no layer of its own).
-- Tony Hawk's Pro Skater 2: the goal sheet shown before a run (Free Skate or Single Session rules, or the career level's checklist) is copied to the second screen and stays there for the run, through pauses and Retry. Back at the menus (level select, main menu) the second screen goes back to the logo.
+- Tony Hawk's Pro Skater 2: the goal sheet shown before a run (Free Skate or Single Session rules, or the career level's checklist) is copied to the second screen, without the CAREER / CASH counters and button prompts drawn over it, and stays there for the run, through pauses and Retry. Back at the menus (level select, main menu) the second screen goes back to the logo.
 - Game list: French and German flags for single-country releases when you have more than one region of a game.
 
 ## v1.0.2 (2026-10-13)

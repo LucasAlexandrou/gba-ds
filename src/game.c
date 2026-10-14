@@ -393,6 +393,36 @@ static int probes_hit(const uint32_t* fb, const Probe* p, int tol) {
 	return n;
 }
 
+/* Renders the current frame again with sprites off into out, then puts the
+ * game back exactly as it was (state, picture, sound). Layer switches only
+ * take effect when the game writes its display registers, hence loading
+ * the state after switching. */
+static void snapshot_without_sprites(uint32_t* out) {
+	static void* st;
+	static size_t stSize;
+	static uint32_t raw[GBA_W * GBA_H];
+	size_t sz = emu_state_size(&emu);
+	if (sz > stSize) {
+		free(st);
+		st = malloc(sz);
+		stSize = st ? sz : 0;
+	}
+	if (!st || !emu_state_save(&emu, st)) {
+		memcpy(out, emu.fb, sizeof(raw));
+		return;
+	}
+	memcpy(raw, emu.fb, sizeof(raw));
+	emu_layers(&emu, 0x0F);
+	emu_state_load(&emu, st);
+	emu_frame(&emu, 0);
+	memcpy(out, emu.fb, sizeof(raw));
+	emu_layers(&emu, 0x1F);
+	emu_state_load(&emu, st);
+	int16_t drop[2048];
+	while (emu_audio_read(&emu, drop, 1024) > 0) {}
+	memcpy(emu.fb, raw, sizeof(raw));
+}
+
 /* Logo-only games: copy a recognised screen (THPS2 goal sheet) to the second
  * screen; back to the logo at the menus. */
 static void update_snapshot(void) {
@@ -401,7 +431,18 @@ static void update_snapshot(void) {
 	if (probes_hit(emu.fb, sn->show, tol) >= sn->showMin) {
 		snapRevert = 0;
 		if (++snapShow >= SDL_max(1, sn->stable)) {
-			for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, emu.fb, GBA_W * 4);
+			const uint32_t* px = emu.fb;
+			if (sn->noSprites) {
+				/* only when the picture changes (the sheets are still) */
+				static uint32_t last[GBA_W * GBA_H], clean[GBA_W * GBA_H];
+				if (mapShownIdx < 0 || memcmp(last, emu.fb, sizeof(last))) {
+					memcpy(last, emu.fb, sizeof(last));
+					snapshot_without_sprites(clean);
+					for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, clean, GBA_W * 4);
+				}
+				px = NULL;
+			}
+			if (px) for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, px, GBA_W * 4);
 			if (mapShownIdx < 0 && debug) fprintf(stderr, "frame %llu: screen copied to the second screen\n", (unsigned long long) frameCount);
 			mapShownIdx = 0;
 		}

@@ -59,6 +59,9 @@ typedef struct MapProfile {
 		Probe revert[2][8];
 		int revertMin[2];
 		int stable, tol;
+		/* copy the screen without its sprites (re-rendered with OBJ off):
+		 * THPS2's CAREER / CASH counters and button prompts */
+		bool noSprites;
 	} snap;
 	int stableFrames;  /* consecutive "quiet" frames required */
 	int maxDiff;       /* pixels allowed to change between quiet frames (blinking markers) */

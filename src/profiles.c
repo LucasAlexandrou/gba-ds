@@ -203,7 +203,8 @@ static const MapProfile profiles[] = {
 		 * cut out by its shape (the USA/Europe, French and German titles are
 		 * identical), on the frame after 920 */
 		.logo = { .wait = 920, .mask = &logoMaskTHPS2 },
-	/* goal sheet before a run (Free Skate, Single Session, career checklist);
+	/* goal sheet before a run (Free Skate, Single Session, career checklist),
+	 * without the sprites drawn over it;
 	 * back to the logo on the menus with the blue banner (main menu, skater
 	 * and level select). The results screen after a run keeps it: Retry
 	 * goes straight back in without the sheet. */
@@ -218,6 +219,7 @@ static const MapProfile profiles[] = {
 		.revertMin = { 7 },
 		.stable = 3,
 		.tol = 12,
+		.noSprites = true, /* CAREER / CASH and the button prompts are sprites; the sheet is BG */
 	},
 	},
 };
