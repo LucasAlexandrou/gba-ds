@@ -1,0 +1,70 @@
+# Builds the Android APK on every push to android / dev (and by hand from
+# the Actions tab). The APK is attached to the run as an artifact.
+#
+# Signing: the repository secrets ANDROID_KEYSTORE_B64 (the keystore,
+# base64), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+# Every build must be signed with the same key, or Android refuses to install
+# it over the previous one. Without the secrets the APK is debug-signed.
+name: Android
+
+on:
+  push:
+    branches: [android, dev]
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/gba-ds.jks"
+            echo "GBADS_KEYSTORE=$RUNNER_TEMP/gba-ds.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No ANDROID_KEYSTORE_B64 secret: this APK is debug-signed and won't install over a release-signed one."
+          fi
+
+      - name: Build
+        env:
+          GBADS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          GBADS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          GBADS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export ANDROID_NDK_HOME="${ANDROID_NDK_LATEST_HOME}"
+          set -o pipefail
+          scripts/build-android.sh 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      # The end of the log as an annotation, readable from the run page (and
+      # the public API) without downloading the logs.
+      - name: Report failure
+        if: failure()
+        run: |
+          [ -f "$RUNNER_TEMP/build.log" ] || exit 0
+          msg=$(grep -iE "error|fail|what went wrong" "$RUNNER_TEMP/build.log" | tail -n 25 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=Build errors::$msg"
+          msg=$(tail -n 40 "$RUNNER_TEMP/build.log" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=End of build log::$msg"
+
+      - name: Version
+        id: v
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gba-ds-v${{ steps.v.outputs.version }}-android
+          path: dist/gba-ds-*-android.apk
+          if-no-files-found: error

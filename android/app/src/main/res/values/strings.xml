@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GBA DS</string>
+    <string name="need_files">GBA DS needs \"All files access\" to read your ROM folder. Switch it on, then come back.</string>
+</resources>

@@ -6,6 +6,7 @@
  *   mapcap.c   map capture with a shadow emulator core; profiles.c per game
  *   ui.c       windows, screens, touch/buttons, drawing
  */
+#include "android.h"
 #include "config.h"
 #include "esinteg.h"
 #include "game.h"
@@ -33,9 +34,15 @@ int main(int argc, char** argv) {
 			return 0;
 		}
 	}
+#ifdef __ANDROID__
+	android_init_log();
+#endif
 	fprintf(stderr, "GBA DS %s\n", GBADS_VERSION);
 	Config cfg;
 	config_defaults(&cfg);
+#ifdef __ANDROID__
+	android_config_defaults(&cfg);
+#endif
 
 	char exeDir[1024] = ".";
 	char exe[1024];
@@ -44,6 +51,10 @@ int main(int argc, char** argv) {
 		exe[n] = 0;
 		snprintf(exeDir, sizeof(exeDir), "%s", dirname(exe));
 	}
+#ifdef __ANDROID__
+	/* the executable is Android's app_process: use the app's own folder */
+	if (android_home()) snprintf(exeDir, sizeof(exeDir), "%s", android_home());
+#endif
 
 	/* defaults < gba-ds.cfg < states/prefs.cfg (choices made in the menu) < command line */
 	char path[1100];
@@ -68,8 +79,13 @@ int main(int argc, char** argv) {
 	config_load_file(&cfg, path);
 	config_parse_args(&cfg, argc, argv);
 
+#ifndef __ANDROID__
 	/* keep EmulationStation's entry for GBA DS current, if it's switched on */
 	es_integration_refresh(&cfg);
+#else
+	/* first milestone: no game given -> the first game with a map in the ROM folder */
+	if (!cfg.rom[0] && android_pick_rom(&cfg, cfg.rom, sizeof(cfg.rom))) fprintf(stderr, "playing %s\n", cfg.rom);
+#endif
 
 	signal(SIGTERM, on_signal);
 	signal(SIGINT, on_signal);

@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "android.h"
 #include "brand.h"
 #include "font.h"
 #include "logo.h"
@@ -23,6 +24,9 @@ static uint64_t ticks;
 static SDL_GameController* pads[8];
 static SDL_Joystick* rawJoys[8];
 static bool debug;
+#ifdef __ANDROID__
+static int lastTouchScreen = -1; /* the screen touches came from (Android: either display may have the panel) */
+#endif
 
 /* Per-view caches for the pixel pipeline. Several entries, because the game
  * and the map can differ in size (e.g. the cropped Metroid maps); a single
@@ -172,6 +176,10 @@ bool ui_init(Config* c, bool wantDual) {
 	debug = getenv("GBADS_DEBUG") != NULL;
 	SDL_SetHint(SDL_HINT_APP_NAME, "GBA DS");
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, cfg->smooth ? "linear" : "nearest");
+#ifdef __ANDROID__
+	SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft");
+	SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1"); /* BACK opens the menu instead of closing the app */
+#endif
 	setenv("SDL_VIDEO_WAYLAND_WMCLASS", "gba-ds", 0);
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS) != 0) {
 		fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
@@ -184,6 +192,27 @@ bool ui_init(Config* c, bool wantDual) {
 	}
 	open_pads();
 
+#ifdef __ANDROID__
+	/* SDL only has the display the activity is on. The other one is a
+	 * Presentation window in Java; it's drawn here with a software renderer
+	 * and copied to its surface in ui_present. */
+	if (!create_view(&views[0], 0, "GBA DS", true, 1024, 768)) return false;
+	nViews = 1;
+	int sw, sh;
+	if (strcmp(cfg->layout, "single") && android_second_size(&sw, &sh)) {
+		views[1].surf = SDL_CreateRGBSurfaceWithFormat(0, sw, sh, 32, SDL_PIXELFORMAT_ABGR8888);
+		views[1].ren = views[1].surf ? SDL_CreateSoftwareRenderer(views[1].surf) : NULL;
+		if (views[1].ren) {
+			SDL_SetRenderDrawBlendMode(views[1].ren, SDL_BLENDMODE_BLEND);
+			nViews = 2;
+		} else {
+			fprintf(stderr, "second screen renderer: %s\n", SDL_GetError());
+		}
+	}
+	fprintf(stderr, "android: %s\n", nViews == 2 ? "two screens" : "one screen (no second display)");
+	ui_layout();
+	return true;
+#endif
 	int displays = SDL_GetNumVideoDisplays();
 	const char* driver = SDL_GetCurrentVideoDriver();
 	bool underSway = getenv("SWAYSOCK") != NULL;
@@ -217,7 +246,9 @@ void ui_shutdown(void) {
 	}
 	for (int i = 0; i < nViews; ++i) {
 		SDL_DestroyRenderer(views[i].ren);
-		SDL_DestroyWindow(views[i].win);
+		if (views[i].win) SDL_DestroyWindow(views[i].win);
+		if (views[i].surf) SDL_FreeSurface(views[i].surf);
+		views[i] = (View) { 0 };
 	}
 	SDL_Quit();
 }
@@ -272,6 +303,9 @@ uint64_t ui_ticks(void) {
 
 int ui_touch_screen(void) {
 	if (nScreens < 2) return 0;
+#ifdef __ANDROID__
+	if (lastTouchScreen >= 0 && lastTouchScreen < nScreens) return lastTouchScreen;
+#endif
 	return !strcmp(cfg->touchScreen, "first") ? 0 : 1;
 }
 
@@ -283,6 +317,9 @@ int ui_other_screen(void) {
 /* ------------------------------------------------------------- input */
 
 static int view_of_window(Uint32 id) {
+#ifdef __ANDROID__
+	if (id == GBADS_SECOND_WINDOW_ID) return nViews == 2 ? 1 : -1;
+#endif
 	for (int i = 0; i < nViews; ++i) {
 		if (SDL_GetWindowID(views[i].win) == id) return i;
 	}
@@ -323,6 +360,13 @@ static void queue_pointer(int kind, int view, float px, float py, bool normalize
 		if (p.screen < 0) return;
 	}
 	if (debug) fprintf(stderr, "pointer kind %d screen %d at %d,%d\n", p.kind, p.screen, p.x, p.y);
+#ifdef __ANDROID__
+	if (p.kind != 3) {
+		fprintf(stderr, "touch %s on screen %d (%s display) at %d,%d\n", p.kind == 1 ? "down" : "up", p.screen,
+		        screens[p.screen].view == 0 ? "game activity's" : "second", p.x, p.y);
+	}
+	if (p.kind == 1) lastTouchScreen = p.screen;
+#endif
 	int next = (pqTail + 1) % PQ;
 	if (next != pqHead) {
 		pq[pqTail] = p;
@@ -452,6 +496,9 @@ void ui_read_buttons(void) {
 	    k[SDL_SCANCODE_MENU] || k[SDL_SCANCODE_APPLICATION]) {
 		btnNow[B_HOME] = true;
 	}
+#ifdef __ANDROID__
+	if (k[SDL_SCANCODE_AC_BACK]) btnNow[B_HOME] = true; /* Android keeps HOME; BACK stands in */
+#endif
 
 	for (int i = 0; i < B_COUNT; ++i) {
 		if (scriptBtns & (1u << i)) btnNow[i] = true;
@@ -472,7 +519,12 @@ void ui_present(void) {
 		ui_screenshot(pendingShot);
 		pendingShot[0] = 0;
 	}
-	for (int i = 0; i < nViews; ++i) SDL_RenderPresent(views[i].ren);
+	for (int i = 0; i < nViews; ++i) {
+		SDL_RenderPresent(views[i].ren);
+#ifdef __ANDROID__
+		if (views[i].surf) android_second_present(views[i].surf);
+#endif
+	}
 }
 
 SDL_Renderer* ui_ren(int screen) {

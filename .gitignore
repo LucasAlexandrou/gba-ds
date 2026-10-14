@@ -6,3 +6,11 @@ dist/*.zip
 *.sav
 *.ss
 tools/harness
+dist/*.apk
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+*.jks
+*.keystore

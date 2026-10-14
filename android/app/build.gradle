@@ -1,0 +1,97 @@
+// Built by scripts/build-android.sh, which fetches SDL2 and mGBA, builds
+// libmgba with the NDK and passes their paths as Gradle properties:
+//   -PsdlDir=...  -PmgbaSrc=...  -PmgbaBuild=...
+// Release signing (optional; debug-signed otherwise) from the environment:
+//   GBADS_KEYSTORE, GBADS_KEYSTORE_PASSWORD, GBADS_KEY_ALIAS, GBADS_KEY_PASSWORD
+plugins {
+    id "com.android.application"
+}
+
+def need = { String name ->
+    if (!project.hasProperty(name)) throw new GradleException("-P${name}=... missing (build with scripts/build-android.sh)")
+    return file(project.property(name)).absolutePath
+}
+def sdlDir = need("sdlDir")
+def mgbaSrc = need("mgbaSrc")
+def mgbaBuild = need("mgbaBuild")
+def appVersion = rootProject.file("../VERSION").text.trim()
+def runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1") as int
+def keystore = System.getenv("GBADS_KEYSTORE")
+
+android {
+    namespace "io.github.kyannon.gbads"
+    compileSdk 34
+    def ndkDir = System.getenv("ANDROID_NDK_HOME") ?: System.getenv("ANDROID_NDK_LATEST_HOME")
+    if (ndkDir) ndkPath ndkDir
+
+    defaultConfig {
+        applicationId "io.github.kyannon.gbads"
+        minSdk 26
+        targetSdk 34
+        versionCode runNumber
+        versionName appVersion
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=c++_static",
+                        "-DGBADS_SDL_SRC=${sdlDir}",
+                        "-DGBADS_MGBA_SRC=${mgbaSrc}",
+                        "-DGBADS_MGBA_BUILD=${mgbaBuild}",
+                        "-DGBADS_VERSION=${appVersion}"
+            }
+        }
+    }
+
+    signingConfigs {
+        if (keystore) {
+            release {
+                storeFile file(keystore)
+                storePassword System.getenv("GBADS_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("GBADS_KEY_ALIAS")
+                keyPassword System.getenv("GBADS_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig keystore ? signingConfigs.release : signingConfigs.debug
+            externalNativeBuild {
+                cmake {
+                    arguments "-DCMAKE_BUILD_TYPE=Release"
+                    cFlags "-O2"
+                }
+            }
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    sourceSets {
+        main {
+            // SDL's Java side (SDLActivity...) straight from the SDL source, so it always matches libSDL2.so
+            java.srcDirs += "${sdlDir}/android-project/app/src/main/java"
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
