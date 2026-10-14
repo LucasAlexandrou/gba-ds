@@ -2,6 +2,7 @@
 
 ## v1.0.4 (not yet released)
 
+- Game list: a folder that appears twice in `rom_dir` (or through a link) is only listed once.
 - New option `menu_combo = select+start` in gba-ds.cfg: pressing SELECT and START together opens the pause menu, without the game seeing either button. Off by default.
 
 ## v1.0.3 (2026-10-14)

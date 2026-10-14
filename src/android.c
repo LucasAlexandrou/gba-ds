@@ -68,7 +68,8 @@ const char* android_home(void) {
 /* ------------------------------------------------------------- defaults */
 
 void android_config_defaults(Config* c) {
-	snprintf(c->romDir, sizeof(c->romDir), "/storage/emulated/0/ROMs/gba:/storage/emulated/0/ROMs/GBA");
+	/* shared storage ignores case: this is also a folder called GBA */
+	snprintf(c->romDir, sizeof(c->romDir), "/storage/emulated/0/ROMs/gba");
 	snprintf(c->screenshotDir, sizeof(c->screenshotDir), "/storage/emulated/0/Pictures/GBA DS");
 	snprintf(c->cheatDir, sizeof(c->cheatDir), "/storage/emulated/0/RetroArch/cheats");
 	c->esConfigDir[0] = 0;

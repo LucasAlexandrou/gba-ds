@@ -234,6 +234,10 @@ After the first milestone:
   plain path (All files access), saved as `rom_dir` in
   `<state_dir>/library.cfg` (loaded after prefs.cfg on every platform).
   "ROM Folder" is a Futura label (MENU_TEXTS; brand_data.c regenerated).
+- Every game was listed twice on the device: the default rom_dir had
+  ROMs/gba and ROMs/GBA, and shared storage ignores case, so they're the
+  same folder. Default is now ROMs/gba alone, and the library skips a
+  folder it has already read in a scan (by device + inode).
 - `menu_combo = select+start` (Android default; `none` elsewhere): opens
   the pause menu. The first of the two buttons is held back from the game
   for up to 5 frames; a quick tap is passed on after that.

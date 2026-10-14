@@ -123,7 +123,30 @@ static bool game_code(const char* path, const struct stat* st, char code[5]) {
 	return true;
 }
 
+/* Folders read in this scan, by identity: the same folder can be listed
+ * twice under different names (Android's shared storage ignores case, so
+ * ROMs/gba is ROMs/GBA; a symlink; a repeated rom_dir entry). */
+static struct {
+	dev_t dev;
+	ino_t ino;
+} seenDirs[256];
+static int nSeenDirs;
+
+static bool dir_seen(const char* d) {
+	struct stat st;
+	if (stat(d, &st) != 0) return false;
+	for (int i = 0; i < nSeenDirs; ++i) {
+		if (seenDirs[i].dev == st.st_dev && seenDirs[i].ino == st.st_ino) return true;
+	}
+	if (nSeenDirs < 256) seenDirs[nSeenDirs].dev = st.st_dev, seenDirs[nSeenDirs].ino = st.st_ino, ++nSeenDirs;
+	return false;
+}
+
 static void scan_dir(Config* cfg, const char* d, int depth) {
+	if (dir_seen(d)) {
+		fprintf(stderr, "library: %s already listed\n", d);
+		return;
+	}
 	DIR* dir = opendir(d);
 	if (!dir) {
 		if (depth == 0) fprintf(stderr, "library: cannot open %s\n", d);
@@ -183,6 +206,7 @@ static void scan(Config* cfg) {
 	char dirs[1024];
 	snprintf(dirs, sizeof(dirs), "%s", cfg->romDir);
 	char* save;
+	nSeenDirs = 0;
 	code_cache_load(cfg);
 	for (char* d = strtok_r(dirs, ":", &save); d; d = strtok_r(NULL, ":", &save)) scan_dir(cfg, d, 0);
 	code_cache_save(cfg);
