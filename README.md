@@ -82,7 +82,7 @@ GBA DS reads RetroArch's cheat files (`.cht`, the format of the [libretro cheat 
 - **Cheats** on the Game page lists them with an On/Off switch each: D-pad and A, L1/R1 a page at a time, B to go back; or tap a cheat to switch it, and drag to scroll. A long name is shown in full at the bottom.
 - Code Breaker files usually start with an "Enable Code (Must Be On)" cheat: switch that on along with the others, as on the real device.
 - Choices take effect immediately and are remembered per game (`gba-ds/states/<game>.cheats`); the files' own `cheatN_enable` values are used until you change something.
-- **Android:** put the `.cht` files in GBA DS's own folder, `Android/data/io.github.kyannon.gbads/files/cheats` on the internal storage (subfolders are fine). The folder is made the first time GBA DS starts. Newer Android versions keep other apps out of `Android/data`, so copy them from a computer over USB, or with a file manager that can open that folder.
+- **Android:** put the `.cht` files in the `GBA DS/cheats` folder on the internal storage (subfolders are fine). GBA DS makes the folder the first time it starts.
 - Cheats can crash or soft-lock a game, and anything they change is kept in your saves. Make a save state first.
 
 ### Buttons
@@ -125,6 +125,8 @@ The choice is remembered per game.
 |---|---|
 | Battery saves | `Game.sav`, next to the ROM. On first launch an existing RetroArch `Game.srm` is copied to `Game.sav`; the `.srm` is left alone. |
 | Save states, resume points, library thumbnails | `/storage/roms/ports/gba-ds/states/` |
+
+**Android** (in development): everything except the battery saves is in the `GBA DS` folder on the internal storage, laid out like the ROCKNIX install folder: `states/` (save states, resume points, menu settings), `cheats/`, `overlays/`, `logos/` (your own logo images), `screenshots/` and `gba-ds.log`. This needs the "All files access" GBA DS asks for on its first start; without it, they're kept in the app's own folder (`Android/data/io.github.kyannon.gbads/files`), which other apps can't open.
 
 Until the first map is ready (title screen, intro, a fresh boot), the map screen shows the game's logo. No logo files are shipped: the first time a game appears in the list, GBA DS boots it silently in the background, runs it to its title screen, and renders just the background layer that holds the logo. It saves that as `gba-ds/states/logos/<CODE>.png`, at the game's own resolution with transparency, and draws it at sharp whole-number scale. To use your own art instead, put `<CODE>.png` (or `.bmp`) in `gba-ds/logos/`.
 

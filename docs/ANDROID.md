@@ -289,10 +289,14 @@ After the first milestone:
   Daijisho player: package io.github.kyannon.gbads, activity
   .LauncherActivity, `-a android.intent.action.VIEW -d {file.uri}` (or
   `-e rom {file.path}`).
-- Cheats: `cheat_dir` on Android is `<GBADS_HOME>/cheats`
-  (Android/data/io.github.kyannon.gbads/files/cheats), made at start-up
-  with a README.txt; RetroArch's own folders aren't readable by other
-  apps on newer Android. README's Cheats section says where to put them.
+- Data folder (GBADS_HOME): "GBA DS" on the internal storage when All
+  files access is granted (else the app's folder), laid out like the
+  ROCKNIX install folder: states/ (with .nomedia), cheats/ (cheat_dir),
+  overlays/ and logos/ (asset_dir), screenshots/ (screenshot_dir),
+  gba-ds.log. android_config_defaults makes the folders with README.txt
+  files. GbaDsActivity.dataFolder() copies states/ over from the app's
+  folder once (builds before this used it). RetroArch's own folders
+  aren't readable by other apps on newer Android, hence cheats/ there.
 - Back from Home / the app switcher mid-game, the pause menu is open
   (SDL_APP_DIDENTERFOREGROUND -> game.c on_foreground).
 

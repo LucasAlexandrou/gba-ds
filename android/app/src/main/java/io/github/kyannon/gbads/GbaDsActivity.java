@@ -6,7 +6,9 @@ import android.content.Intent;
 import android.graphics.Point;
 import android.hardware.display.DisplayManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.system.ErrnoException;
 import android.system.Os;
@@ -17,6 +19,11 @@ import android.view.WindowManager;
 import org.libsdl.app.SDLActivity;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * The game. SDL draws on the display this activity is on; the other display
@@ -33,9 +40,7 @@ public class GbaDsActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle state) {
         /* before SDL starts the native thread: where config, states and the log go */
-        File home = getExternalFilesDir(null);
-        if (home == null) home = getFilesDir();
-        home.mkdirs();
+        File home = dataFolder();
         try {
             Os.setenv("GBADS_HOME", home.getAbsolutePath(), true);
         } catch (ErrnoException e) {
@@ -45,6 +50,54 @@ public class GbaDsActivity extends SDLActivity {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (!mBrokenLibraries) openSecondScreen();
+    }
+
+    /**
+     * "GBA DS" on the internal storage, where people can reach it (cheats,
+     * overlays, screenshots, save states), laid out like the ROCKNIX install
+     * folder. Needs All files access; without it, the app's own folder.
+     * Data from builds that used the app's folder is copied over once.
+     */
+    private File dataFolder() {
+        File appDir = getExternalFilesDir(null);
+        if (appDir == null) appDir = getFilesDir();
+        File shared = new File(Environment.getExternalStorageDirectory(), "GBA DS");
+        boolean canShare = Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager();
+        if (!canShare || !(shared.isDirectory() || shared.mkdirs())) {
+            Log.w(TAG, "no All files access: data stays in " + appDir);
+            appDir.mkdirs();
+            return appDir;
+        }
+        File oldStates = new File(appDir, "states"), newStates = new File(shared, "states");
+        if (oldStates.isDirectory() && !newStates.exists()) {
+            Log.i(TAG, "moving " + oldStates + " to " + newStates);
+            if (copyTree(oldStates, newStates)) deleteTree(oldStates);
+        }
+        return shared;
+    }
+
+    private static boolean copyTree(File from, File to) {
+        if (from.isDirectory()) {
+            if (!to.isDirectory() && !to.mkdirs()) return false;
+            File[] list = from.listFiles();
+            boolean ok = true;
+            if (list != null) for (File f : list) ok &= copyTree(f, new File(to, f.getName()));
+            return ok;
+        }
+        try (InputStream is = new FileInputStream(from); OutputStream os = new FileOutputStream(to)) {
+            byte[] buf = new byte[1 << 16];
+            for (int n; (n = is.read(buf)) > 0; ) os.write(buf, 0, n);
+            return true;
+        } catch (IOException e) {
+            Log.e(TAG, "copying " + from + ": " + e);
+            return false;
+        }
+    }
+
+    private static void deleteTree(File f) {
+        File[] list = f.listFiles();
+        if (list != null) for (File c : list) deleteTree(c);
+        f.delete();
     }
 
     @Override
