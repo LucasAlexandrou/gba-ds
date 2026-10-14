@@ -199,17 +199,17 @@ scripts/build-rocknix.sh            # -> dist/gba-ds-v<VERSION>-rocknix-aarch64.
 
 The script fetches a GCC aarch64 toolchain, mGBA (pinned commit), and SDL2 into `deps/`.
 
-To build for the host so you can develop and test:
+To build for the host so you can develop and test (needs libpng-dev too):
 
 ```sh
-make MGBA_BUILD=../mgba/build-host SDL_PREFIX=../sdl-host   # build/host/gba-ds
-make tools                                                  # build/host/harness (needs libpng)
+scripts/setup-host.sh   # first time: mGBA and SDL2 into deps/, then builds
+make && make tools      # afterwards: build/host/gba-ds, build/host/harness
 ```
 
 Run it headless and drive it from a script (button combos, `HOME`, `TAP:x,y`, `SHOT:file.bmp`, `QUIT`; see `--help`):
 
 ```sh
-SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy GBADS_WINDOW=2048x768 \
+SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy GBADS_WINDOW=640x960 \
   build/host/gba-ds --rom-dir=roms --state-dir=/tmp/st --input-script=test.txt
 ```
 

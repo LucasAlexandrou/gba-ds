@@ -1,6 +1,7 @@
 # GBA DS build
 #
-#   make                      host build (needs MGBA_BUILD and SDL2 via sdl2-config or SDL_PREFIX)
+#   scripts/setup-host.sh     first time: fetches and builds mGBA and SDL2 into deps/, then builds
+#   make / make tools         host build (build/host/gba-ds, build/host/harness)
 #   make CROSS=aarch64-linux-gnu- MGBA_BUILD=../mgba/build-aarch64 SDL_PREFIX=../sdl-aarch64
 #
 # MGBA_SRC   mGBA source tree (headers)
@@ -9,9 +10,9 @@
 
 CROSS      ?=
 CC         := $(CROSS)gcc
-MGBA_SRC   ?= ../mgba
+MGBA_SRC   ?= deps/mgba
 MGBA_BUILD ?= $(MGBA_SRC)/build-host
-SDL_PREFIX ?= ../sdl-host
+SDL_PREFIX ?= deps/sdl-host
 OUT        ?= build/$(if $(CROSS),$(patsubst %-,%,$(CROSS)),host)
 
 MGBA_DEFS  := $(shell sed -n 's/^C_DEFINES = //p' $(MGBA_BUILD)/CMakeFiles/mgba.dir/flags.make)
