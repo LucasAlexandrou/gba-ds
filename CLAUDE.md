@@ -29,8 +29,9 @@ with photos and screenshots; nothing ships untested on the device.
     release key by CI; the owner downloads it from the run page, the zip
     holds the APK). Check that run shows no "debug-signed" warning.
   Write release notes (What's new / Fixes / Install / upgrade, for both
-  platforms, with the SHA-256 of both files; the owner gives the APK's, or
-  it's read from the run's artifact digest) and send them with the zip.
+  platforms, with the SHA-256 of both files; the APK's is the run's "APK
+  SHA-256" annotation, readable from the run page or the public API:
+  check-runs/<job id>/annotations) and send them with the zip.
   Then bump `dev` to the next `-dev` version with an empty changelog
   section.
 - Test builds for the device: `dist/gba-ds-vX.Y.Z-dev-rocknix-aarch64.zip`,
