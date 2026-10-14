@@ -20,7 +20,7 @@ The idea here is "what if the Game Boy Advance had a second screen" -- part of w
 | Metroid: Zero Mission | Start | working |
 | Metroid Fusion | Start | working |
 | The Legend of Zelda: A Link to the Past | L | working |
-| Tony Hawk's Pro Skater 2 (incl. SK8, Japan) | — | working: the goal sheet for the current run on the second screen |
+| Tony Hawk's Pro Skater 2 (incl. SK8, Japan) | — | working: the goal sheet for the current run on the second screen; optional four-button layout |
 
 The European and Japanese releases are supported as well as the USA ones: map, logo and border. (The European Metroids' label erasing was checked in English and German.) Any other GBA game also runs; it just gets no map screen.
 
@@ -89,6 +89,14 @@ GBA DS reads RetroArch's cheat files (`.cht`, the format of the [libretro cheat 
 | HOME + R1 / L1 | Quick save / load state |
 | HOME + Start | Quit |
 | HOME + X | FPS counter (also in the menu) |
+
+**Four-button layout (Tony Hawk's Pro Skater 2).** The GBA version uses L and R for two of the console games' four face buttons. Tap a layout under **Controls** at the bottom of the second screen (it's touch only, and it's there when the second screen is the touchscreen):
+
+- **GBA**: the layout above.
+- **Four buttons**: like the console games. Top = GBA A (grind), bottom = GBA B (ollie), left = GBA L (flip), right = GBA R (grab). L1 / R1 still work as L / R.
+- **Auto**: four buttons while you're skating, the GBA layout everywhere else (menus, pause, goal sheets, results), so A and B confirm and go back as the game expects. The tile for the layout in use right now is outlined.
+
+The choice is remembered per game.
 
 ### Library
 

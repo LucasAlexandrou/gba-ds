@@ -80,6 +80,7 @@ void ui_fill_round(int screen, SDL_Rect local, SDL_Color c, int radius);
 /* Built-in Futura text (brandTexts) centred on cx, cy with capitals capPx tall,
  * tinted c. Falls back to the pixel font if the text has no image. */
 void ui_label(int screen, int cx, int cy, int capPx, const char* text, SDL_Color c);
+int ui_label_width(int screen, int capPx, const char* text); /* width ui_label draws */
 void ui_dim(int screen, Uint8 alpha);
 void ui_text(int screen, int x, int y, int px, const char* s, SDL_Color c);
 int ui_text_width(const char* s, int px);

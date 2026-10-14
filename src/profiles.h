@@ -63,6 +63,16 @@ typedef struct MapProfile {
 		 * THPS2's CAREER / CASH counters and button prompts */
 		bool noSprites;
 	} snap;
+	/* A second button layout for games ported from four-face-button
+	 * consoles (Tony Hawk's: GBA L / R stand in for two face buttons). The
+	 * four-face layout puts GBA A on the top face button, B on the bottom,
+	 * L on the left and R on the right. A picker on the second screen
+	 * chooses it, the GBA layout, or Auto: four-face only while `playing`
+	 * matches (the player controls the character, not a menu). */
+	struct {
+		bool fourFace;
+		MemProbe playing[2];
+	} controls;
 	int stableFrames;  /* consecutive "quiet" frames required */
 	int maxDiff;       /* pixels allowed to change between quiet frames (blinking markers) */
 	int crop_x, crop_y, crop_w, crop_h;

@@ -221,6 +221,14 @@ static const MapProfile profiles[] = {
 		.tol = 12,
 		.noSprites = true, /* CAREER / CASH and the button prompts are sprites; the sheet is BG */
 	},
+	/* console layout: grind (A) top, ollie (B) bottom, flip (L) left, grab (R)
+	 * right. The game's current screen: 0x60 while skating (pause 0x5C,
+	 * results 0x77, goal sheet and loading 0x7C, menus 0x6A-0x7B), and the
+	 * screen object it points at; the same addresses in every region. */
+	.controls = {
+		.fourFace = true,
+		.playing = { { 0x02000548, 0xFF, 0x60, 1 }, { 0x02000340, 0, 0x02000B4C, 4 } },
+	},
 	},
 };
 

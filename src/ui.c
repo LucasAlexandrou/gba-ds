@@ -845,7 +845,35 @@ void ui_fill_round(int screen, SDL_Rect r, SDL_Color c, int radius) {
 static SDL_Texture** labelTex[2];
 static int labelW[64], labelH[64];
 
+static int label_tex(int screen, const char* text);
+
+int ui_label_width(int screen, int capPx, const char* text) {
+	int idx = label_tex(screen, text);
+	if (idx < 0) return ui_text_width(text, SDL_max(1, capPx / 6));
+	return labelW[idx] * (capPx * labelH[idx] / brandTextCap) / labelH[idx];
+}
+
 void ui_label(int screen, int cx, int cy, int capPx, const char* text, SDL_Color c) {
+	int idx = label_tex(screen, text);
+	Screen* s = &screens[screen];
+	int v = s->view;
+	if (idx < 0) {
+		/* no image: the pixel font, about the same height */
+		int px = SDL_max(1, capPx / 6);
+		ui_text_center(screen, cx, cy - px * 7 / 2, px, text, c);
+		return;
+	}
+	SDL_Texture* t = labelTex[v][idx];
+	int h = capPx * labelH[idx] / brandTextCap;
+	int w = labelW[idx] * h / labelH[idx];
+	SDL_SetTextureColorMod(t, c.r, c.g, c.b);
+	SDL_SetTextureAlphaMod(t, c.a);
+	SDL_Rect dst = { s->rect.x + cx - w / 2, s->rect.y + cy - h / 2, w, h };
+	SDL_RenderCopy(views[v].ren, t, NULL, &dst);
+}
+
+/* Index of the label image for text, loaded for the screen's view; -1 if none. */
+static int label_tex(int screen, const char* text) {
 	int idx = -1;
 	for (int i = 0; i < brandTextCount && i < 64; ++i) {
 		if (!strcmp(brandTexts[i].text, text)) idx = i;
@@ -865,17 +893,5 @@ void ui_label(int screen, int cx, int cy, int capPx, const char* text, SDL_Color
 			}
 		}
 	}
-	if (idx < 0 || !labelTex[v][idx]) {
-		/* no image: the pixel font, about the same height */
-		int px = SDL_max(1, capPx / 6);
-		ui_text_center(screen, cx, cy - px * 7 / 2, px, text, c);
-		return;
-	}
-	SDL_Texture* t = labelTex[v][idx];
-	int h = capPx * labelH[idx] / brandTextCap;
-	int w = labelW[idx] * h / labelH[idx];
-	SDL_SetTextureColorMod(t, c.r, c.g, c.b);
-	SDL_SetTextureAlphaMod(t, c.a);
-	SDL_Rect dst = { s->rect.x + cx - w / 2, s->rect.y + cy - h / 2, w, h };
-	SDL_RenderCopy(views[v].ren, t, NULL, &dst);
+	return idx >= 0 && labelTex[v][idx] ? idx : -1;
 }

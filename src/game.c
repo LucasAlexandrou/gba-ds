@@ -463,6 +463,140 @@ static void update_snapshot(void) {
 	}
 }
 
+/* ---------------------------------------------------------- control scheme
+ * Games with a four-face-button layout (profile `controls`): a picker on the
+ * second screen (touch only) chooses the GBA layout, the four-face one, or
+ * Auto (four-face while the player controls the character). Saved per game
+ * in <state_dir>/<game>.controls. */
+static int game_screen(void);
+enum { CTL_GBA, CTL_FOUR, CTL_AUTO };
+static const char* const ctlNames[] = { "gba", "four", "auto" };
+static const MapProfile* ctlProf; /* NULL: no alternate layout for this game */
+static int ctlMode;
+static bool ctlPlaying; /* Auto: the player is controlling the character */
+static char ctlPath[1400];
+
+static bool ctl_four(void) {
+	return ctlProf && (ctlMode == CTL_FOUR || (ctlMode == CTL_AUTO && ctlPlaying));
+}
+
+static void ctl_load(void) {
+	ctlMode = CTL_GBA;
+	ctlPlaying = false;
+	snprintf(ctlPath, sizeof(ctlPath), "%s/%s.controls", cfg->stateDir, gp.base);
+	FILE* f = fopen(ctlPath, "r");
+	if (!f) return;
+	char w[16] = "";
+	if (fscanf(f, "%15s", w) == 1) {
+		for (int i = 0; i < 3; ++i) {
+			if (!strcmp(w, ctlNames[i])) ctlMode = i;
+		}
+	}
+	fclose(f);
+}
+
+static void ctl_save(void) {
+	FILE* f = fopen(ctlPath, "w");
+	if (!f) return;
+	fprintf(f, "%s\n", ctlNames[ctlMode]);
+	fclose(f);
+}
+
+/* the picker is on the second screen, when that's the touchscreen */
+static bool ctl_shown(int s) {
+	return ctlProf && cfg->map && nScreens == 2 && s == ui_touch_screen() && s != game_screen();
+}
+
+typedef struct {
+	SDL_Rect tile[3];
+	SDL_Rect all; /* label and tiles: taps here never open the menu */
+	int labelX, labelY, cap;
+} CtlGeom;
+
+/* A row along the bottom: "Controls" and three square tiles, in the band
+ * below the picture when there's room for it, else over the picture. */
+static CtlGeom ctl_geom(int s) {
+	CtlGeom g;
+	SDL_Rect r = screens[s].rect;
+	int u = ui_px(s);
+	int t = r.h * 14 / 100, gap = u * 4;
+	g.cap = t / 5;
+	int lw = ui_label_width(s, g.cap, "Controls");
+	int total = lw + gap * 3 + t * 3 + gap * 2;
+	int x = (r.w - total) / 2;
+	SDL_Rect img = ui_image_rect(s, GBA_W, GBA_H, cfg->mapScale);
+	int below = r.h - (img.y + img.h);
+	int y = below >= t + u * 2 ? img.y + img.h + (below - t) / 2 : r.h - t - u * 3;
+	g.all = (SDL_Rect) { x - gap, y - u, total + gap * 2, t + u * 2 };
+	g.labelX = x + lw / 2;
+	g.labelY = y + t / 2;
+	x += lw + gap * 3;
+	for (int i = 0; i < 3; ++i) g.tile[i] = (SDL_Rect) { x + i * (t + gap), y, t, t };
+	return g;
+}
+
+static void ctl_button(int s, int id, const SDL_Rect* t, int cx, int cy, int w) {
+	static SDL_Texture* tex[BRAND_COUNT][2];
+	static int tw[BRAND_COUNT], th[BRAND_COUNT];
+	if (!tex[id][0] && !tex[id][1]) ui_load_brand(id, tex[id], &tw[id], &th[id]);
+	if (!tw[id]) return;
+	int h = w * th[id] / tw[id];
+	SDL_Rect a = { t->x + t->w * cx / 100 - w / 2, t->y + t->h * cy / 100 - h / 2, w, h };
+	ui_image(s, tex[id], tw[id], th[id], "fit", &a);
+}
+
+static void ctl_draw(int s) {
+	CtlGeom g = ctl_geom(s);
+	int u = ui_px(s);
+	int active = ctl_four() ? CTL_FOUR : CTL_GBA;
+	ui_fill_round(s, g.all, (SDL_Color) { 0, 0, 0, 150 }, u * 4);
+	ui_label(s, g.labelX, g.labelY, g.cap, "Controls", C_TEXT);
+	for (int i = 0; i < 3; ++i) {
+		SDL_Rect t = g.tile[i];
+		int rad = t.w / 6;
+		bool sel = ctlMode == i;
+		/* chosen: filled; in Auto, the layout in use right now: outlined */
+		if (sel || (ctlMode == CTL_AUTO && i == active)) {
+			ui_fill_round(s, t, C_BTN_EDGE, rad);
+			int e = sel ? u : SDL_max(1, u / 2);
+			t = (SDL_Rect) { t.x + e, t.y + e, t.w - e * 2, t.h - e * 2 };
+		}
+		ui_fill_round(s, t, sel ? C_BTN_SEL : C_BTN, rad);
+		t = g.tile[i];
+		int d = t.w * 30 / 100;
+		if (i == CTL_GBA) {
+			ctl_button(s, BRAND_PILL_L, &t, 29, 24, t.w * 36 / 100);
+			ctl_button(s, BRAND_PILL_R, &t, 71, 24, t.w * 36 / 100);
+			ctl_button(s, BRAND_BTN_B, &t, 32, 70, d);
+			ctl_button(s, BRAND_BTN_A, &t, 68, 62, d);
+		} else if (i == CTL_FOUR) {
+			d = t.w * 27 / 100;
+			ctl_button(s, BRAND_BTN_A, &t, 50, 23, d);
+			ctl_button(s, BRAND_BTN_L, &t, 23, 50, d);
+			ctl_button(s, BRAND_BTN_R, &t, 77, 50, d);
+			ctl_button(s, BRAND_BTN_B, &t, 50, 77, d);
+		} else {
+			ui_label(s, t.x + t.w / 2, t.y + t.h / 2, g.cap, "Auto", C_TEXT);
+		}
+	}
+}
+
+/* A tap on the picker: true if it was there (it then doesn't open the menu). */
+static bool ctl_tap(int s, int x, int y) {
+	if (!ctl_shown(s)) return false;
+	CtlGeom g = ctl_geom(s);
+	SDL_Point pt = { x, y };
+	if (!SDL_PointInRect(&pt, &g.all)) return false;
+	for (int i = 0; i < 3; ++i) {
+		if (SDL_PointInRect(&pt, &g.tile[i]) && ctlMode != i) {
+			ctlMode = i;
+			ctl_save();
+			if (debug) fprintf(stderr, "frame %llu: controls %s\n", (unsigned long long) frameCount, ctlNames[i]);
+		}
+	}
+	return true;
+}
+
 static void save_thumbs(void) {
 	SDL_Surface* s = SDL_CreateRGBSurfaceWithFormatFrom(emu.fb, GBA_W, GBA_H, 32, GBA_W * 4, SDL_PIXELFORMAT_XBGR8888);
 	if (s) {
@@ -810,6 +944,7 @@ static void draw_game(void) {
 		if (mapShownIdx >= 0 && mapInactive) {
 			ui_dim(s, 120);
 		}
+		if (ctl_shown(s)) ctl_draw(s);
 	}
 	draw_osd();
 }
@@ -962,6 +1097,11 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	menuOpen = false;
 	logoOnly = false;
 	snapProf = NULL;
+	{
+		const MapProfile* cp = profile_find(emu.gameCode);
+		ctlProf = cp && cp->controls.fourFace ? cp : NULL;
+		if (ctlProf) ctl_load();
+	}
 	if (cfg->map) {
 		mc = mapcap_create(rom, emu.gameCode, cfg->mapCrop);
 		const MapProfile* lp = profile_find(emu.gameCode);
@@ -1091,6 +1231,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		Pointer p;
 		while (ui_next_pointer(&p)) {
 			if (!menuOpen) {
+				if (p.kind == 1 && ctl_tap(p.screen, p.x, p.y)) continue;
 				if (p.kind == 1) {
 					open_menu();
 					ignorePointerUp = true;
@@ -1227,8 +1368,17 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (!btnNow[b]) suppress[b] = false; /* released: counts again */
 		}
 		if (!btnNow[modBtn] || hotkeyBack) {
-			if (HELD(B_A)) keys |= K_A;
-			if (HELD(B_B)) keys |= K_B;
+			if (ctl_four()) {
+				/* by position: top A, bottom B, left L, right R */
+				int right = cfg->abSwap ? B_B : B_A, bottom = cfg->abSwap ? B_A : B_B;
+				if (HELD(B_Y)) keys |= K_A;
+				if (HELD(bottom)) keys |= K_B;
+				if (HELD(B_X)) keys |= K_L;
+				if (HELD(right)) keys |= K_R;
+			} else {
+				if (HELD(B_A)) keys |= K_A;
+				if (HELD(B_B)) keys |= K_B;
+			}
 			if (HELD(B_START) && !(hotkeyBack && btnNow[B_SELECT])) keys |= K_START;
 			if (HELD(B_SELECT) && !hotkeyBack) keys |= K_SELECT;
 			if (HELD(B_L)) keys |= K_L;
@@ -1381,6 +1531,13 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 
 		if (snapProf) update_snapshot();
+		if (ctlProf) {
+			bool playing = memprobes_match(ctlProf->controls.playing, 2, &emu);
+			if (playing != ctlPlaying && debug && ctlMode == CTL_AUTO) {
+				fprintf(stderr, "frame %llu: auto controls: %s\n", (unsigned long long) frameCount, playing ? "four-face" : "GBA");
+			}
+			ctlPlaying = playing;
+		}
 
 		for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(gameTex[i], NULL, emu.fb, GBA_W * 4);
 		ui_clear();
