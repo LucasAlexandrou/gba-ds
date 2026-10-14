@@ -272,7 +272,14 @@ void ui_layout(void) {
 		for (int i = 0; i < 2; ++i) {
 			int w, h;
 			SDL_GetRendererOutputSize(views[i].ren, &w, &h);
+#ifdef __ANDROID__
+			/* screens in physical order as on ROCKNIX (0 top: the game; 1 bottom:
+			 * the touchscreen). The activity, view 0, runs on display 0, which on
+			 * the RG DS is the bottom (touch) screen; the top is the second display. */
+			screens[1 - i] = (Screen) { i, { 0, 0, w, h } };
+#else
 			screens[i] = (Screen) { i, { 0, 0, w, h } };
+#endif
 		}
 		return;
 	}
@@ -413,6 +420,10 @@ bool ui_events(void) {
 			}
 			break;
 		case SDL_JOYBUTTONDOWN:
+#ifdef __ANDROID__
+			/* buttons outside the standard set (15 L2, 16 R2, 17 C, 18 Z...) */
+			if (!debug && ev.jbutton.button >= 15) fprintf(stderr, "raw joystick button %d\n", ev.jbutton.button);
+#endif
 			if (debug) fprintf(stderr, "raw joystick %d button %d (use home_button = %d to make it HOME)\n",
 			                   (int) ev.jbutton.which, ev.jbutton.button, ev.jbutton.button);
 			break;
@@ -460,6 +471,14 @@ void ui_read_buttons(void) {
 		}
 		if (SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 16000) l2 = true;
 		if (SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16000) r2 = true;
+#ifdef __ANDROID__
+		/* digital L2 / R2 keys arrive as raw joystick buttons 15 / 16, which
+		 * SDL's Android controller mapping leaves out (it only maps analog
+		 * trigger axes) */
+		SDL_Joystick* js = SDL_GameControllerGetJoystick(gc);
+		if (js && SDL_JoystickGetButton(js, 15)) l2 = true;
+		if (js && SDL_JoystickGetButton(js, 16)) r2 = true;
+#endif
 		int lx = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTX);
 		int ly = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTY);
 		if (lx < -16000) phys[SDL_CONTROLLER_BUTTON_DPAD_LEFT] = true;

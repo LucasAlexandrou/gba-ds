@@ -212,6 +212,18 @@ activity loading libraries, ~0.9 s before SDL starts the native thread,
 "Xbox Series X Controller". All touches came from display 0 (the game
 activity's display), so display 0 is the touchscreen.
 
+After the first milestone:
+
+- Screens in physical order (ui_layout): screen 0 = top = the second
+  display (view 1), screen 1 = bottom = the activity's display 0 (view 0,
+  the touchscreen), so the defaults match ROCKNIX: game on top, menus on
+  the bottom.
+- L2 / R2 (screen swap, fast-forward) didn't work: the triggers send
+  digital KEYCODE_BUTTON_L2 / R2, which SDL turns into raw joystick
+  buttons 15 / 16 that its Android controller mapping leaves out (it only
+  maps analog trigger axes). ui.c reads them directly on Android; raw
+  buttons from 15 up are logged.
+
 Not done yet (next): game list and pause menu polish, SELECT+START menu
 combo, saving when Android pauses or kills the app, file access settings,
 frontend launch intents.
