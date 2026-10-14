@@ -1,7 +1,7 @@
 # Android version: plan
 
-Status: first milestone built, waiting for a test on the device (branch
-`android`). See "Progress" at the end.
+Status: first milestone done and tested on the device (branch `android`,
+2026-10-14). See "Progress" at the end.
 
 ## Goal
 
@@ -201,6 +201,16 @@ swapped; 20-30 fps. Changes since:
 - Display: GbaDsActivity has a task affinity of its own and is started
   with FLAG_ACTIVITY_NEW_TASK, so the display-0 launch request isn't
   ignored when the launcher's task sits on the other display.
+
+Device result (2026-10-14, Circle of the Moon, GPU second screen): a
+steady 59.6-60 fps, no audio underruns, emulation ~6 ms and drawing ~3 ms
+a frame; the second screen redraws only on changes (5 per 5 s with the
+map still, ~76 with map animations) at 2-4 ms each. Start-up from the
+icon to the first frame ~3.2 s with last-rom.txt (about 0.75 s in the
+activity loading libraries, ~0.9 s before SDL starts the native thread,
+~1 s loading the game and the map profile). The built-in pad appears as
+"Xbox Series X Controller". All touches came from display 0 (the game
+activity's display), so display 0 is the touchscreen.
 
 Not done yet (next): game list and pause menu polish, SELECT+START menu
 combo, saving when Android pauses or kills the app, file access settings,
