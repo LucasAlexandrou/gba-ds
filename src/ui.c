@@ -518,11 +518,163 @@ void ui_read_buttons(void) {
 
 /* ------------------------------------------------------------- drawing */
 
+/* Texture contents changed: SDL_UpdateTexture, noted so the software view
+ * (below) knows its picture changed. */
+#define TEXVER_N 64
+static struct {
+	SDL_Texture* t;
+	uint32_t v;
+} texVer[TEXVER_N];
+
+static uint32_t tex_version(SDL_Texture* t) {
+	for (int i = 0; i < TEXVER_N; ++i) {
+		if (texVer[i].t == t) return texVer[i].v;
+	}
+	return 0;
+}
+
+void ui_update_texture(SDL_Texture* t, const void* px, int pitch) {
+	if (!t) return;
+	SDL_UpdateTexture(t, NULL, px, pitch);
+	int slot = -1;
+	for (int i = 0; i < TEXVER_N && slot < 0; ++i) {
+		if (texVer[i].t == t) slot = i;
+	}
+	for (int i = 0; i < TEXVER_N && slot < 0; ++i) {
+		if (!texVer[i].t) slot = i;
+	}
+	if (slot < 0) slot = (int) ((uintptr_t) t / 16 % TEXVER_N); /* table full: reuse a slot */
+	if (texVer[slot].t != t) texVer[slot].t = t, texVer[slot].v = 0;
+	++texVer[slot].v;
+}
+
+/* The software view (Android's second screen) is drawn on the CPU, which
+ * costs several ms a frame on the device, while what it shows (map, logo)
+ * changes a few times a second. So its draw calls are recorded instead of
+ * drawn, and at ui_present they're replayed only if they differ from the
+ * last frame's (same calls, same texture contents), with a full redraw at
+ * least once a second in case something slipped through. */
+enum { OP_IMAGE, OP_PIXELS, OP_FILL, OP_ROUND, OP_TEXT, OP_LABEL, OP_CLIP, OP_NOCLIP };
+typedef struct {
+	int kind, screen;
+	SDL_Texture* const* tex; /* per-view array, as passed in */
+	SDL_Texture* texv;        /* the software view's texture in it */
+	uint32_t texVer;
+	int a, b, c, d;
+	SDL_Rect r;
+	bool hasRect;
+	SDL_Color col;
+	char mode[16];
+	char text[200];
+} DrawOp;
+#ifdef __ANDROID__
+static DrawOp* ops;
+static int nOps, capOps;
+static bool replaying;
+static int swState;           /* this frame: 0 not decided, 1 drawn, 2 unchanged (not drawn) */
+static uint64_t swLastSig;
+static int swSinceDraw;
+static Uint64 swDrawTicks;    /* time spent drawing it, for the log */
+static int swDraws;
+
+#endif
+
+static DrawOp* rec(int screen, int kind) {
+#ifndef __ANDROID__
+	return NULL; /* only Android has a software view */
+#else
+	if (replaying || screen < 0 || screen >= nScreens || !views[screens[screen].view].surf) return NULL;
+	if (nOps == capOps) {
+		capOps = capOps ? capOps * 2 : 64;
+		ops = realloc(ops, sizeof(*ops) * capOps);
+	}
+	DrawOp* o = &ops[nOps++];
+	memset(o, 0, sizeof(*o)); /* zeroed padding: ops are hashed bytewise */
+	o->kind = kind;
+	o->screen = screen;
+	return o;
+#endif
+}
+
+static void rec_tex(DrawOp* o, SDL_Texture* const* tex) {
+	o->tex = tex;
+	o->texv = tex[screens[o->screen].view];
+	o->texVer = tex_version(o->texv);
+}
+
+#ifdef __ANDROID__
+static uint64_t ops_sig(void) {
+	uint64_t h = 1469598103934665603ull;
+	const unsigned char* p = (const unsigned char*) ops;
+	for (size_t i = 0; i < sizeof(*ops) * nOps; ++i) h = (h ^ p[i]) * 1099511628211ull;
+	h = (h ^ (uint64_t) nOps) * 1099511628211ull;
+	h = (h ^ (uint64_t) cfg->lcdStrength) * 1099511628211ull;
+	return h ^ (cfg->smooth ? 0x9e3779b97f4a7c15ull : 0);
+}
+
+/* Draws the recorded calls into the software view if they changed. True if
+ * the surface holds a new picture. Once per frame (ui_present, or earlier
+ * for a screenshot). */
+static bool sw_render(int v) {
+	if (swState) return swState == 1;
+	uint64_t sig = ops_sig();
+	if (sig == swLastSig && ++swSinceDraw < 60) {
+		swState = 2;
+		return false;
+	}
+	Uint64 t0 = SDL_GetPerformanceCounter();
+	SDL_Renderer* ren = views[v].ren;
+	SDL_RenderSetClipRect(ren, NULL);
+	SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
+	SDL_RenderClear(ren);
+	replaying = true;
+	for (int i = 0; i < nOps; ++i) {
+		DrawOp* o = &ops[i];
+		switch (o->kind) {
+		case OP_IMAGE: ui_image(o->screen, o->tex, o->a, o->b, o->mode, o->hasRect ? &o->r : NULL); break;
+		case OP_PIXELS: ui_image_pixels(o->screen, o->tex, o->a, o->b, o->mode, o->d); break;
+		case OP_FILL: ui_fill(o->screen, o->r, o->col); break;
+		case OP_ROUND: ui_fill_round(o->screen, o->r, o->col, o->a); break;
+		case OP_TEXT: ui_text(o->screen, o->a, o->b, o->c, o->text, o->col); break;
+		case OP_LABEL: ui_label(o->screen, o->a, o->b, o->c, o->text, o->col); break;
+		case OP_CLIP: ui_clip(o->screen, &o->r); break;
+		case OP_NOCLIP: ui_clip(o->screen, NULL); break;
+		}
+	}
+	replaying = false;
+	SDL_RenderSetClipRect(ren, NULL);
+	SDL_RenderPresent(ren);
+	swLastSig = sig;
+	swSinceDraw = 0;
+	swState = 1;
+	swDrawTicks += SDL_GetPerformanceCounter() - t0;
+	++swDraws;
+	return true;
+}
+#endif
+
+/* At the top of a drawing function: on the software view, record the call
+ * (the block fills in the op) and return instead of drawing. */
+#define RECORD(screen, kind) DrawOp* o = rec(screen, kind); if (o)
+
+void ui_clip(int screen, const SDL_Rect* clip) {
+	RECORD(screen, clip ? OP_CLIP : OP_NOCLIP) {
+		if (clip) o->r = *clip;
+		return;
+	}
+	SDL_RenderSetClipRect(views[screens[screen].view].ren, clip);
+}
+
 void ui_clear(void) {
 	for (int i = 0; i < nViews; ++i) {
+		if (views[i].surf) continue; /* keeps its last picture; see sw_render */
 		SDL_SetRenderDrawColor(views[i].ren, 0, 0, 0, 255);
 		SDL_RenderClear(views[i].ren);
 	}
+#ifdef __ANDROID__
+	nOps = 0;
+	swState = 0;
+#endif
 }
 
 void ui_present(void) {
@@ -531,26 +683,25 @@ void ui_present(void) {
 		pendingShot[0] = 0;
 	}
 #ifdef __ANDROID__
-	/* time spent here per view (the software view does all its drawing in
-	 * RenderPresent, when SDL flushes its command queue), logged every 5 s */
-	static Uint64 spent[2], copy;
+	static Uint64 handover;
 	static int frames;
-	Uint64 f = SDL_GetPerformanceFrequency();
 	for (int i = 0; i < nViews; ++i) {
-		Uint64 t0 = SDL_GetPerformanceCounter();
-		SDL_RenderPresent(views[i].ren);
-		Uint64 t1 = SDL_GetPerformanceCounter();
-		spent[i] += t1 - t0;
-		if (views[i].surf) {
+		if (!views[i].surf) {
+			SDL_RenderPresent(views[i].ren);
+		} else if (sw_render(i)) {
+			Uint64 t0 = SDL_GetPerformanceCounter();
 			android_second_present(views[i].surf);
-			copy += SDL_GetPerformanceCounter() - t1;
+			handover += SDL_GetPerformanceCounter() - t0;
 		}
 	}
+	nOps = 0;
+	swState = 0;
 	if (++frames == 300) {
-		fprintf(stderr, "present (avg per frame): game screen %.2f ms, second screen drawing %.2f ms, handing it over %.2f ms\n",
-		        spent[0] * 1000.0 / f / frames, spent[1] * 1000.0 / f / frames, copy * 1000.0 / f / frames);
-		spent[0] = spent[1] = copy = 0;
-		frames = 0;
+		double ms = 1000.0 / SDL_GetPerformanceFrequency();
+		fprintf(stderr, "second screen: redrawn %d of %d frames, %.2f ms per redraw, handing over %.2f ms per redraw\n", swDraws,
+		        frames, swDraws ? swDrawTicks * ms / swDraws : 0.0, swDraws ? handover * ms / swDraws : 0.0);
+		swDrawTicks = handover = 0;
+		swDraws = frames = 0;
 	}
 #else
 	for (int i = 0; i < nViews; ++i) SDL_RenderPresent(views[i].ren);
@@ -575,6 +726,13 @@ static void fit_rect(const SDL_Rect* area, int w, int h, const char* mode, SDL_R
 }
 
 void ui_image(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, const SDL_Rect* areaLocal) {
+	RECORD(screen, OP_IMAGE) {
+		rec_tex(o, texPerView);
+		o->a = w, o->b = h;
+		snprintf(o->mode, sizeof(o->mode), "%s", mode);
+		if (areaLocal) o->r = *areaLocal, o->hasRect = true;
+		return;
+	}
 	Screen* s = &screens[screen];
 	SDL_Rect area = areaLocal ? *areaLocal : (SDL_Rect) { 0, 0, s->rect.w, s->rect.h };
 	area.x += s->rect.x;
@@ -646,6 +804,12 @@ static SDL_Texture* pipe_grid(int v, int w, int h, int k, int strength) {
 }
 
 void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, bool lcd) {
+	RECORD(screen, OP_PIXELS) {
+		rec_tex(o, texPerView);
+		o->a = w, o->b = h, o->d = lcd;
+		snprintf(o->mode, sizeof(o->mode), "%s", mode);
+		return;
+	}
 	Screen* s = &screens[screen];
 	int v = s->view;
 	SDL_Renderer* ren = views[v].ren;
@@ -700,6 +864,10 @@ SDL_Rect ui_image_rect(int screen, int w, int h, const char* mode) {
 }
 
 void ui_fill(int screen, SDL_Rect r, SDL_Color c) {
+	RECORD(screen, OP_FILL) {
+		o->r = r, o->col = c;
+		return;
+	}
 	Screen* s = &screens[screen];
 	r.x += s->rect.x;
 	r.y += s->rect.y;
@@ -722,6 +890,11 @@ int ui_text_width(const char* s, int px) {
 }
 
 void ui_text(int screen, int x, int y, int px, const char* str, SDL_Color c) {
+	RECORD(screen, OP_TEXT) {
+		o->a = x, o->b = y, o->c = px, o->col = c;
+		snprintf(o->text, sizeof(o->text), "%s", str);
+		return;
+	}
 	Screen* s = &screens[screen];
 	x += s->rect.x;
 	y += s->rect.y;
@@ -842,6 +1015,11 @@ bool ui_screenshot_stacked(const char* pngPath) {
 	if (!W || !H) return false;
 	unsigned char* img = calloc((size_t) W * H, 4);
 	if (!img) return false;
+#ifdef __ANDROID__
+	for (int v = 0; v < nViews; ++v) {
+		if (views[v].surf) sw_render(v); /* draw it now (it's otherwise drawn at ui_present) */
+	}
+#endif
 	bool ok = true;
 	int y = 0;
 	for (int i = 0; i < nScreens && ok; ++i) {
@@ -902,6 +1080,10 @@ static SDL_Texture* disc_texture(int view) {
 }
 
 void ui_fill_round(int screen, SDL_Rect r, SDL_Color c, int radius) {
+	RECORD(screen, OP_ROUND) {
+		o->r = r, o->col = c, o->a = radius;
+		return;
+	}
 	radius = SDL_min(radius, SDL_min(r.w, r.h) / 2);
 	if (radius <= 0) {
 		ui_fill(screen, r, c);
@@ -936,6 +1118,11 @@ int ui_label_width(int screen, int capPx, const char* text) {
 }
 
 void ui_label(int screen, int cx, int cy, int capPx, const char* text, SDL_Color c) {
+	RECORD(screen, OP_LABEL) {
+		o->a = cx, o->b = cy, o->c = capPx, o->col = c;
+		snprintf(o->text, sizeof(o->text), "%s", text);
+		return;
+	}
 	int idx = label_tex(screen, text);
 	Screen* s = &screens[screen];
 	int v = s->view;

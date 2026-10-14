@@ -76,6 +76,11 @@ void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, c
 /* Where ui_image_pixels puts a w x h image on a screen (screen-local coords). */
 SDL_Rect ui_image_rect(int screen, int w, int h, const char* mode);
 void ui_fill(int screen, SDL_Rect local, SDL_Color c);
+/* Clip drawing to a rectangle (renderer coordinates), or NULL for none. */
+void ui_clip(int screen, const SDL_Rect* clip);
+/* SDL_UpdateTexture (whole texture) that ui.c notices: use it for anything
+ * drawn on the screens, so the second screen on Android redraws. */
+void ui_update_texture(SDL_Texture* t, const void* px, int pitch);
 /* Filled box with rounded corners (radius in pixels). */
 void ui_fill_round(int screen, SDL_Rect local, SDL_Color c, int radius);
 /* Built-in Futura text (brandTexts) centred on cx, cy with capitals capPx tall,

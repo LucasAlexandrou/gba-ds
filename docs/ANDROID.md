@@ -170,6 +170,17 @@ swapped; 20-30 fps. Changes since:
   Logged every 5 s: fps from game.c, and from ui.c the time spent per
   frame on the game screen, drawing the second screen (software), and
   handing it over.
+- Speed, second round: the log showed ~50 ms a frame with the presents at
+  ~3 ms; the software renderer draws during the draw calls (no batching),
+  so the second screen's cost wasn't being timed. Now ui.c records the
+  draw calls aimed at the software view and replays them at ui_present
+  only when they differ from the last frame's (calls + texture versions;
+  game.c updates textures through `ui_update_texture` so changes count),
+  plus a redraw once a second as a safety net. Logged every 5 s: emulating
+  and drawing time per frame (game.c) and how many frames the second
+  screen was redrawn and at what cost (ui.c). Checked on the desktop with
+  the Android paths and stub glue: the replayed pause menu matches the
+  directly drawn one, and it redraws only on changes.
 - Display: GbaDsActivity has a task affinity of its own and is started
   with FLAG_ACTIVITY_NEW_TASK, so the display-0 launch request isn't
   ignored when the launcher's task sits on the other display.

@@ -50,6 +50,7 @@ static int snapShow, snapRevert;   /* consecutive frames matching show / a rever
 static uint64_t mapAnimStart, frameCount;
 static bool singleShowsMap;
 static double fps, speedPct;
+static Uint64 emuTicks, drawTicks; /* time spent emulating / drawing, for the 5 s report */
 static bool debug;
 
 /* ---------------------------------------------------------------- menu */
@@ -204,9 +205,8 @@ static void draw_cheats(int scr) {
 	ui_label(scr, b.x + b.w / 2, b.y + b.h / 2, cap, "Back", C_TEXT);
 	ui_fill_round(scr, t, C_BTN_EDGE, rad);
 	ui_label(scr, t.x + t.w / 2, t.y + t.h / 2, cap, "Cheats", (SDL_Color) { 20, 16, 36, 255 });
-	SDL_Renderer* ren = ui_ren(scr);
 	SDL_Rect clip = { screens[scr].rect.x, screens[scr].rect.y + g.top, r.w, g.listH };
-	SDL_RenderSetClipRect(ren, &clip);
+	ui_clip(scr, &clip);
 	int pillW = ui_text_width("OFF", g.tpx) + px * 6;
 	int maxChars = (g.w - pillW - px * 10) / (g.tpx * 6);
 	for (int i = 0; i < nCheatRows; ++i) {
@@ -232,7 +232,7 @@ static void draw_cheats(int scr) {
 		ui_text(scr, pill.x + (pill.w - ui_text_width(st, g.tpx)) / 2, pill.y + (pill.h - g.tpx * 7) / 2, g.tpx, st,
 		        c->on ? C_TEXT : (SDL_Color) { 160, 156, 184, 255 });
 	}
-	SDL_RenderSetClipRect(ren, NULL);
+	ui_clip(scr, NULL);
 	/* scroll bar */
 	int maxS = cheat_max_scroll(&g);
 	if (maxS > 0) {
@@ -440,11 +440,11 @@ static void update_snapshot(void) {
 				if (mapShownIdx < 0 || memcmp(last, emu.fb, sizeof(last))) {
 					memcpy(last, emu.fb, sizeof(last));
 					snapshot_hiding_sprites(clean);
-					for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, clean, GBA_W * 4);
+					for (int i = 0; i < nViews; ++i) ui_update_texture(mapTex[i], clean, GBA_W * 4);
 				}
 				px = NULL;
 			}
-			if (px) for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, px, GBA_W * 4);
+			if (px) for (int i = 0; i < nViews; ++i) ui_update_texture(mapTex[i], px, GBA_W * 4);
 			if (mapShownIdx < 0 && debug) fprintf(stderr, "frame %llu: screen copied to the second screen\n", (unsigned long long) frameCount);
 			mapShownIdx = 0;
 		}
@@ -658,7 +658,7 @@ static const uint32_t* map_px(int idx) {
 static void upload_map_frame(int idx) {
 	const uint32_t* px = map_px(idx);
 	if (idx == mapShownIdx || !px) return;
-	for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(mapTex[i], NULL, px, mapW * 4);
+	for (int i = 0; i < nViews; ++i) ui_update_texture(mapTex[i], px, mapW * 4);
 	mapShownIdx = idx;
 	canvasDirty = true;
 }
@@ -809,7 +809,7 @@ static bool draw_framed_map(int s) {
 	}
 	if (canvasDirty) {
 		const uint32_t* px = mapframe_compose(&mf, map_px(mapShownIdx));
-		for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(canvasTex[i], NULL, px, mf.cw * 4);
+		for (int i = 0; i < nViews; ++i) ui_update_texture(canvasTex[i], px, mf.cw * 4);
 		canvasDirty = false;
 	}
 	ui_image_pixels(s, canvasTex, mf.cw, mf.ch, "stretch", cfg->lcdGrid);
@@ -1443,17 +1443,20 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				const bool report = underruns || slow || debug;
 #endif
 				if (report) {
+					double ms = 1000.0 / SDL_GetPerformanceFrequency() / n;
 					fprintf(stderr, "frame %llu: last 5 s: %.1f fps, %d audio underrun(s), %d slow frame(s), map capture busy %d%%, "
-					                "audio queue %d ms\n",
+					                "audio queue %d ms; per frame: emulating %.2f ms, drawing %.2f ms\n",
 					        (unsigned long long) frameCount, fps, underruns, slow, captureBusy * 100 / n,
-					        queuedNow * 1000 / want.freq);
+					        queuedNow * 1000 / want.freq, emuTicks * ms, drawTicks * ms);
 				}
 				underruns = slow = captureBusy = n = 0;
+				emuTicks = drawTicks = 0;
 			}
 		}
 		if (debug && audio && frameCount % 30 == 0) {
 			fprintf(stderr, "audio queue %d ms%s\n", queuedNow * 1000 / want.freq, ff ? " (ff)" : "");
 		}
+		Uint64 emuT0 = SDL_GetPerformanceCounter();
 		for (int i = 0; i < runs; ++i) {
 			emu_frame(&emu, keys);
 			size_t got;
@@ -1485,6 +1488,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				while ((bytes = SDL_AudioStreamGet(audioConv, conv, sizeof(conv))) > 0) SDL_QueueAudio(audio, conv, bytes);
 			}
 		}
+		emuTicks += SDL_GetPerformanceCounter() - emuT0;
 		++frameCount;
 
 		/* ---- map refresh */
@@ -1570,7 +1574,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			}
 		}
 
-		for (int i = 0; i < nViews; ++i) SDL_UpdateTexture(gameTex[i], NULL, emu.fb, GBA_W * 4);
+		Uint64 drawT0 = SDL_GetPerformanceCounter();
+		for (int i = 0; i < nViews; ++i) ui_update_texture(gameTex[i], emu.fb, GBA_W * 4);
 		ui_clear();
 		draw_game();
 		if (shotPending) {
@@ -1578,6 +1583,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			take_screenshot();
 		}
 		ui_present();
+		drawTicks += SDL_GetPerformanceCounter() - drawT0;
 
 		/* ---- pacing: real-time clock nudged by audio queue depth */
 		double now = SDL_GetPerformanceCounter() / freq;
