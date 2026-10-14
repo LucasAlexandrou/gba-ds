@@ -538,14 +538,14 @@ static CtlGeom ctl_geom(int s) {
 	CtlGeom g;
 	SDL_Rect r = screens[s].rect;
 	int u = ui_px(s);
-	int t = r.h * 14 / 100, gap = u * 4;
+	int t = r.h * 23 / 200, gap = u * 3;
 	g.cap = t / 5;
 	int lw = ui_label_width(s, g.cap, "Controls");
 	int total = lw + gap * 3 + t * 3 + gap * 2;
 	int x = (r.w - total) / 2;
 	SDL_Rect img = ui_image_rect(s, GBA_W, GBA_H, cfg->mapScale);
 	int below = r.h - (img.y + img.h);
-	int y = below >= t + u * 2 ? img.y + img.h + (below - t) / 2 : r.h - t - u * 3;
+	int y = below >= t + u * 2 ? img.y + img.h + (below - t) / 2 : r.h - t - u * 2;
 	g.all = (SDL_Rect) { x - gap, y - u, total + gap * 2, t + u * 2 };
 	g.labelX = x + lw / 2;
 	g.labelY = y + t / 2;
@@ -584,16 +584,17 @@ static void ctl_draw(int s) {
 		t = g.tile[i];
 		int d = t.w * 30 / 100;
 		if (i == CTL_GBA) {
-			ctl_button(s, BRAND_PILL_L, &t, 29, 24, t.w * 36 / 100);
-			ctl_button(s, BRAND_PILL_R, &t, 71, 24, t.w * 36 / 100);
-			ctl_button(s, BRAND_BTN_B, &t, 32, 70, d);
-			ctl_button(s, BRAND_BTN_A, &t, 68, 62, d);
+			ctl_button(s, BRAND_PILL_L, &t, 32, 27, t.w * 34 / 100);
+			ctl_button(s, BRAND_PILL_R, &t, 68, 27, t.w * 34 / 100);
+			d = t.w * 28 / 100;
+			ctl_button(s, BRAND_BTN_B, &t, 34, 69, d);
+			ctl_button(s, BRAND_BTN_A, &t, 66, 60, d);
 		} else if (i == CTL_FOUR) {
-			d = t.w * 27 / 100;
-			ctl_button(s, BRAND_BTN_A, &t, 50, 23, d);
-			ctl_button(s, BRAND_BTN_L, &t, 23, 50, d);
-			ctl_button(s, BRAND_BTN_R, &t, 77, 50, d);
-			ctl_button(s, BRAND_BTN_B, &t, 50, 77, d);
+			d = t.w * 28 / 100;
+			ctl_button(s, BRAND_BTN_A, &t, 50, 27, d);
+			ctl_button(s, BRAND_BTN_L, &t, 27, 50, d);
+			ctl_button(s, BRAND_BTN_R, &t, 73, 50, d);
+			ctl_button(s, BRAND_BTN_B, &t, 50, 73, d);
 		} else {
 			ui_label(s, t.x + t.w / 2, t.y + t.h / 2, g.cap, "Auto", C_TEXT);
 		}
