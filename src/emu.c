@@ -17,6 +17,7 @@
 #include <mgba-util/vfs.h>
 #include <mgba/core/log.h>
 #include <stdarg.h>
+#include <pthread.h>
 #include <ctype.h>
 
 #include <stdio.h>
@@ -80,8 +81,11 @@ bool emu_open(Emu* e, const char* romPath, const char* savePath, bool audio) {
 	return true;
 }
 
+static void hide_release(Emu* e);
+
 void emu_close(Emu* e) {
 	if (e->core) {
+		hide_release(e);
 		mCoreConfigDeinit(&e->core->config);
 		e->core->deinit(e->core);
 		e->core = NULL;
@@ -161,18 +165,32 @@ unsigned emu_audio_rate(Emu* e) {
 
 /* ------------------------------------------------------------ sprite hiding */
 
-static SpriteRule hideRules[8];
-static int nHideRules;
-static void (*origDrawScanline)(struct GBAVideoRenderer* renderer, int y);
+/* Rules per renderer: the game core hides the Metroid HUD mini-map, the map
+ * capture core (another thread) hides prompts drawn over the map. */
+typedef struct {
+	struct GBAVideoRenderer* renderer;
+	void (*orig)(struct GBAVideoRenderer* renderer, int y);
+	SpriteRule rules[8];
+	int n;
+} HideSlot;
+static HideSlot hideSlots[8];
+static pthread_mutex_t hideLock = PTHREAD_MUTEX_INITIALIZER;
 
-static bool hidden(const struct GBAObj* obj) {
+static HideSlot* slot_for(struct GBAVideoRenderer* r) {
+	for (int i = 0; i < 8; ++i) {
+		if (hideSlots[i].renderer == r) return &hideSlots[i];
+	}
+	return NULL;
+}
+
+static bool hidden(const HideSlot* s, const struct GBAObj* obj) {
 	int x = (int) (GBAObjAttributesBGetX(obj->b) << 23) >> 23;
 	int y = GBAObjAttributesAGetY(obj->a);
 	if (y >= 160) y -= 256;
 	int tile = GBAObjAttributesCGetTile(obj->c);
 	int prio = GBAObjAttributesCGetPriority(obj->c);
-	for (int i = 0; i < nHideRules; ++i) {
-		const SpriteRule* r = &hideRules[i];
+	for (int i = 0; i < s->n; ++i) {
+		const SpriteRule* r = &s->rules[i];
 		if (x >= r->x0 && x <= r->x1 && y >= r->y0 && y <= r->y1 && tile >= r->tileMin && tile <= r->tileMax &&
 		    prio == r->prio) {
 			return true;
@@ -186,29 +204,46 @@ static bool hidden(const struct GBAObj* obj) {
  * hidden sprites, and mark it clean so the renderer uses ours. */
 static void filtered_draw_scanline(struct GBAVideoRenderer* renderer, int y) {
 	struct GBAVideoSoftwareRenderer* sw = (struct GBAVideoSoftwareRenderer*) renderer;
-	if (nHideRules && sw->oamDirty) {
+	HideSlot* s = slot_for(renderer);
+	if (!s) return;
+	if (s->n && sw->oamDirty) {
 		int n = GBAVideoRendererCleanOAM(sw->d.oam->obj, sw->sprites, sw->objOffsetY);
 		int kept = 0;
 		for (int i = 0; i < n; ++i) {
-			if (!hidden(&sw->sprites[i].obj)) sw->sprites[kept++] = sw->sprites[i];
+			if (!hidden(s, &sw->sprites[i].obj)) sw->sprites[kept++] = sw->sprites[i];
 		}
 		sw->oamMax = kept;
 		sw->oamDirty = false;
 	}
-	origDrawScanline(renderer, y);
+	s->orig(renderer, y);
 }
 
 void emu_hide_sprites(Emu* e, const SpriteRule* rules, int n) {
 	struct GBA* gba = e->core->board;
 	struct GBAVideoRenderer* r = gba->video.renderer;
 	if (!r) return;
-	nHideRules = n > 8 ? 8 : n;
-	if (nHideRules) memcpy(hideRules, rules, sizeof(*rules) * nHideRules);
-	if (r->drawScanline != filtered_draw_scanline) {
-		origDrawScanline = r->drawScanline;
-		r->drawScanline = filtered_draw_scanline;
+	pthread_mutex_lock(&hideLock);
+	HideSlot* s = slot_for(r);
+	if (!s) s = slot_for(NULL);
+	if (s) {
+		s->n = n > 8 ? 8 : n;
+		if (s->n) memcpy(s->rules, rules, sizeof(*rules) * s->n);
+		if (s->renderer != r) {
+			s->orig = r->drawScanline;
+			s->renderer = r;
+			r->drawScanline = filtered_draw_scanline;
+		}
 	}
+	pthread_mutex_unlock(&hideLock);
 	((struct GBAVideoSoftwareRenderer*) r)->oamDirty = true;
+}
+
+static void hide_release(Emu* e) {
+	struct GBA* gba = e->core->board;
+	pthread_mutex_lock(&hideLock);
+	HideSlot* s = slot_for(gba->video.renderer);
+	if (s) memset(s, 0, sizeof(*s));
+	pthread_mutex_unlock(&hideLock);
 }
 
 /* ---------------------------------------------------------------- cheats */

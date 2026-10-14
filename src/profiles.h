@@ -124,6 +124,19 @@ typedef struct MapProfile {
 	/* HUD sprites to hide on the game screen while the map is shown (the
 	 * Metroids' corner mini-map). */
 	SpriteRule hideSprites[4];
+	/* Sprites left out of the map capture (when map_crop is on): prompts the
+	 * game draws over the map as sprites (Fusion's "A OBJECTIVE"), so the map
+	 * underneath shows instead. */
+	SpriteRule captureHide[4];
+
+	/* A raised piece of bezel painted over a prompt that sits in a notch of
+	 * the bottom bezel bar (Zero Mission's "SELECT / CHANGE AREAS"), when
+	 * map_crop is on. The bar's top edge is at row `base`; its notch spans
+	 * n0..n1 and is filled in. Above it the tab's flat top runs x0..x1 at row
+	 * `top`, its ends slope down one pixel per row to the bar. Each pixel is
+	 * coloured by its depth below that outline: colors[0] (outline),
+	 * colors[1], ... the last colour repeats down to row `bottom`. */
+	struct { int x0, x1, top, base, n0, n1, bottom, n; uint32_t colors[12]; } tab;
 
 	int animFrames; /* frames to record for the blinking/pulsing marker loop */
 	int animStep;   /* emulated frames between recorded frames */

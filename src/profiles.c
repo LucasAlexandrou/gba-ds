@@ -97,6 +97,10 @@ static const MapProfile profiles[] = {
 		             { 192, 2, 35, 7, 3, { 0xAD18B5, 0xCE21D6, 0xE742EF }, { 0x212921, 0x314231, 0x637363 } },
 		             { 2, 2, 8, 7, 4, { 0xFF7B00, 0xFFBD00, 0xFFFF73, 0xFFFFFF }, { 0x212921, 0x314231, 0x637363, 0x94A594 } },
 		             { 230, 2, 8, 7, 4, { 0xFF7B00, 0xFFBD00, 0xFFFF73, 0xFFFFFF }, { 0x212921, 0x314231, 0x637363, 0x94A594 } } },
+		/* SELECT / CHANGE AREAS (when the map has more than one area):
+		 * covered by a raised piece of the bezel bar */
+		.tab = { .x0 = 101, .x1 = 136, .top = 146, .base = 152, .n0 = 89, .n1 = 150, .bottom = 159, .n = 9,
+		         .colors = { 0x000000, 0xFFFFFF, 0xCEDECE, 0xCEDECE, 0x94A594, 0x637363, 0x637363, 0x314231, 0x000000 } },
 		.mem = { { 0x03000C70, 0xFF, 0x05, 1 } },
 		.live = { { 0x03000C70, 0xFF, 0x04, 1 } },
 		.logo = { .wait = 200, .pressStart = true, .wait2 = 200, .layer = 1, .maxY = 104 },
@@ -115,15 +119,16 @@ static const MapProfile profiles[] = {
 		            { 2, 80, 0xFFFFFF }, { 237, 80, 0xFFFFFF } },
 		.tolerance = 8,
 		/* the whole pause screen, frame included; map_crop erases its lettering
-		 * (the L and R key letters, SLEEP, the area name, STATUS) and the
-		 * "A OBJECTIVE" prompt, which also blanks the grid behind it */
+		 * (the L and R key letters, SLEEP, the area name, STATUS); the
+		 * "A OBJECTIVE" prompt is left out (captureHide below) */
 		.glyphs = { { 4, 3, 5, 6, 1, { 0x21214A }, true },                      /* L */
 		            { 231, 3, 5, 6, 1, { 0x21214A }, true },                    /* R */
 		            { 13, 4, 22, 5, 8, PLATE_TEXT, true },                      /* SLEEP */
 		            { 203, 4, 26, 5, 8, PLATE_TEXT, true },                     /* STATUS */
-		            { 97, 0, 46, 7, -1, { 0xADC6BD } },                         /* area name */
-		            { 169, 141, 14, 11, .grid = true },                         /* A button */
-		            { 172, 143, 62, 7, .grid = true } },                        /* OBJECTIVE */
+		            { 97, 0, 46, 7, -1, { 0xADC6BD } } },                       /* area name */
+		/* "A OBJECTIVE" is sprites (A button tile 942, OBJECTIVE 976/980,
+		 * priority 2): left out of the capture, so the map under it shows */
+		.captureHide = { { 160, 130, 239, 159, 940, 1023, 2 } },
 		/* the blank plates and keys, in the bezel's greys */
 		.recolor = { { 2, 1, 42, 10, 13, PLATE_FROM, PLATE_TO },
 		             { 196, 1, 42, 10, 13, PLATE_FROM, PLATE_TO },

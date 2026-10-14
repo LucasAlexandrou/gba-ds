@@ -359,6 +359,27 @@ static void recolor(MapCapture* mc, uint32_t* out) {
 	}
 }
 
+static void paint_tab(MapCapture* mc, uint32_t* out) {
+	const MapProfile* p = mc->prof;
+	int h = p->tab.base - p->tab.top;
+	int xa = IMIN(p->tab.x0 - h, p->tab.n0), xb = IMAX(p->tab.x1 + h, p->tab.n1);
+	for (int x = xa; x <= xb; ++x) {
+		int t;
+		if (x >= p->tab.x0 && x <= p->tab.x1) t = p->tab.top;
+		else if (x < p->tab.x0 && x >= p->tab.x0 - h) t = p->tab.top + (p->tab.x0 - x);
+		else if (x > p->tab.x1 && x <= p->tab.x1 + h) t = p->tab.top + (x - p->tab.x1);
+		else t = p->tab.base;
+		if (t >= p->tab.base && (x < p->tab.n0 || x > p->tab.n1)) continue;
+		if (x < mc->cx || x >= mc->cx + mc->cw) continue;
+		for (int y = t; y <= p->tab.bottom; ++y) {
+			if (y < mc->cy || y >= mc->cy + mc->ch) continue;
+			int d = IMIN(y - t, p->tab.n - 1);
+			uint32_t* px = &out[(y - mc->cy) * mc->cw + (x - mc->cx)];
+			*px = (*px & 0xFF000000) | to_fb(p->tab.colors[d]);
+		}
+	}
+}
+
 static void crop(MapCapture* mc, const uint32_t* fb, uint32_t* out) {
 	const MapProfile* p = mc->prof;
 	for (int y = 0; y < mc->ch; ++y) {
@@ -366,6 +387,7 @@ static void crop(MapCapture* mc, const uint32_t* fb, uint32_t* out) {
 	}
 	if (mc->clean && p->glyphs[0].w) remove_glyphs(mc, out);
 	if (mc->clean && p->recolor[0].w) recolor(mc, out);
+	if (mc->clean && p->tab.n) paint_tab(mc, out);
 	if (!mc->tight || !p->masks[0].w) return;
 	if (!mc->tileValid) find_tile(mc, fb);
 	if (p->arrows[0].w) remove_arrows(mc, out);
@@ -655,6 +677,11 @@ MapCapture* mapcap_create(const char* romPath, const char* gameCode, bool tight)
 	mc->snapshot = malloc(mc->stateSize);
 	mc->tight = tight && p->tight_w > 0;
 	mc->clean = tight;
+	if (mc->clean && p->captureHide[0].x1) {
+		int n = 0;
+		while (n < 4 && p->captureHide[n].x1) ++n;
+		emu_hide_sprites(&mc->shadow, p->captureHide, n);
+	}
 	if (mc->tight) {
 		mc->cx = p->tight_x, mc->cy = p->tight_y, mc->cw = p->tight_w, mc->ch = p->tight_h;
 	} else {
