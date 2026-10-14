@@ -140,8 +140,11 @@ static const MapProfile profiles[] = {
 		.captureHide = { { 160, 130, 239, 159, 940, 1023, 2 },
 		                 /* the yellow scroll arrows (tiles 512-515) */
 		                 { -256, -128, 255, 159, 512, 515, 2 },
-		                 /* and the play-time clock, bottom left (408-415) */
-		                 { -256, 130, 255, 159, 408, 415, 3 } },
+		                 /* the play-time clock, bottom left (408-415) */
+		                 { -256, 130, 255, 159, 408, 415, 3 },
+		                 /* and the row of ticked item icons along the top (the
+		                  * counters down the left stay) */
+		                 { 30, 0, 120, 20, 400, 439, 3 } },
 		/* the blank plates and keys, in the bezel's greys */
 		.recolor = { { 2, 1, 42, 10, 13, PLATE_FROM, PLATE_TO },
 		             { 196, 1, 42, 10, 13, PLATE_FROM, PLATE_TO },
