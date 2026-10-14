@@ -62,7 +62,7 @@ bool logo_extract(const char* romPath, const char* gameCode, const char* outPng)
 	emu_state_load(&e, st);
 	emu_frame(&e, 0);
 	memcpy(back, e.fb, GBA_W * GBA_H * 4);
-	layers(&e, p->logo.layer);
+	layers(&e, p->logo.mask ? -2 : p->logo.layer); /* a mask cuts the logo out of the whole picture */
 	emu_state_load(&e, st);
 	emu_frame(&e, 0);
 	memcpy(fg, e.fb, GBA_W * GBA_H * 4);
@@ -77,13 +77,25 @@ bool logo_extract(const char* romPath, const char* gameCode, const char* outPng)
 		snprintf(dbg, sizeof(dbg), "%s.back.png", outPng);
 		stbi_write_png(dbg, GBA_W, GBA_H, 4, back, GBA_W * 4);
 	}
+	uint8_t* inMask = NULL;
+	if (p->logo.mask) {
+		const LogoMask* m = p->logo.mask;
+		inMask = calloc(GBA_W * GBA_H, 1);
+		int pos = 0;
+		for (int r = 0; r < m->nRuns; ++r) {
+			for (int k = 0; k < m->runs[r] && pos < m->w * m->h; ++k, ++pos) {
+				int x = m->x + pos % m->w, y = m->y + pos / m->w;
+				if ((r & 1) && x < GBA_W && y < GBA_H) inMask[y * GBA_W + x] = 1;
+			}
+		}
+	}
 	/* opaque mask and bounding box above maxY */
 	int x0 = GBA_W, y0 = GBA_H, x1 = -1, y1 = -1, count = 0;
 	int maxY = p->logo.maxY ? p->logo.maxY : GBA_H;
 	for (int y = 0; y < maxY; ++y) {
 		for (int x = 0; x < GBA_W; ++x) {
 			uint32_t c = fg[y * GBA_W + x];
-			bool clear = c == back[y * GBA_W + x];
+			bool clear = inMask ? !inMask[y * GBA_W + x] : c == back[y * GBA_W + x];
 			if (p->logo.blackIsClear && (c & 0xFF) < 24 && ((c >> 8) & 0xFF) < 24 && ((c >> 16) & 0xFF) < 24) clear = true;
 			if (clear) continue;
 			opaque[y * GBA_W + x] = 1;
@@ -120,6 +132,7 @@ bool logo_extract(const char* romPath, const char* gameCode, const char* outPng)
 	free(back);
 	free(fg);
 	free(opaque);
+	free(inMask);
 	return ok;
 }
 

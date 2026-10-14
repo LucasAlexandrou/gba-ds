@@ -43,6 +43,7 @@ static bool stillValid;
 /* The map button did nothing at the last attempt (A Link to the Past indoors
  * without a map): keep showing the last map, dimmed. */
 static bool mapInactive;
+static bool logoOnly; /* the game has a profile but no map: logo on the second screen */
 static uint64_t mapAnimStart, frameCount;
 static bool singleShowsMap;
 static double fps, speedPct;
@@ -674,7 +675,7 @@ static void draw_osd(void) {
 	if (!osd || menuOpen || shotPending) return;
 	int s = ui_touch_screen();
 	SDL_Rect r = screens[s].rect;
-	bool gameHere = nScreens == 1 || s == game_screen() || !(mc && cfg->map);
+	bool gameHere = nScreens == 1 || s == game_screen() || !((mc || logoOnly) && cfg->map);
 	SDL_Rect img = ui_image_rect(s, GBA_W, GBA_H, gameHere ? cfg->scale : cfg->mapScale);
 	int gap = r.h - (img.y + img.h);
 	int fpx = small_text_px(s, img.y < gap ? img.y : gap);
@@ -685,7 +686,7 @@ static void draw_osd(void) {
 }
 
 static void draw_game(void) {
-	bool mapOn = mc && cfg->map;
+	bool mapOn = (mc || logoOnly) && cfg->map; /* logo-only games: the logo stands in for the map */
 	for (int s = 0; s < nScreens; ++s) {
 		bool showGame = nScreens == 1 ? !(singleShowsMap && mapOn) : (s == game_screen() || !mapOn);
 		SDL_Rect r = screens[s].rect;
@@ -874,9 +875,13 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	frameCount = 0;
 	singleShowsMap = false;
 	menuOpen = false;
+	logoOnly = false;
 	if (cfg->map) {
 		mc = mapcap_create(rom, emu.gameCode, cfg->mapCrop);
+		const MapProfile* lp = profile_find(emu.gameCode);
+		logoOnly = lp && lp->logoOnly;
 		if (mc) mapcap_set_still(mc, !cfg->mapAnim);
+		if (logoOnly) fprintf(stderr, "logo only: %s\n", lp->title);
 		if (mc) {
 			fprintf(stderr, "map profile: %s\n", mapcap_title(mc));
 			mapcap_size(mc, &mapW, &mapH);
@@ -885,7 +890,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			int nRules = 0;
 			while (prof && nRules < 4 && prof->hideSprites[nRules].x1) ++nRules;
 			emu_hide_sprites(&emu, prof ? prof->hideSprites : NULL, nRules);
-		} else {
+		} else if (!logoOnly) {
 			fprintf(stderr, "no map profile for %s\n", emu.gameCode);
 		}
 	}

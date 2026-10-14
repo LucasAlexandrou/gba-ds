@@ -194,6 +194,16 @@ static const MapProfile profiles[] = {
 		/* the brightest state of the X is a pale flash; the red X covers more */
 		.stillPick = STILL_COVER,
 	},
+	{
+		.codes = { "ATHE", "ATHF", "ATHD" },
+		.title = "Tony Hawk's Pro Skater 2",
+		/* no map yet: listed, logo on the second screen */
+		.logoOnly = true,
+		/* the title is one full-screen picture with the badge painted in:
+		 * cut out by its shape (the USA/Europe, French and German titles are
+		 * identical), on the frame after 920 */
+		.logo = { .wait = 920, .mask = &logoMaskTHPS2 },
+	},
 };
 
 /* ---------------------------------------------------------------- regions
@@ -228,6 +238,12 @@ static void lang_menu(MapProfile* p) {
 	if (p->frame.steps[0].frames) insert_steps(p->frame.steps, 24, 0, LANGUAGE_A, 2);
 }
 
+static void thps2_jpn(MapProfile* p) {
+	/* SK8: its own badge, and a later title screen */
+	p->logo.wait = 1130;
+	p->logo.mask = &logoMaskSK8;
+}
+
 static void zelda_eur(MapProfile* p) {
 	p->listName = "Legend of Zelda, The - A Link to the Past (Europe)";
 	/* the language menu comes after the title, where USA has the file menu */
@@ -252,6 +268,7 @@ static const Variant variants[] = {
 	{ "AMTJ", "AMTE", 0x34, NULL },
 	{ "AZLP", "AZLE", 0, zelda_eur },
 	{ "AZLJ", "AZLE", 0, zelda_jpn },
+	{ "ATHJ", "ATHE", 0, thps2_jpn },
 };
 #define N_VARIANTS (sizeof(variants) / sizeof(*variants))
 static MapProfile variantProfiles[N_VARIANTS];

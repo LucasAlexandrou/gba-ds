@@ -3,6 +3,7 @@
 #define GBADS_PROFILES_H
 
 #include "emu.h"
+#include "logo_masks.h"
 
 typedef struct {
 	uint32_t keys;
@@ -44,6 +45,9 @@ typedef struct MapProfile {
 	 * the last map at full brightness: their captures also fail briefly
 	 * during room transitions. */
 	bool dimWhenUnavailable;
+	/* No map yet: the game is listed and the second screen shows its logo,
+	 * but nothing is captured. */
+	bool logoOnly;
 	int stableFrames;  /* consecutive "quiet" frames required */
 	int maxDiff;       /* pixels allowed to change between quiet frames (blinking markers) */
 	int crop_x, crop_y, crop_w, crop_h;
@@ -98,6 +102,9 @@ typedef struct MapProfile {
 		bool pressStart, blackIsClear;
 		MacroStep steps[24]; /* instead of wait/pressStart: button steps from power-on */
 		int rev; /* bump when extraction changes, so cached logos are made again */
+		/* The logo is painted into the whole title picture: render every
+		 * layer and keep the pixels inside this mask (THPS2). */
+		const LogoMask* mask;
 	} logo;
 
 	/* Border for the map screen, taken from one of the game's own menu screens

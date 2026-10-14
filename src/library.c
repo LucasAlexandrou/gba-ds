@@ -83,11 +83,13 @@ static void scan_dir(Config* cfg, const char* d, int depth) {
 	closedir(dir);
 }
 
-/* The region letter that ends a game code: E USA, J Japan; P and the
- * single-country European letters Europe. */
+/* The region letter that ends a game code: E USA, J Japan, F France,
+ * D Germany; P and the other European letters Europe. */
 static int region_flag(char c) {
 	if (c == 'E') return BRAND_FLAG_US;
 	if (c == 'J') return BRAND_FLAG_JP;
+	if (c == 'F') return BRAND_FLAG_FR;
+	if (c == 'D') return BRAND_FLAG_DE;
 	if (strchr("PDFSIHXYZU", c) && c) return BRAND_FLAG_EU;
 	return -1;
 }

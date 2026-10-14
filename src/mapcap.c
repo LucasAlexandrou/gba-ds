@@ -705,7 +705,7 @@ static void* worker(void* arg) {
 
 MapCapture* mapcap_create(const char* romPath, const char* gameCode, bool tight) {
 	const MapProfile* p = profile_find(gameCode);
-	if (!p) {
+	if (!p || p->logoOnly) {
 		return NULL;
 	}
 	MapCapture* mc = calloc(1, sizeof(*mc));

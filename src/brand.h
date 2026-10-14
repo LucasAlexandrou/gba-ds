@@ -5,7 +5,7 @@
 #include <stddef.h>
 
 enum { BRAND_LOGO, BRAND_BTN_A, BRAND_BTN_B, BRAND_NO_SAVES, BRAND_BTN_L1, BRAND_BTN_R1,
-       BRAND_FLAG_US, BRAND_FLAG_EU, BRAND_FLAG_JP, BRAND_COUNT };
+       BRAND_FLAG_US, BRAND_FLAG_EU, BRAND_FLAG_JP, BRAND_FLAG_FR, BRAND_FLAG_DE, BRAND_COUNT };
 
 typedef struct {
 	const unsigned char* png;
