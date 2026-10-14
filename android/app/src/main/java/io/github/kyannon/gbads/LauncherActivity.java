@@ -3,20 +3,36 @@ package io.github.kyannon.gbads;
 import android.app.Activity;
 import android.app.ActivityOptions;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.DocumentsContract;
+import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.Display;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+
 /**
- * The app icon. Asks for "All files access" once (so ROMs can be read from any
- * folder), then starts the game on the main display, where SDL draws; the
- * game activity puts its second screen on the other display.
+ * The app icon, and what frontends start. Asks for "All files access" once
+ * (so ROMs can be read from any folder), then starts the game on the main
+ * display, where SDL draws; the game activity puts its second screen on the
+ * other display.
+ *
+ * A game to play straight away (skipping the game list) can come as
+ * - an intent extra "rom" (also "ROM", "path", "file"...) with a file path, or
+ *   a file:// / content:// URI, e.g. ES-DE: %EXTRA_rom%=%ROM%
+ * - the intent's data, e.g. ES-DE: %ACTION%=android.intent.action.VIEW %DATA%=%ROMSAF%,
+ *   or Daijisho: -a android.intent.action.VIEW -d {file.uri}
  */
 public class LauncherActivity extends Activity {
     private static final String TAG = "GBADS";
@@ -62,7 +78,11 @@ public class LauncherActivity extends Activity {
 
     private void startGame() {
         Intent game = new Intent(this, GbaDsActivity.class);
-        if (getIntent() != null && getIntent().getExtras() != null) game.putExtras(getIntent().getExtras());
+        String rom = romFromIntent(this, getIntent());
+        if (rom != null) {
+            Log.i(TAG, "game from the intent: " + rom);
+            game.putExtra("rom", rom);
+        }
         /* A task of its own (see taskAffinity in the manifest): started inside
          * this launcher's task, it would open on whatever display the launcher
          * was put on (GammaOS: often the bottom one), ignoring the display asked for. */
@@ -78,5 +98,79 @@ public class LauncherActivity extends Activity {
             startActivity(game);
         }
         finish();
+    }
+
+    /* ------------------------------------------------------------ the ROM from an intent */
+
+    private static final String[] ROM_EXTRAS = { "rom", "ROM", "Rom", "path", "PATH", "file", "FILE", "romPath", "GamePath" };
+
+    static String romFromIntent(Context c, Intent in) {
+        if (in == null) return null;
+        for (String k : ROM_EXTRAS) {
+            Object v = in.getExtras() != null ? in.getExtras().get(k) : null;
+            if (v instanceof Uri) return fromUri(c, (Uri) v);
+            if (v instanceof String && !((String) v).isEmpty()) {
+                String str = (String) v;
+                return str.startsWith("file:") || str.startsWith("content:") ? fromUri(c, Uri.parse(str)) : str;
+            }
+        }
+        return in.getData() != null ? fromUri(c, in.getData()) : null;
+    }
+
+    private static String fromUri(Context c, Uri u) {
+        if ("file".equals(u.getScheme())) return u.getPath();
+        if (!"content".equals(u.getScheme())) return null;
+        if ("com.android.externalstorage.documents".equals(u.getAuthority())) {
+            /* with All files access, the plain path is readable (and saves can go next to the ROM) */
+            String id = null;
+            try {
+                id = DocumentsContract.getDocumentId(u);
+            } catch (IllegalArgumentException e) {
+                try {
+                    id = DocumentsContract.getTreeDocumentId(u);
+                } catch (IllegalArgumentException e2) {
+                    Log.w(TAG, "not a document: " + u);
+                }
+            }
+            String path = id != null ? documentIdToPath(id) : null;
+            if (path != null && new File(path).canRead()) return path;
+            Log.w(TAG, "can't read " + path + " directly, copying it");
+        }
+        return copyIn(c, u);
+    }
+
+    /** "primary:ROMs/gba" -> /storage/emulated/0/ROMs/gba; other volumes are under /storage. */
+    static String documentIdToPath(String id) {
+        int colon = id.indexOf(':');
+        if (colon < 0) return null;
+        String volume = id.substring(0, colon), rest = id.substring(colon + 1);
+        String root = "primary".equalsIgnoreCase(volume)
+                ? Environment.getExternalStorageDirectory().getAbsolutePath()
+                : "/storage/" + volume;
+        return rest.isEmpty() ? root : root + "/" + rest;
+    }
+
+    /** Another app's file without a path: a copy in the app's folder (its saves stay there too). */
+    private static String copyIn(Context c, Uri u) {
+        String name = "game.gba";
+        try (Cursor cur = c.getContentResolver().query(u, new String[] { OpenableColumns.DISPLAY_NAME }, null, null, null)) {
+            if (cur != null && cur.moveToFirst() && cur.getString(0) != null) name = cur.getString(0).replace('/', '_');
+        } catch (RuntimeException e) {
+            Log.w(TAG, "no name for " + u + ": " + e);
+        }
+        File dir = c.getExternalFilesDir("launched");
+        if (dir == null) dir = new File(c.getFilesDir(), "launched");
+        dir.mkdirs();
+        File out = new File(dir, name);
+        try (InputStream is = c.getContentResolver().openInputStream(u); OutputStream os = new FileOutputStream(out)) {
+            if (is == null) return null;
+            byte[] buf = new byte[1 << 16];
+            for (int n; (n = is.read(buf)) > 0; ) os.write(buf, 0, n);
+        } catch (Exception e) {
+            Log.e(TAG, "could not copy " + u + ": " + e);
+            return null;
+        }
+        Log.i(TAG, "copied " + u + " to " + out);
+        return out.getAbsolutePath();
     }
 }

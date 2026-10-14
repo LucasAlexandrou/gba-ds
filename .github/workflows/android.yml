@@ -61,7 +61,10 @@ jobs:
 
       - name: Version
         id: v
-        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+          # for the release notes: the APK's own checksum (the artifact digest is the zip's)
+          echo "::notice title=APK SHA-256::$(cd dist && sha256sum gba-ds-*-android.apk)"
 
       - uses: actions/upload-artifact@v4
         with:

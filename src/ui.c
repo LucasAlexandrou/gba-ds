@@ -412,6 +412,12 @@ void ui_on_background(void (*fn)(void)) {
 	backgroundFn = fn;
 }
 
+static void (*foregroundFn)(void);
+
+void ui_on_foreground(void (*fn)(void)) {
+	foregroundFn = fn;
+}
+
 bool ui_events(void) {
 	SDL_Event ev;
 	while (SDL_PollEvent(&ev)) {
@@ -432,6 +438,7 @@ bool ui_events(void) {
 #ifdef __ANDROID__
 			retained_invalidate(); /* SDL's window surface is a new one: redraw both screens */
 #endif
+			if (foregroundFn) foregroundFn();
 			break;
 		case SDL_CONTROLLERDEVICEADDED:
 		case SDL_JOYDEVICEADDED:

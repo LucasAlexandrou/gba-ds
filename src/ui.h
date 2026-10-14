@@ -68,6 +68,8 @@ bool ui_events(void);
  * (Android: Home, the task switcher, the screen turning off...), where it
  * may be killed without notice. NULL: nothing. */
 void ui_on_background(void (*fn)(void));
+/* Called from ui_events when the app is back in the foreground. NULL: nothing. */
+void ui_on_foreground(void (*fn)(void));
 bool ui_next_pointer(Pointer* p);
 void ui_read_buttons(void);
 

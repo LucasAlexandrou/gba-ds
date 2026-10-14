@@ -4,6 +4,7 @@
 
 #include "android.h"
 #include "emu.h"
+#include "paths.h"
 #include "profiles.h"
 
 #include <EGL/egl.h>
@@ -71,8 +72,47 @@ const char* android_home(void) {
 void android_config_defaults(Config* c) {
 	/* shared storage ignores case: this is also a folder called GBA */
 	snprintf(c->romDir, sizeof(c->romDir), "/storage/emulated/0/ROMs/gba");
-	snprintf(c->screenshotDir, sizeof(c->screenshotDir), "/storage/emulated/0/Pictures/GBA DS");
-	snprintf(c->cheatDir, sizeof(c->cheatDir), "/storage/emulated/0/RetroArch/cheats");
+	/* GBADS_HOME is "GBA DS" on the internal storage (or, without All files
+	 * access, the app's folder), laid out like the ROCKNIX install folder:
+	 * states/ (the default state_dir), logos/ and overlays/ (asset_dir),
+	 * cheats/, screenshots/, gba-ds.log */
+	const char* home = android_home();
+	if (home) {
+		snprintf(c->screenshotDir, sizeof(c->screenshotDir), "%s/screenshots", home);
+		snprintf(c->cheatDir, sizeof(c->cheatDir), "%s/cheats", home);
+		static const struct {
+			const char* dir;
+			const char* text;
+		} folders[] = {
+			{ "cheats", "Put RetroArch cheat files (.cht) here, subfolders are fine.\n"
+			            "A file goes with the ROM of the same name: Metroid Fusion (World) (Code Breaker).cht\n"
+			            "with Metroid Fusion (USA).gba. Switch cheats on in the pause menu: Game > Cheats.\n" },
+			{ "overlays", "Overlay PNGs (1024x768, transparent where the picture shows): primary.png (game screen) /\n"
+			              "secondary.png (map screen) for every game, <CODE>-primary.png / <CODE>-secondary.png for\n"
+			              "one game, optionally with -integer / -fit / -stretch. See the README.\n" },
+			{ "logos", "Optional: your own logo images (<CODE>.png or .bmp) override the ones extracted from the games.\n" },
+			{ "screenshots", NULL },
+		};
+		for (size_t i = 0; i < sizeof(folders) / sizeof(folders[0]); ++i) {
+			char path[1100];
+			snprintf(path, sizeof(path), "%s/%s", home, folders[i].dir);
+			mkdirs(path);
+			if (!folders[i].text) continue;
+			snprintf(path, sizeof(path), "%s/%s/README.txt", home, folders[i].dir);
+			FILE* f = fopen(path, "wx"); /* only if it isn't there yet */
+			if (f) {
+				fputs(folders[i].text, f);
+				fclose(f);
+			}
+		}
+		/* the extracted logos and map borders in states/ aren't photos */
+		char nomedia[1100];
+		snprintf(nomedia, sizeof(nomedia), "%s/states", home);
+		mkdirs(nomedia);
+		snprintf(nomedia, sizeof(nomedia), "%s/states/.nomedia", home);
+		FILE* f = fopen(nomedia, "a");
+		if (f) fclose(f);
+	}
 	c->esConfigDir[0] = 0;
 	c->sway = false;
 	/* Android keeps HOME for itself */

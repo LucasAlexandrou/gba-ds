@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.graphics.Point;
 import android.hardware.display.DisplayManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.DocumentsContract;
@@ -18,6 +19,11 @@ import android.view.WindowManager;
 import org.libsdl.app.SDLActivity;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * The game. SDL draws on the display this activity is on; the other display
@@ -34,9 +40,7 @@ public class GbaDsActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle state) {
         /* before SDL starts the native thread: where config, states and the log go */
-        File home = getExternalFilesDir(null);
-        if (home == null) home = getFilesDir();
-        home.mkdirs();
+        File home = dataFolder();
         try {
             Os.setenv("GBADS_HOME", home.getAbsolutePath(), true);
         } catch (ErrnoException e) {
@@ -48,19 +52,83 @@ public class GbaDsActivity extends SDLActivity {
         if (!mBrokenLibraries) openSecondScreen();
     }
 
+    /**
+     * "GBA DS" on the internal storage, where people can reach it (cheats,
+     * overlays, screenshots, save states), laid out like the ROCKNIX install
+     * folder. Needs All files access; without it, the app's own folder.
+     * Data from builds that used the app's folder is copied over once.
+     */
+    private File dataFolder() {
+        File appDir = getExternalFilesDir(null);
+        if (appDir == null) appDir = getFilesDir();
+        File shared = new File(Environment.getExternalStorageDirectory(), "GBA DS");
+        boolean canShare = Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager();
+        if (!canShare || !(shared.isDirectory() || shared.mkdirs())) {
+            Log.w(TAG, "no All files access: data stays in " + appDir);
+            appDir.mkdirs();
+            return appDir;
+        }
+        File oldStates = new File(appDir, "states"), newStates = new File(shared, "states");
+        if (oldStates.isDirectory() && !newStates.exists()) {
+            Log.i(TAG, "moving " + oldStates + " to " + newStates);
+            if (copyTree(oldStates, newStates)) deleteTree(oldStates);
+        }
+        return shared;
+    }
+
+    private static boolean copyTree(File from, File to) {
+        if (from.isDirectory()) {
+            if (!to.isDirectory() && !to.mkdirs()) return false;
+            File[] list = from.listFiles();
+            boolean ok = true;
+            if (list != null) for (File f : list) ok &= copyTree(f, new File(to, f.getName()));
+            return ok;
+        }
+        try (InputStream is = new FileInputStream(from); OutputStream os = new FileOutputStream(to)) {
+            byte[] buf = new byte[1 << 16];
+            for (int n; (n = is.read(buf)) > 0; ) os.write(buf, 0, n);
+            return true;
+        } catch (IOException e) {
+            Log.e(TAG, "copying " + from + ": " + e);
+            return false;
+        }
+    }
+
+    private static void deleteTree(File f) {
+        File[] list = f.listFiles();
+        if (list != null) for (File c : list) deleteTree(c);
+        f.delete();
+    }
+
     @Override
     protected String[] getLibraries() {
         return new String[] { "SDL2", "main" };
     }
+
+    private String currentRom; /* the game started with (null: the game list) */
+    private Intent switchTo;   /* a frontend asked for another game: restart with it */
 
     @Override
     protected String[] getArguments() {
         String rom = getIntent() != null ? getIntent().getStringExtra("rom") : null;
         if (rom != null && !rom.isEmpty()) {
             Log.i(TAG, "rom from intent: " + rom);
+            currentRom = rom;
             return new String[] { rom };
         }
         return new String[0];
+    }
+
+    /** Already running and started again (app icon, or a frontend with a game). */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        String rom = intent.getStringExtra("rom");
+        if (rom == null || rom.equals(currentRom)) return; /* just brought to the front */
+        Log.i(TAG, "asked for another game (" + rom + "): closing this one first");
+        switchTo = new Intent(this, LauncherActivity.class).putExtra("rom", rom).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        /* the game saves its resume point and returns from main; SDL then finishes this activity */
+        SDLActivity.nativeSendQuit();
     }
 
     private void openSecondScreen() {
@@ -126,25 +194,14 @@ public class GbaDsActivity extends SDLActivity {
         nativeFolderPicked(path);
     }
 
-    /**
-     * content://com.android.externalstorage.documents/tree/primary%3AROMs%2Fgba
-     * -> /storage/emulated/0/ROMs/gba (with All files access, the plain path
-     * is readable). Other volumes ("1234-ABCD:...") are under /storage.
-     */
+    /** A picked folder (tree URI) as a plain path (readable with All files access). */
     private static String treeUriToPath(Uri uri) {
-        String id;
         try {
-            id = DocumentsContract.getTreeDocumentId(uri);
+            String path = LauncherActivity.documentIdToPath(DocumentsContract.getTreeDocumentId(uri));
+            return path != null ? path : "";
         } catch (IllegalArgumentException e) {
             return "";
         }
-        int colon = id.indexOf(':');
-        if (colon < 0) return "";
-        String volume = id.substring(0, colon), rest = id.substring(colon + 1);
-        String root = "primary".equalsIgnoreCase(volume)
-                ? Environment.getExternalStorageDirectory().getAbsolutePath()
-                : "/storage/" + volume;
-        return rest.isEmpty() ? root : root + "/" + rest;
     }
 
     @Override
@@ -155,7 +212,11 @@ public class GbaDsActivity extends SDLActivity {
         }
         boolean finishing = isFinishing();
         super.onDestroy();
-        /* the native side keeps its state in statics: start fresh next time */
-        if (finishing) System.exit(0);
+        /* the native side keeps its state in statics: start fresh next time
+         * (with the game a frontend asked for, if that's why we closed) */
+        if (finishing) {
+            if (switchTo != null) startActivity(switchTo);
+            System.exit(0);
+        }
     }
 }

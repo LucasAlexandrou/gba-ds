@@ -1,7 +1,9 @@
 # Android version: plan
 
-Status: first milestone done and tested on the device (branch `android`,
-2026-10-14). See "Progress" at the end.
+Status: released in v1.1 (milestones 1-3). Starting games from frontends
+and the pause menu on returning to the app are experimental (untested on a
+device). The APK ships with the ROCKNIX zip (CLAUDE.md, Release).
+See "Progress" at the end.
 
 ## Goal
 
@@ -262,6 +264,50 @@ After the first milestone:
   game's handler from ui_events; SDL 2.30 blocks the thread at the next
   pump). Battery saves were already safe: mGBA syncs the mapped .sav
   shortly after each write.
+
+### Third milestone (released in v1.1; frontend launching and pause-on-return experimental)
+
+Tested on the device: the GBA DS data folder, cheats, screenshots, resume
+points. Not testable on the owner's RG DS Plus (GammaOS doesn't handle app
+switching well enough): starting games from frontends, switching games while
+running, the pause menu on returning. Marked experimental in the README and
+CHANGELOG until someone tests them on a more capable device.
+
+
+- Launching from frontends. LauncherActivity (exported) takes the game
+  from an extra (`rom`, also `ROM`, `path`, `file`, `romPath`, `GamePath`:
+  a path, or a file:// / content:// URI) or from the intent's data. A
+  content URI from Android's external storage provider becomes a plain
+  path (All files access); anything else is copied into the app's
+  `launched/` folder. With a game given, the game list is skipped and
+  "Close GBA DS" goes back to the frontend. If GBA DS is already running
+  with another game (or the game list), GbaDsActivity.onNewIntent sends
+  SDL a quit (the game saves its resume point), and onDestroy starts the
+  launcher again with the new game before exiting the process.
+  ES-DE (custom systems):
+    es_find_rules.xml:
+      <emulator name="GBA-DS">
+          <!-- Game Boy Advance, dual screen: GBA DS -->
+          <rule type="androidpackage">
+              <entry>io.github.kyannon.gbads/.LauncherActivity</entry>
+          </rule>
+      </emulator>
+    es_systems.xml, in the gba system:
+      <command label="GBA DS (Standalone)">%EMULATOR_GBA-DS% %ACTIVITY_CLEAR_TASK% %ACTIVITY_CLEAR_TOP% %DATA%=%ROMSAF%</command>
+    (or %EXTRA_rom%=%ROM% instead of %DATA%=%ROMSAF%)
+  Daijisho player: package io.github.kyannon.gbads, activity
+  .LauncherActivity, `-a android.intent.action.VIEW -d {file.uri}` (or
+  `-e rom {file.path}`).
+- Data folder (GBADS_HOME): "GBA DS" on the internal storage when All
+  files access is granted (else the app's folder), laid out like the
+  ROCKNIX install folder: states/ (with .nomedia), cheats/ (cheat_dir),
+  overlays/ and logos/ (asset_dir), screenshots/ (screenshot_dir),
+  gba-ds.log. android_config_defaults makes the folders with README.txt
+  files. GbaDsActivity.dataFolder() copies states/ over from the app's
+  folder once (builds before this used it). RetroArch's own folders
+  aren't readable by other apps on newer Android, hence cheats/ there.
+- Back from Home / the app switcher mid-game, the pause menu is open
+  (SDL_APP_DIDENTERFOREGROUND -> game.c on_foreground).
 
 Not done yet (next): game list and pause menu polish, SELECT+START menu
 combo, saving when Android pauses or kills the app, file access settings,
