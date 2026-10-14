@@ -650,6 +650,13 @@ static void on_background(void) {
 	auto_save();
 }
 
+static void open_menu(void);
+
+/* Back from Home / the app switcher: paused, rather than straight into the action. */
+static void on_foreground(void) {
+	if (!menuOpen) open_menu();
+}
+
 /* generated surround (built-in overlay), see mapframe.c */
 static MapFrame mf;
 static SDL_Texture* canvasTex[2];
@@ -1119,6 +1126,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	if (cheats_on(&cheats)) cheats_apply(&cheats, &emu);
 	cheatsOpen = false;
 	ui_on_background(on_background);
+	ui_on_foreground(on_foreground);
 
 	mc = NULL;
 	gameTexAll = true;
@@ -1681,6 +1689,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	}
 
 	ui_on_background(NULL);
+	ui_on_foreground(NULL);
 	fprintf(stderr, "leaving game after %llu frames\n", (unsigned long long) frameCount);
 	auto_save();
 	if (audio) SDL_CloseAudioDevice(audio);

@@ -263,6 +263,35 @@ After the first milestone:
   pump). Battery saves were already safe: mGBA syncs the mapped .sav
   shortly after each write.
 
+### Third milestone (in progress, branch `android`)
+
+- Launching from frontends. LauncherActivity (exported) takes the game
+  from an extra (`rom`, also `ROM`, `path`, `file`, `romPath`, `GamePath`:
+  a path, or a file:// / content:// URI) or from the intent's data. A
+  content URI from Android's external storage provider becomes a plain
+  path (All files access); anything else is copied into the app's
+  `launched/` folder. With a game given, the game list is skipped and
+  "Close GBA DS" goes back to the frontend. If GBA DS is already running
+  with another game (or the game list), GbaDsActivity.onNewIntent sends
+  SDL a quit (the game saves its resume point), and onDestroy starts the
+  launcher again with the new game before exiting the process.
+  ES-DE (custom systems):
+    es_find_rules.xml:
+      <emulator name="GBA-DS">
+          <!-- Game Boy Advance, dual screen: GBA DS -->
+          <rule type="androidpackage">
+              <entry>io.github.kyannon.gbads/.LauncherActivity</entry>
+          </rule>
+      </emulator>
+    es_systems.xml, in the gba system:
+      <command label="GBA DS (Standalone)">%EMULATOR_GBA-DS% %ACTIVITY_CLEAR_TASK% %ACTIVITY_CLEAR_TOP% %DATA%=%ROMSAF%</command>
+    (or %EXTRA_rom%=%ROM% instead of %DATA%=%ROMSAF%)
+  Daijisho player: package io.github.kyannon.gbads, activity
+  .LauncherActivity, `-a android.intent.action.VIEW -d {file.uri}` (or
+  `-e rom {file.path}`).
+- Back from Home / the app switcher mid-game, the pause menu is open
+  (SDL_APP_DIDENTERFOREGROUND -> game.c on_foreground).
+
 Not done yet (next): game list and pause menu polish, SELECT+START menu
 combo, saving when Android pauses or kills the app, file access settings,
 frontend launch intents.

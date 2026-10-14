@@ -7,7 +7,6 @@ import android.graphics.Point;
 import android.hardware.display.DisplayManager;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.system.ErrnoException;
 import android.system.Os;
@@ -53,14 +52,30 @@ public class GbaDsActivity extends SDLActivity {
         return new String[] { "SDL2", "main" };
     }
 
+    private String currentRom; /* the game started with (null: the game list) */
+    private Intent switchTo;   /* a frontend asked for another game: restart with it */
+
     @Override
     protected String[] getArguments() {
         String rom = getIntent() != null ? getIntent().getStringExtra("rom") : null;
         if (rom != null && !rom.isEmpty()) {
             Log.i(TAG, "rom from intent: " + rom);
+            currentRom = rom;
             return new String[] { rom };
         }
         return new String[0];
+    }
+
+    /** Already running and started again (app icon, or a frontend with a game). */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        String rom = intent.getStringExtra("rom");
+        if (rom == null || rom.equals(currentRom)) return; /* just brought to the front */
+        Log.i(TAG, "asked for another game (" + rom + "): closing this one first");
+        switchTo = new Intent(this, LauncherActivity.class).putExtra("rom", rom).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        /* the game saves its resume point and returns from main; SDL then finishes this activity */
+        SDLActivity.nativeSendQuit();
     }
 
     private void openSecondScreen() {
@@ -126,25 +141,14 @@ public class GbaDsActivity extends SDLActivity {
         nativeFolderPicked(path);
     }
 
-    /**
-     * content://com.android.externalstorage.documents/tree/primary%3AROMs%2Fgba
-     * -> /storage/emulated/0/ROMs/gba (with All files access, the plain path
-     * is readable). Other volumes ("1234-ABCD:...") are under /storage.
-     */
+    /** A picked folder (tree URI) as a plain path (readable with All files access). */
     private static String treeUriToPath(Uri uri) {
-        String id;
         try {
-            id = DocumentsContract.getTreeDocumentId(uri);
+            String path = LauncherActivity.documentIdToPath(DocumentsContract.getTreeDocumentId(uri));
+            return path != null ? path : "";
         } catch (IllegalArgumentException e) {
             return "";
         }
-        int colon = id.indexOf(':');
-        if (colon < 0) return "";
-        String volume = id.substring(0, colon), rest = id.substring(colon + 1);
-        String root = "primary".equalsIgnoreCase(volume)
-                ? Environment.getExternalStorageDirectory().getAbsolutePath()
-                : "/storage/" + volume;
-        return rest.isEmpty() ? root : root + "/" + rest;
     }
 
     @Override
@@ -155,7 +159,11 @@ public class GbaDsActivity extends SDLActivity {
         }
         boolean finishing = isFinishing();
         super.onDestroy();
-        /* the native side keeps its state in statics: start fresh next time */
-        if (finishing) System.exit(0);
+        /* the native side keeps its state in statics: start fresh next time
+         * (with the game a frontend asked for, if that's why we closed) */
+        if (finishing) {
+            if (switchTo != null) startActivity(switchTo);
+            System.exit(0);
+        }
     }
 }
