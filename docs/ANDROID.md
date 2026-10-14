@@ -251,6 +251,10 @@ After the first milestone:
   is raised in time; libmgba and the app are compiled with
   -mcpu=cortex-a55 like the ROCKNIX build. The 5 s log now has per-screen
   redraw counts and the second display's switch/swap timings.
+  Device result (Tony Hawk, 2026-10-14): drawing ~3 ms a frame (was ~7),
+  top screen 2.5 ms per redraw with swap 0.8 ms, bottom redrawn 5 of 300
+  frames, 5 switches back per 5 s at 0.08 ms; emulation 6-8 ms (was ~9);
+  ~60 fps.
 - `menu_combo = select+start` (Android default; `none` elsewhere): opens
   the pause menu. The first of the two buttons is held back from the game
   for up to 5 frames; a quick tap is passed on after that.
