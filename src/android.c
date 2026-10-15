@@ -201,7 +201,10 @@ static void pick_cores(void) {
 	CPU_ZERO(&workerCores);
 	nWorkerCores = 0;
 	for (int c = 0; c < CPU_SETSIZE && c < 64; ++c) {
-		if (CPU_ISSET(c, &allowed) && c != gameCore) CPU_SET(c, &workerCores), ++nWorkerCores;
+		if (CPU_ISSET(c, &allowed) && c != gameCore) {
+			CPU_SET(c, &workerCores);
+			++nWorkerCores;
+		}
 	}
 	if (n < 2) gameCore = -1; /* nothing to separate */
 	fprintf(stderr, "cores the app may use: %s\n", list);
