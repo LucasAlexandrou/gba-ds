@@ -44,6 +44,12 @@ typedef struct Config {
 	bool autoResume;      /* save state on exit, load it on launch */
 	bool nameTags;        /* library keeps (USA), (En,Fr) etc. in game names */
 	bool showAll;         /* library lists games without a map profile too */
+	/* RetroAchievements (casual mode): auto = on when ROCKNIX has an account
+	 * signed in (EmulationStation's RetroAchievements settings), 1, 0 */
+	char raMode[8];
+	char raUser[128], raPassword[256]; /* override ROCKNIX's account */
+	char raSystemCfg[512]; /* ROCKNIX's system.cfg (global.retroachievements.*) */
+	char raHost[256];     /* testing: another server */
 	char rom[512];        /* launch straight into this game (skips the library) */
 
 	/* testing / automation */

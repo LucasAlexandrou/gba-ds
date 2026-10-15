@@ -26,13 +26,22 @@ ZLIB_A     := $(wildcard $(MGBA_BUILD)/zlib/libz.a)
 LIBS       := $(MGBA_BUILD)/libmgba.a $(ZLIB_A) -lSDL2 -lpthread -lm
 
 CORE_SRC   := src/emu.c src/mapcap.c src/profiles.c src/logo_masks.c
-APP_SRC    := src/main.c src/config.c src/font.c src/ui.c src/library.c src/game.c src/paths.c src/image.c src/brand_data.c src/logo.c src/mapframe.c src/cheats.c src/esinteg.c src/textfont.c src/fonts_data.c $(CORE_SRC)
+# RetroAchievements: rcheevos (MIT), vendored in third_party/rcheevos
+RC_DIR     := third_party/rcheevos
+RC_SRC     := $(wildcard $(RC_DIR)/src/*.c $(RC_DIR)/src/rapi/*.c $(RC_DIR)/src/rcheevos/*.c) $(RC_DIR)/src/rhash/md5.c
+RC_OBJ     := $(patsubst $(RC_DIR)/src/%.c,$(OUT)/rcheevos/%.o,$(RC_SRC))
+
+APP_SRC    := src/main.c src/config.c src/font.c src/ui.c src/library.c src/game.c src/paths.c src/image.c src/brand_data.c src/logo.c src/mapframe.c src/cheats.c src/esinteg.c src/textfont.c src/fonts_data.c src/ra.c $(CORE_SRC)
 
 all: $(OUT)/gba-ds
 
-$(OUT)/gba-ds: $(APP_SRC) src/*.h VERSION $(MGBA_BUILD)/libmgba.a
+$(OUT)/gba-ds: $(APP_SRC) src/*.h VERSION $(MGBA_BUILD)/libmgba.a $(RC_OBJ)
 	@mkdir -p $(OUT)
-	$(CC) $(CFLAGS) -o $@ $(APP_SRC) $(LDFLAGS) $(LIBS)
+	$(CC) $(CFLAGS) -DGBADS_RA -I$(RC_DIR)/include -I$(RC_DIR)/src -o $@ $(APP_SRC) $(RC_OBJ) $(LDFLAGS) $(LIBS)
+
+$(OUT)/rcheevos/%.o: $(RC_DIR)/src/%.c $(wildcard $(RC_DIR)/include/*.h)
+	@mkdir -p $(dir $@)
+	$(CC) $(OPTFLAGS) -std=gnu11 -I$(RC_DIR)/include -c $< -o $@
 
 # development tools (host only; need libpng)
 tools: $(OUT)/harness

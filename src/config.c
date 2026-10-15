@@ -30,6 +30,8 @@ void config_defaults(Config* c) {
 	c->autoResume = true;
 	c->showAll = false;
 	c->nameTags = false;
+	strcpy(c->raMode, "auto");
+	strcpy(c->raSystemCfg, "/storage/.config/system/configs/system.cfg");
 	c->homeButton = -1;
 	c->lcdStrength = 35;
 	strcpy(c->borderColor, "000000");
@@ -96,6 +98,11 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	BOOL("auto_resume", autoResume)
 	BOOL("show_all", showAll)
 	BOOL("name_tags", nameTags)
+	STR("retroachievements", raMode)
+	STR("ra_username", raUser)
+	STR("ra_password", raPassword)
+	STR("ra_system_cfg", raSystemCfg)
+	STR("ra_host", raHost)
 	STR("load_state", loadState)
 	INT("quit_after", quitAfter)
 	STR("es_config_dir", esConfigDir)

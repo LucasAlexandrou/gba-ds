@@ -127,6 +127,18 @@ Android session at the same time. To keep them from colliding:
 - `mapframe.c` generated map surrounds; `logo.c` logo / frame extraction.
 - `game.c` a play session: input, the second screen (map, logo, THPS2
   snapshot and Controls picker), pause menu, cheats screen, screenshots.
+- `ra.c` RetroAchievements (casual only) via rcheevos' rc_client, vendored in
+  `third_party/rcheevos` (v12.5.0, trimmed: no hashing beyond md5.c, no
+  libretro/RAIntegration). Server calls run the system `curl` in a worker
+  thread; responses go back to rc_client on the main thread (`pump`).
+  Account: ROCKNIX system.cfg `global.retroachievements.*` (or
+  ra_username/ra_password); token cached in `states/ra/login.cfg`. Popups on
+  the second screen. Built where GBADS_RA is defined (Makefile); `ra.h` has
+  no-op stubs elsewhere (Android: no curl yet). Test offline with
+  `tools/ra_mock.py` (a stand-in server on 127.0.0.1:8099) and
+  `--retroachievements=1 --ra-username=tester --ra-password=secret
+  --ra-host=http://127.0.0.1:8099`. Hardcore is not allowed before the app
+  has been public for 6 months (from Oct 13, 2026).
 - `library.c` the game list and its Settings screen; `esinteg.c` the
   EmulationStation integration; `cheats.c` RetroArch .cht files;
   `ui.c` SDL windows, input, drawing, the pause-menu text images.

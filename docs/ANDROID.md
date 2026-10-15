@@ -52,6 +52,15 @@ SDL.
 6. **Launching from frontends** (optional, later): an intent filter so
    frontends like Daijisho / ES-DE can start GBA DS with a ROM path.
 
+## RetroAchievements (not on Android yet)
+
+`src/ra.c` (main session, ROCKNIX first) isn't in the Android build: without
+GBADS_RA, `ra.h` turns every call into a no-op, so nothing is needed to keep
+building. To bring it over: compile `src/ra.c` and `third_party/rcheevos`
+(see the Makefile's RC_SRC) with -DGBADS_RA, and replace `run_job()`'s curl
+with HTTP through Java (HttpURLConnection over JNI; Android has no curl
+binary). The account would come from the app's own Settings.
+
 ## Build pipeline
 
 The Claude workspace can't download Google's Android SDK/NDK (blocked), so

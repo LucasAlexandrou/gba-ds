@@ -184,6 +184,33 @@ bool emu_rom_header(const char* path, uint8_t* out, size_t n) {
 	return ok;
 }
 
+uint8_t* emu_rom_read_all(const char* path, size_t* size) {
+	struct VDir* archive = emu_is_archive_name(path) ? VDirOpenArchive(path) : NULL;
+	struct VFile* vf = archive ? VDirFindFirst(archive, GBAIsROM) : VFileOpen(path, O_RDONLY);
+	uint8_t* buf = NULL;
+	if (vf) {
+		ssize_t n = vf->size(vf);
+		if (n > 0 && n <= 64 * 1024 * 1024 && (buf = malloc((size_t) n))) {
+			if (vf->seek(vf, 0, SEEK_SET) != 0 || vf->read(vf, buf, (size_t) n) != n) {
+				free(buf);
+				buf = NULL;
+			} else {
+				*size = (size_t) n;
+			}
+		}
+		vf->close(vf);
+	}
+	if (archive) archive->close(archive);
+	return buf;
+}
+
+uint8_t* emu_memory(Emu* e, int region, size_t* size) {
+	size_t n = 0;
+	uint8_t* p = e->core ? e->core->getMemoryBlock(e->core, (size_t) region, &n) : NULL;
+	*size = p ? n : 0;
+	return p;
+}
+
 size_t emu_audio_read(Emu* e, int16_t* out, size_t maxFrames) {
 	struct mAudioBuffer* ab = e->core->getAudioBuffer(e->core);
 	if (!ab) {

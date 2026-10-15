@@ -6,6 +6,7 @@
 #include "mapcap.h"
 #include "paths.h"
 #include "ui.h"
+#include "ra.h"
 #include "logo.h"
 #include "mapframe.h"
 #include "profiles.h"
@@ -651,9 +652,22 @@ static void save_thumbs(void) {
 	}
 }
 
+/* Save states, with the RetroAchievements progress beside them. */
+static bool state_save(const char* path) {
+	bool ok = emu_state_save_file(&emu, path);
+	if (ok) ra_state_saved(path);
+	return ok;
+}
+
+static bool state_load(const char* path) {
+	bool ok = emu_state_load_file(&emu, path);
+	if (ok) ra_state_loaded(path);
+	return ok;
+}
+
 static void auto_save(void) {
 	if (!cfg->autoResume) return;
-	if (emu_state_save_file(&emu, gp.autoState)) {
+	if (state_save(gp.autoState)) {
 		save_thumbs();
 		fprintf(stderr, "auto-saved %s\n", gp.autoState);
 	} else {
@@ -1064,7 +1078,7 @@ static bool activate(int item, enum GameExit* exitTo) {
 		save_prefs();
 		break;
 	case M_SAVE:
-		if (emu_state_save_file(&emu, gp.state)) {
+		if (state_save(gp.state)) {
 			ui_osd("State saved");
 			menuOpen = false;
 		} else {
@@ -1074,7 +1088,7 @@ static bool activate(int item, enum GameExit* exitTo) {
 	case M_LOAD:
 		if (!item_enabled(M_LOAD)) {
 			snprintf(menuNote, sizeof(menuNote), "No saved state yet");
-		} else if (emu_state_load_file(&emu, gp.state)) {
+		} else if (state_load(gp.state)) {
 			ui_osd("State loaded");
 			menuOpen = false;
 			return false;
@@ -1108,6 +1122,7 @@ static bool activate(int item, enum GameExit* exitTo) {
 			break;
 		}
 		emu_reset(&emu);
+		ra_reset();
 		mapShownIdx = -1; /* back to the logo until the next map */
 		restartArmed = false;
 		menuOpen = false;
@@ -1155,6 +1170,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		return fromLibrary ? GAME_TO_LIBRARY : GAME_QUIT_APP;
 	}
 	fprintf(stderr, "game %s (%s), save %s\n", gp.base, emu.gameCode, gp.sav);
+	ra_game_start(&emu, rom);
 	cheats_load(&cheats, cfg, rom, emu.gameCode, gp.cheats);
 	if (cheats_on(&cheats)) cheats_apply(&cheats, &emu);
 	cheatsOpen = false;
@@ -1238,10 +1254,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	set_page(0);
 
 	if (cfg->loadState[0]) {
-		if (!emu_state_load_file(&emu, cfg->loadState)) fprintf(stderr, "could not load %s\n", cfg->loadState);
+		if (!state_load(cfg->loadState)) fprintf(stderr, "could not load %s\n", cfg->loadState);
 		cfg->loadState[0] = 0;
 	} else if (cfg->autoResume && file_exists(gp.autoState)) {
-		if (emu_state_load_file(&emu, gp.autoState)) {
+		if (state_load(gp.autoState)) {
 			ui_osd("Resumed. Tap or HOME for the menu");
 		}
 	} else {
@@ -1413,8 +1429,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		bool mod = btnNow[modBtn];
 		if (mod && !menuOpen) {
 			if (btn_pressed(B_START)) exitTo = GAME_QUIT_APP, done = true, comboUsed = true;
-			if (btn_pressed(B_R)) ui_osd(emu_state_save_file(&emu, gp.state) ? "State saved" : "Save failed"), comboUsed = true;
-			if (btn_pressed(B_L) && file_exists(gp.state)) emu_state_load_file(&emu, gp.state), ui_osd("State loaded"), forceMap = true, comboUsed = true;
+			if (btn_pressed(B_R)) ui_osd(state_save(gp.state) ? "State saved" : "Save failed"), comboUsed = true;
+			if (btn_pressed(B_L) && file_exists(gp.state)) state_load(gp.state), ui_osd("State loaded"), forceMap = true, comboUsed = true;
 			if (btn_pressed(B_X)) cfg->showFps = !cfg->showFps, comboUsed = true;
 			if (btn_pressed(B_Y)) swap_screens(), comboUsed = true;
 		}
@@ -1469,6 +1485,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		wasMenu = menuOpen;
 
 		if (menuOpen) {
+			ra_idle();
 			ui_clear();
 			draw_game();
 			draw_menu();
@@ -1559,6 +1576,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		Uint64 emuT0 = SDL_GetPerformanceCounter();
 		for (int i = 0; i < runs; ++i) {
 			emu_frame(&emu, keys);
+			ra_frame();
 			size_t got;
 			while ((got = emu_audio_read(&emu, samples, 4096)) > 0) {
 				if (!audio || dropAudio) continue;
@@ -1687,6 +1705,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			shotPending = false;
 			take_screenshot();
 		}
+		ra_draw(nScreens > 1 ? 1 - game_screen() : 0); /* after the screenshot: not in it */
 		ui_present();
 		drawTicks += SDL_GetPerformanceCounter() - drawT0;
 #ifdef __ANDROID__
@@ -1726,6 +1745,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	ui_on_foreground(NULL);
 	fprintf(stderr, "leaving game after %llu frames\n", (unsigned long long) frameCount);
 	auto_save();
+	ra_game_end();
 	if (audio) SDL_CloseAudioDevice(audio);
 	if (audioConv) SDL_FreeAudioStream(audioConv);
 	mapcap_destroy(mc);

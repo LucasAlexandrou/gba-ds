@@ -104,6 +104,16 @@ Everything except the battery saves (`.sav`, next to the ROMs) is in the `GBA DS
 
   Display choices are remembered for next time. The menu works by touch or with the D-pad and A; B, Start or HOME closes it.
 
+### RetroAchievements
+
+GBA DS earns [RetroAchievements](https://retroachievements.org) in **casual (softcore) mode**, with the account signed in in EmulationStation's RetroAchievements settings: when RetroAchievements is switched on there, GBA DS signs in at launch, and each game shows its achievement progress on the second screen as it starts. Unlocks pop up there too, with the badge and points, and don't cover the game.
+
+- Hardcore mode isn't supported yet (RetroAchievements requires an emulator to be public for six months first): with hardcore switched on in EmulationStation, GBA DS still plays in casual mode.
+- Save states keep the achievements' progress beside them (`<state>.ra`), so loading a state doesn't unlock anything by mistake. Cheats are allowed in casual mode.
+- Offline, the game plays as normal; unlocks earned while the connection drops are sent once it's back.
+- `retroachievements = 0` in `gba-ds.cfg` turns it off; `ra_username` and `ra_password` use another account than EmulationStation's. After the first sign-in GBA DS keeps a login token in `states/ra/login.cfg` instead of sending the password each time, and badges are cached in `states/ra/badges/`.
+- Not in the Android version yet.
+
 ### Cheats
 
 GBA DS reads RetroArch's cheat files (`.cht`, the format of the [libretro cheat database](https://github.com/libretro/libretro-database/tree/master/cht/Nintendo%20-%20Game%20Boy%20Advance)) from RetroArch's cheats folder, `/config/retroarch/cheats` (and `/storage/.config/retroarch/cheats`), including subfolders such as `Nintendo - Game Boy Advance/`. Set `cheat_dir` in `gba-ds.cfg` to look elsewhere (several folders separated by `:`).
@@ -266,7 +276,7 @@ The tools in `tools/` are for finding these values:
 
 ## Roadmap
 
-- RetroAchievements (softcore-only, probably)
+- RetroAchievements: hardcore mode (once allowed), an achievement list in the pause menu, Android
 - HUD elements as well as maps on the second screen
 - More games!
 
@@ -279,3 +289,5 @@ Claude is doing the lion's share of coding here. I am testing each iteration on 
 GBA DS statically links libmgba, which is © Jeffrey Pfau and licensed under MPL-2.0. The mGBA source is at <https://github.com/mgba-emu/mgba> (pinned commit in `scripts/build-rocknix.sh`).
 
 The interface text is set in [Jost](https://github.com/indestructible-type/Jost) (© The Jost Project Authors), bundled under the SIL Open Font License 1.1 (`assets/fonts/Jost-OFL.txt`), and drawn with [stb_truetype](https://github.com/nothings/stb) (public domain).
+
+RetroAchievements support uses [rcheevos](https://github.com/RetroAchievements/rcheevos) (© RetroAchievements, MIT licence), vendored in `third_party/rcheevos`.

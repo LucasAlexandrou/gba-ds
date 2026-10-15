@@ -1,0 +1,824 @@
+/* RetroAchievements (see ra.h). */
+#ifdef GBADS_RA
+
+#include "ra.h"
+#include "paths.h"
+#include "textfont.h"
+#include "ui.h"
+
+#include "rc_client.h"
+#include "rc_util.h"
+#include "rhash/md5.h"
+
+#include <SDL.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <spawn.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
+
+extern char** environ;
+
+static rc_client_t* client;
+static const Config* cfg;
+static char userAgent[160];
+static char cacheDir[1100]; /* <state_dir>/ra: login token, badges */
+
+/* ------------------------------------------------------------ HTTP (curl) */
+
+/* One request for the worker thread: a server call for rc_client (its
+ * response goes back to the main thread), or a file to download. */
+typedef struct Job {
+	struct Job* next;
+	char* url;
+	char* post;  /* NULL: GET */
+	char* ctype;
+	rc_client_server_callback_t cb;
+	void* cbData;
+	char* outPath; /* download: the file to write */
+	char* body;
+	size_t len;
+	int status;
+} Job;
+
+static pthread_mutex_t qLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t qCond = PTHREAD_COND_INITIALIZER;
+static Job *calls, *downloads, *done; /* calls go before downloads */
+static bool workerUp, workerQuit, workerIdle = true;
+static pthread_t worker;
+
+static char* dupstr(const char* s) {
+	return s ? strdup(s) : NULL;
+}
+
+static void job_free(Job* j) {
+	free(j->url);
+	free(j->post);
+	free(j->ctype);
+	free(j->outPath);
+	free(j->body);
+	free(j);
+}
+
+static void push(Job** list, Job* j, bool front) {
+	j->next = NULL;
+	if (front || !*list) {
+		j->next = *list;
+		*list = j;
+		return;
+	}
+	Job* t = *list;
+	while (t->next) t = t->next;
+	t->next = j;
+}
+
+/* Runs curl with argv; its output goes to *out (malloc'd), stdin gets
+ * `in` (may be NULL). Returns curl's exit status (-1: couldn't run it). */
+static int run_curl(char* const* argv, const char* in, char** out, size_t* outLen) {
+	int po[2], pi[2] = { -1, -1 };
+	if (pipe(po)) return -1;
+	if (in && pipe(pi)) {
+		close(po[0]), close(po[1]);
+		return -1;
+	}
+	posix_spawn_file_actions_t fa;
+	posix_spawn_file_actions_init(&fa);
+	posix_spawn_file_actions_adddup2(&fa, po[1], 1);
+	posix_spawn_file_actions_addclose(&fa, po[0]);
+	posix_spawn_file_actions_addclose(&fa, po[1]);
+	if (in) {
+		posix_spawn_file_actions_adddup2(&fa, pi[0], 0);
+		posix_spawn_file_actions_addclose(&fa, pi[0]);
+		posix_spawn_file_actions_addclose(&fa, pi[1]);
+	} else {
+		posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
+	}
+	pid_t pid;
+	int err = posix_spawnp(&pid, "curl", &fa, NULL, argv, environ);
+	posix_spawn_file_actions_destroy(&fa);
+	close(po[1]);
+	if (in) close(pi[0]);
+	if (err) {
+		close(po[0]);
+		if (in) close(pi[1]);
+		fprintf(stderr, "ra: can't run curl: %s\n", strerror(err));
+		return -1;
+	}
+	if (in) {
+		/* requests are small (well under a pipe's buffer) */
+		size_t n = strlen(in), off = 0;
+		while (off < n) {
+			ssize_t w = write(pi[1], in + off, n - off);
+			if (w <= 0) break;
+			off += (size_t) w;
+		}
+		close(pi[1]);
+	}
+	size_t cap = 4096, len = 0;
+	char* buf = malloc(cap + 1);
+	for (;;) {
+		if (len == cap) {
+			char* nb = realloc(buf, cap * 2 + 1);
+			if (!nb) break;
+			buf = nb, cap *= 2;
+		}
+		ssize_t r = read(po[0], buf + len, cap - len);
+		if (r < 0 && errno == EINTR) continue;
+		if (r <= 0) break;
+		len += (size_t) r;
+	}
+	close(po[0]);
+	buf[len] = 0;
+	int st = 0;
+	while (waitpid(pid, &st, 0) < 0 && errno == EINTR) {}
+	if (out) {
+		*out = buf;
+		*outLen = len;
+	} else {
+		free(buf);
+	}
+	return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+}
+
+static void run_job(Job* j) {
+	char* argv[24];
+	int n = 0;
+	argv[n++] = "curl";
+	argv[n++] = "-sS";
+	argv[n++] = "-L";
+	argv[n++] = "--max-time";
+	argv[n++] = "30";
+	argv[n++] = "-A";
+	argv[n++] = userAgent;
+	if (j->outPath) {
+		char tmp[1200];
+		snprintf(tmp, sizeof(tmp), "%s.part", j->outPath);
+		argv[n++] = "-f";
+		argv[n++] = "-o";
+		argv[n++] = tmp;
+		argv[n++] = j->url;
+		argv[n] = NULL;
+		if (run_curl(argv, NULL, NULL, NULL) == 0) {
+			rename(tmp, j->outPath);
+		} else {
+			unlink(tmp);
+			fprintf(stderr, "ra: download failed: %s\n", j->url);
+		}
+		return;
+	}
+	char ctype[300];
+	argv[n++] = "-w";
+	argv[n++] = "\n%{http_code}";
+	if (j->post) {
+		snprintf(ctype, sizeof(ctype), "Content-Type: %s", j->ctype ? j->ctype : "application/x-www-form-urlencoded");
+		argv[n++] = "-H";
+		argv[n++] = ctype;
+		argv[n++] = "--data-binary";
+		argv[n++] = "@-";
+	}
+	argv[n++] = j->url;
+	argv[n] = NULL;
+	char* out = NULL;
+	size_t len = 0;
+	int rc = run_curl(argv, j->post, &out, &len);
+	j->status = RC_API_SERVER_RESPONSE_RETRYABLE_CLIENT_ERROR;
+	if (rc == 0 && out) {
+		/* the body, then "\n" and the HTTP status */
+		char* nl = strrchr(out, '\n');
+		if (nl) {
+			int code = atoi(nl + 1);
+			*nl = 0;
+			len = (size_t) (nl - out);
+			if (code > 0) j->status = code;
+		}
+	} else if (out) {
+		len = 0;
+		out[0] = 0;
+	}
+	j->body = out;
+	j->len = len;
+}
+
+static void* worker_main(void* arg) {
+	(void) arg;
+	pthread_mutex_lock(&qLock);
+	for (;;) {
+		while (!calls && !downloads && !workerQuit) {
+			workerIdle = true;
+			pthread_cond_broadcast(&qCond);
+			pthread_cond_wait(&qCond, &qLock);
+		}
+		if (!calls && (!downloads || workerQuit)) break; /* quitting: finish the calls, skip the downloads */
+		Job* j = calls ? calls : downloads;
+		if (j == calls) calls = j->next;
+		else downloads = j->next;
+		workerIdle = false;
+		pthread_mutex_unlock(&qLock);
+		run_job(j);
+		pthread_mutex_lock(&qLock);
+		if (j->outPath) job_free(j);
+		else push(&done, j, false);
+	}
+	workerIdle = true;
+	pthread_cond_broadcast(&qCond);
+	pthread_mutex_unlock(&qLock);
+	return NULL;
+}
+
+static void submit(Job* j, bool download, bool front) {
+	pthread_mutex_lock(&qLock);
+	if (!workerUp) {
+		workerUp = pthread_create(&worker, NULL, worker_main, NULL) == 0;
+	}
+	push(download ? &downloads : &calls, j, front);
+	pthread_cond_broadcast(&qCond);
+	pthread_mutex_unlock(&qLock);
+}
+
+/* rc_client's server calls */
+static void server_call(const rc_api_request_t* req, rc_client_server_callback_t cb, void* cbData, rc_client_t* c) {
+	(void) c;
+	Job* j = calloc(1, sizeof(*j));
+	j->url = dupstr(req->url);
+	j->post = dupstr(req->post_data);
+	j->ctype = dupstr(req->content_type);
+	j->cb = cb;
+	j->cbData = cbData;
+	submit(j, false, false);
+}
+
+/* Hands finished server calls back to rc_client (main thread). */
+static void pump(void) {
+	pthread_mutex_lock(&qLock);
+	Job* list = done;
+	done = NULL;
+	pthread_mutex_unlock(&qLock);
+	while (list) {
+		Job* j = list;
+		list = j->next;
+		rc_api_server_response_t resp = { j->body ? j->body : "", j->body ? j->len : 0, j->status };
+		j->cb(&resp, j->cbData);
+		job_free(j);
+	}
+}
+
+/* Badges: <state_dir>/ra/badges/<file name in the URL> */
+static void badge_path(const char* url, char* out, size_t n) {
+	const char* base = url ? strrchr(url, '/') : NULL;
+	snprintf(out, n, "%s/badges/%s", cacheDir, base ? base + 1 : "none.png");
+}
+
+static void fetch_badge(const char* url, bool soon) {
+	if (!url || !*url) return;
+	char path[1200];
+	badge_path(url, path, sizeof(path));
+	if (file_exists(path)) return;
+	Job* j = calloc(1, sizeof(*j));
+	j->url = strdup(url);
+	j->outPath = strdup(path);
+	submit(j, true, soon);
+}
+
+/* ------------------------------------------------------------ popups */
+
+enum { POP_UNLOCK, POP_GAME, POP_DONE, POP_NOTE }; /* NOTE: a status message, no badge */
+
+typedef struct {
+	int kind;
+	char kicker[64], title[160], desc[300];
+	int points;
+	char badge[1200];
+	SDL_Texture* tex[2];
+	int texW, texH;
+	bool texTried;
+	Uint32 shownMs, lastMs;
+} Popup;
+
+#define MAX_POPUPS 8
+static Popup popups[MAX_POPUPS];
+static int nPopups;
+
+static void popup_add(int kind, const char* kicker, const char* title, const char* desc, int points, const char* badgeUrl) {
+	if (nPopups == MAX_POPUPS) return;
+	Popup* p = &popups[nPopups++];
+	memset(p, 0, sizeof(*p));
+	p->kind = kind;
+	snprintf(p->kicker, sizeof(p->kicker), "%s", kicker);
+	snprintf(p->title, sizeof(p->title), "%s", title ? title : "");
+	snprintf(p->desc, sizeof(p->desc), "%s", desc ? desc : "");
+	p->points = points;
+	if (badgeUrl && *badgeUrl) {
+		badge_path(badgeUrl, p->badge, sizeof(p->badge));
+		fetch_badge(badgeUrl, true);
+	}
+}
+
+static void popup_pop(void) {
+	ui_free_image(popups[0].tex);
+	memmove(popups, popups + 1, sizeof(Popup) * (size_t) (nPopups - 1));
+	--nPopups;
+}
+
+static void note(const char* title, const char* desc) {
+	popup_add(POP_NOTE, "RETROACHIEVEMENTS", title, desc, 0, NULL);
+}
+
+/* text cut to fit width, with "..." */
+static void fit(char* out, size_t n, int font, int cap, const char* s, int maxW) {
+	snprintf(out, n, "%s", s);
+	if (ui_font_width(font, cap, out) <= maxW) return;
+	size_t len = strlen(out);
+	while (len > 0) {
+		do --len;
+		while (len > 0 && ((unsigned char) out[len] & 0xC0) == 0x80); /* whole UTF-8 characters */
+		while (len > 0 && out[len - 1] == ' ') --len;
+		if (len + 4 > n) continue;
+		memcpy(out + len, "...", 4);
+		if (ui_font_width(font, cap, out) <= maxW) return;
+	}
+}
+
+static const SDL_Color P_BG = { 30, 26, 52, 245 }, P_EDGE = { 150, 120, 210, 255 }, P_GOLD = { 232, 200, 120, 255 },
+                       P_TEXT = { 236, 236, 244, 255 }, P_DIM = { 176, 176, 204, 255 }, P_NAVY = { 16, 32, 96, 255 },
+                       P_SHADOW = { 0, 0, 0, 90 }, P_BLANK = { 52, 46, 84, 255 };
+
+#define POP_IN_MS 250
+
+void ra_draw(int s) {
+	if (!nPopups) return;
+	Popup* p = &popups[0];
+	Uint32 now = SDL_GetTicks();
+	/* the clock only runs while it's on screen (not under the pause menu) */
+	if (p->lastMs) p->shownMs += SDL_min(now - p->lastMs, 100u);
+	p->lastMs = now;
+	Uint32 life = p->kind == POP_UNLOCK ? 5000 : 4500;
+	if (p->shownMs >= life) {
+		popup_pop();
+		return;
+	}
+	if (!p->texTried && p->badge[0] && file_exists(p->badge)) {
+		p->texTried = true;
+		ui_load_image(p->badge, p->tex, &p->texW, &p->texH, true);
+	}
+
+	/* the approved mockup is 1024x768: everything scales from there */
+	SDL_Rect r = screens[s].rect;
+	float f = SDL_min(r.w / 1024.0f, r.h / 768.0f);
+#define F(v) ((int) ((v) * f + 0.5f))
+	int cw = F(820), ch = F(116);
+	int x = (r.w - cw) / 2, y = F(14);
+	/* slide down from above the screen, and back up at the end */
+	Uint32 t = p->shownMs, left = life - p->shownMs;
+	Uint32 k = SDL_min(t, left);
+	if (k < POP_IN_MS) {
+		float e = (float) k / POP_IN_MS;
+		e = 1 - (1 - e) * (1 - e);
+		y = (int) (-ch - F(10) + (y + ch + F(10)) * e);
+	}
+	ui_fill_round(s, (SDL_Rect) { x, y + F(6), cw, ch }, P_SHADOW, F(22));
+	ui_fill_round(s, (SDL_Rect) { x, y, cw, ch }, P_EDGE, F(22));
+	ui_fill_round(s, (SDL_Rect) { x + F(3), y + F(3), cw - F(6), ch - F(6) }, P_BG, F(19));
+
+	int tx = x + F(28);
+	if (p->kind != POP_NOTE) {
+		int b = F(88), bx = x + F(14), by = y + (ch - b) / 2;
+		ui_fill_round(s, (SDL_Rect) { bx - F(3), by - F(3), b + F(6), b + F(6) }, P_GOLD, F(9)); /* square badges: corners stay inside */
+		if (p->tex[0] || p->tex[1]) {
+			SDL_Rect a = { bx, by, b, b };
+			ui_image(s, p->tex, p->texW, p->texH, "stretch", &a);
+		} else {
+			ui_fill_round(s, (SDL_Rect) { bx, by, b, b }, P_BLANK, F(6));
+		}
+		tx = bx + b + F(20);
+	}
+	int right = x + cw - F(24);
+	if (p->kind == POP_UNLOCK) {
+		int pw = F(80), px0 = x + cw - pw - F(18), py0 = y + (ch - pw) / 2;
+		ui_fill_round(s, (SDL_Rect) { px0, py0, pw, pw }, P_GOLD, F(18));
+		char num[16];
+		snprintf(num, sizeof(num), "%d", p->points);
+		ui_font_text(s, TF_BOLD, px0 + pw / 2, py0 + F(30), F(30), num, P_NAVY, 0);
+		ui_font_text(s, TF_BODY, px0 + pw / 2, py0 + F(61), F(12), p->points == 1 ? "point" : "points", P_NAVY, 0);
+		right = px0 - F(16);
+	}
+	char line[320];
+	fit(line, sizeof(line), TF_BOLD, F(13), p->kicker, right - tx);
+	ui_font_text(s, TF_BOLD, tx, y + F(27), F(13), line, P_GOLD, -1);
+	fit(line, sizeof(line), TF_BOLD, F(24), p->title, right - tx);
+	ui_font_text(s, TF_BOLD, tx, y + F(59), F(24), line, P_TEXT, -1);
+	/* the description: smaller to fit on one line, then cut */
+	int cap = F(15);
+	while (cap > F(11) && ui_font_width(TF_BODY, cap, p->desc) > right - tx) --cap;
+	fit(line, sizeof(line), TF_BODY, cap, p->desc, right - tx);
+	ui_font_text(s, TF_BODY, tx, y + F(94), cap, line, P_DIM, -1);
+#undef F
+}
+
+/* ------------------------------------------------------------ the client */
+
+static Emu* emu;
+static char gameHash[33];
+static bool gameWanted; /* a game is running and should be loaded once signed in */
+static bool gameLoaded;
+static char pendingProgress[1100]; /* a state loaded before the game was */
+
+enum { LOGIN_OFF, LOGIN_BUSY, LOGIN_OK, LOGIN_FAILED };
+static int loginState;
+static bool loginRejected; /* the server said no to every credential (don't retry) */
+static int loginStep;
+static char raUser[128], raPass[256], sysToken[256], savedToken[256], lastError[256];
+
+static void begin_load(void);
+
+static uint32_t read_memory(uint32_t addr, uint8_t* buf, uint32_t n, rc_client_t* c) {
+	(void) c;
+	if (!emu) return 0;
+	uint32_t got = 0;
+	while (got < n) {
+		uint32_t a = addr + got;
+		int region;
+		uint32_t off, end;
+		if (a < 0x8000) region = 3, off = a, end = 0x8000;
+		else if (a < 0x48000) region = 2, off = a - 0x8000, end = 0x48000;
+		else if (a < 0x58000) region = 0xE, off = a - 0x48000, end = 0x58000;
+		else break;
+		size_t size;
+		uint8_t* mem = emu_memory(emu, region, &size);
+		uint32_t chunk = SDL_min(n - got, end - a);
+		if (!mem || off >= size) {
+			memset(buf + got, 0, chunk); /* no save RAM (yet): reads as 0 */
+		} else {
+			uint32_t avail = (uint32_t) SDL_min((size_t) chunk, size - off);
+			memcpy(buf + got, mem + off, avail);
+			if (avail < chunk) memset(buf + got + avail, 0, chunk - avail);
+		}
+		got += chunk;
+	}
+	return got;
+}
+
+static void log_message(const char* msg, const rc_client_t* c) {
+	(void) c;
+	fprintf(stderr, "ra: %s\n", msg);
+}
+
+static void save_token(const char* user, const char* token) {
+	if (!token || !*token || !strcmp(token, savedToken)) return;
+	char path[1200];
+	snprintf(path, sizeof(path), "%s/login.cfg", cacheDir);
+	int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	if (fd < 0) return;
+	FILE* f = fdopen(fd, "w");
+	if (!f) {
+		close(fd);
+		return;
+	}
+	fprintf(f, "# RetroAchievements sign-in, kept so the password isn't sent every time\nuser = %s\ntoken = %s\n", user, token);
+	fclose(f);
+	snprintf(savedToken, sizeof(savedToken), "%s", token);
+}
+
+static void next_login(void);
+
+static void login_done(int result, const char* error, rc_client_t* c, void* ud) {
+	(void) c, (void) ud;
+	if (result == RC_OK) {
+		const rc_client_user_t* u = rc_client_get_user_info(client);
+		loginState = LOGIN_OK;
+		fprintf(stderr, "ra: signed in as %s\n", u && u->display_name ? u->display_name : raUser);
+		if (u) save_token(u->username ? u->username : raUser, u->token);
+		if (gameWanted) begin_load();
+		return;
+	}
+	snprintf(lastError, sizeof(lastError), "%s", error && *error ? error : rc_error_str(result));
+	fprintf(stderr, "ra: sign-in failed (%s)\n", lastError);
+	if (result == RC_INVALID_CREDENTIALS || result == RC_EXPIRED_TOKEN || result == RC_ACCESS_DENIED) {
+		loginRejected = true;
+		next_login(); /* the next credential, if any */
+		return;
+	}
+	loginRejected = false; /* offline or the server is down: try again with the next game */
+	loginState = LOGIN_FAILED;
+	if (gameWanted) note("Couldn't connect", "Playing without achievements this time");
+}
+
+/* Saved token, then ROCKNIX's token, then the password. */
+static void next_login(void) {
+	loginState = LOGIN_BUSY;
+	while (loginStep < 3) {
+		int step = loginStep++;
+		if (step == 0 && savedToken[0]) {
+			rc_client_begin_login_with_token(client, raUser, savedToken, login_done, NULL);
+			return;
+		}
+		if (step == 1 && sysToken[0] && strcmp(sysToken, savedToken)) {
+			rc_client_begin_login_with_token(client, raUser, sysToken, login_done, NULL);
+			return;
+		}
+		if (step == 2 && raPass[0]) {
+			rc_client_begin_login_with_password(client, raUser, raPass, login_done, NULL);
+			return;
+		}
+	}
+	loginState = LOGIN_FAILED;
+	note("Sign-in failed", cfg->raUser[0] ? "Check ra_username and ra_password in gba-ds.cfg"
+	                                     : "Check the account in EmulationStation's RetroAchievements settings");
+}
+
+static void start_login(void) {
+	loginStep = 0;
+	loginRejected = false;
+	next_login();
+}
+
+static void apply_progress(const char* statePath) {
+	char path[1200];
+	snprintf(path, sizeof(path), "%s.ra", statePath);
+	FILE* f = fopen(path, "rb");
+	uint8_t* buf = NULL;
+	long n = 0;
+	if (f) {
+		fseek(f, 0, SEEK_END);
+		n = ftell(f);
+		fseek(f, 0, SEEK_SET);
+		if (n > 0 && (buf = malloc((size_t) n)) && fread(buf, 1, (size_t) n, f) != (size_t) n) {
+			free(buf);
+			buf = NULL;
+		}
+		fclose(f);
+	}
+	/* no progress file: start the achievements over (as if just loaded) */
+	int rc = rc_client_deserialize_progress_sized(client, buf, buf ? (size_t) n : 0);
+	if (rc != RC_OK) fprintf(stderr, "ra: progress in %s not used (%s)\n", path, rc_error_str(rc));
+	free(buf);
+}
+
+static void load_done(int result, const char* error, rc_client_t* c, void* ud) {
+	(void) c, (void) ud;
+	if (!gameWanted) return; /* ended meanwhile */
+	if (result != RC_OK) {
+		fprintf(stderr, "ra: game not loaded (%s)\n", error && *error ? error : rc_error_str(result));
+		if (result == RC_NO_GAME_LOADED) {
+			char desc[120];
+			snprintf(desc, sizeof(desc), "No achievements for this ROM (MD5 %s)", gameHash);
+			note("Unknown version of this game", desc);
+		} else {
+			note("Couldn't load the achievements", error && *error ? error : rc_error_str(result));
+		}
+		return;
+	}
+	gameLoaded = true;
+	if (pendingProgress[0]) {
+		apply_progress(pendingProgress);
+		pendingProgress[0] = 0;
+	}
+	const rc_client_game_t* g = rc_client_get_game_info(client);
+	rc_client_user_game_summary_t sum;
+	rc_client_get_user_game_summary(client, &sum);
+	fprintf(stderr, "ra: %s (game %u): %u of %u achievements, %u of %u points\n", g ? g->title : "?", g ? g->id : 0,
+	        sum.num_unlocked_achievements, sum.num_core_achievements, sum.points_unlocked, sum.points_core);
+	char desc[200];
+	if (!sum.num_core_achievements) {
+		snprintf(desc, sizeof(desc), "This game has no achievements yet");
+	} else if (sum.num_unlocked_achievements == sum.num_core_achievements) {
+		snprintf(desc, sizeof(desc), "All %u achievements unlocked", sum.num_core_achievements);
+	} else {
+		snprintf(desc, sizeof(desc), "%u of %u achievements unlocked", sum.num_unlocked_achievements, sum.num_core_achievements);
+	}
+	popup_add(POP_GAME, "RETROACHIEVEMENTS \xC2\xB7 CASUAL", g ? g->title : "", desc, 0, g ? g->badge_url : NULL);
+	/* the badges, so popups have them right away */
+	rc_client_achievement_list_t* list =
+	    rc_client_create_achievement_list(client, RC_CLIENT_ACHIEVEMENT_CATEGORY_CORE, RC_CLIENT_ACHIEVEMENT_LIST_GROUPING_LOCK_STATE);
+	if (list) {
+		for (uint32_t i = 0; i < list->num_buckets; ++i) {
+			for (uint32_t j = 0; j < list->buckets[i].num_achievements; ++j) {
+				const rc_client_achievement_t* a = list->buckets[i].achievements[j];
+				if (!a->unlocked) fetch_badge(a->badge_url, false);
+			}
+		}
+		rc_client_destroy_achievement_list(list);
+	}
+}
+
+static void begin_load(void) {
+	if (!gameHash[0]) return;
+	rc_client_begin_load_game(client, gameHash, load_done, NULL);
+}
+
+static void on_event(const rc_client_event_t* ev, rc_client_t* c) {
+	(void) c;
+	switch (ev->type) {
+	case RC_CLIENT_EVENT_ACHIEVEMENT_TRIGGERED: {
+		const rc_client_achievement_t* a = ev->achievement;
+		fprintf(stderr, "ra: unlocked \"%s\" (%u points)\n", a->title, a->points);
+		popup_add(POP_UNLOCK, "ACHIEVEMENT UNLOCKED", a->title, a->description, (int) a->points, a->badge_url);
+		break;
+	}
+	case RC_CLIENT_EVENT_GAME_COMPLETED: {
+		const rc_client_game_t* g = rc_client_get_game_info(client);
+		rc_client_user_game_summary_t sum;
+		rc_client_get_user_game_summary(client, &sum);
+		char desc[120];
+		snprintf(desc, sizeof(desc), "All %u achievements unlocked", sum.num_core_achievements);
+		popup_add(POP_DONE, "GAME COMPLETED", g ? g->title : "", desc, 0, g ? g->badge_url : NULL);
+		break;
+	}
+	case RC_CLIENT_EVENT_SERVER_ERROR:
+		fprintf(stderr, "ra: server error (%s): %s\n", ev->server_error->api ? ev->server_error->api : "?",
+		        ev->server_error->error_message ? ev->server_error->error_message : "?");
+		break;
+	case RC_CLIENT_EVENT_DISCONNECTED:
+		note("Offline", "Unlocks will be sent when the connection is back");
+		break;
+	case RC_CLIENT_EVENT_RECONNECTED:
+		note("Back online", "Unlocks sent");
+		break;
+	default:
+		break;
+	}
+}
+
+/* key=value from ROCKNIX's system.cfg */
+static bool sys_setting(const char* key, char* out, size_t n) {
+	FILE* f = fopen(cfg->raSystemCfg, "r");
+	if (!f) return false;
+	char line[1024];
+	size_t kl = strlen(key);
+	bool found = false;
+	while (fgets(line, sizeof(line), f)) {
+		if (strncmp(line, key, kl) || line[kl] != '=') continue;
+		char* v = line + kl + 1;
+		v[strcspn(v, "\r\n")] = 0;
+		size_t vl = strlen(v);
+		if (vl >= 2 && (v[0] == '"' || v[0] == '\'') && v[vl - 1] == v[0]) v[vl - 1] = 0, ++v;
+		snprintf(out, n, "%s", v);
+		found = true; /* the last one wins */
+	}
+	fclose(f);
+	return found;
+}
+
+void ra_init(const Config* c) {
+	cfg = c;
+	if (!strcmp(cfg->raMode, "0") || !strcasecmp(cfg->raMode, "off")) return;
+	char enabled[16] = "";
+	if (cfg->raUser[0]) {
+		snprintf(raUser, sizeof(raUser), "%s", cfg->raUser);
+		snprintf(raPass, sizeof(raPass), "%s", cfg->raPassword);
+	} else {
+		sys_setting("global.retroachievements", enabled, sizeof(enabled));
+		sys_setting("global.retroachievements.username", raUser, sizeof(raUser));
+		sys_setting("global.retroachievements.password", raPass, sizeof(raPass));
+		sys_setting("global.retroachievements.token", sysToken, sizeof(sysToken));
+		char hc[16] = "";
+		sys_setting("global.retroachievements.hardcore", hc, sizeof(hc));
+		if (!strcmp(hc, "1")) fprintf(stderr, "ra: hardcore mode isn't supported yet: playing in casual mode\n");
+		if (strcmp(enabled, "1") && strcmp(cfg->raMode, "1")) {
+			if (raUser[0]) fprintf(stderr, "ra: off (RetroAchievements is switched off in EmulationStation)\n");
+			return;
+		}
+	}
+	if (!raUser[0]) {
+		if (!strcmp(cfg->raMode, "1")) fprintf(stderr, "ra: no account (set ra_username / ra_password)\n");
+		return;
+	}
+	snprintf(cacheDir, sizeof(cacheDir), "%s/ra", cfg->stateDir);
+	char badges[1200];
+	snprintf(badges, sizeof(badges), "%s/badges", cacheDir);
+	mkdirs(badges);
+	{
+		char path[1200], line[512], u[128] = "";
+		snprintf(path, sizeof(path), "%s/login.cfg", cacheDir);
+		FILE* f = fopen(path, "r");
+		while (f && fgets(line, sizeof(line), f)) {
+			line[strcspn(line, "\r\n")] = 0;
+			if (!strncmp(line, "user = ", 7)) snprintf(u, sizeof(u), "%s", line + 7);
+			if (!strncmp(line, "token = ", 8)) snprintf(savedToken, sizeof(savedToken), "%s", line + 8);
+		}
+		if (f) fclose(f);
+		if (strcasecmp(u, raUser)) savedToken[0] = 0; /* another account's */
+	}
+
+	client = rc_client_create(read_memory, server_call);
+	if (!client) return;
+	rc_client_enable_logging(client, getenv("GBADS_DEBUG") ? RC_CLIENT_LOG_LEVEL_VERBOSE : RC_CLIENT_LOG_LEVEL_WARN, log_message);
+	rc_client_set_event_handler(client, on_event);
+	rc_client_set_hardcore_enabled(client, 0); /* casual only, for now */
+	if (cfg->raHost[0]) rc_client_set_host(client, cfg->raHost);
+	char clause[64] = "";
+	rc_client_get_user_agent_clause(client, clause, sizeof(clause));
+	snprintf(userAgent, sizeof(userAgent), "GBADS/%s (Linux) %s", GBADS_VERSION, clause);
+	fprintf(stderr, "ra: signing in as %s (casual mode)\n", raUser);
+	start_login();
+}
+
+void ra_shutdown(void) {
+	if (!client) return;
+	pump();
+	rc_client_destroy(client);
+	client = NULL;
+	if (workerUp) {
+		/* let unlocks that are still on their way finish (a few seconds at most) */
+		pthread_mutex_lock(&qLock);
+		workerQuit = true;
+		pthread_cond_broadcast(&qCond);
+		struct timespec until;
+		clock_gettime(CLOCK_REALTIME, &until);
+		until.tv_sec += 5;
+		while ((calls || !workerIdle) && pthread_cond_timedwait(&qCond, &qLock, &until) == 0) {}
+		pthread_mutex_unlock(&qLock);
+		pthread_detach(worker);
+	}
+}
+
+void ra_game_start(Emu* e, const char* romPath) {
+	if (!client) return;
+	emu = e;
+	gameLoaded = false;
+	gameWanted = true;
+	pendingProgress[0] = 0;
+	nPopups = 0;
+	/* the RetroAchievements hash of a GBA game: MD5 of the whole ROM */
+	size_t size = 0;
+	uint8_t* rom = emu_rom_read_all(romPath, &size);
+	gameHash[0] = 0;
+	if (rom) {
+		md5_state_t st;
+		md5_byte_t digest[16];
+		md5_init(&st);
+		for (size_t off = 0; off < size; off += 1 << 20) {
+			md5_append(&st, rom + off, (int) SDL_min((size_t) 1 << 20, size - off));
+		}
+		md5_finish(&st, digest);
+		rc_format_md5(gameHash, digest);
+		free(rom);
+		fprintf(stderr, "ra: game hash %s\n", gameHash);
+	}
+	if (loginState == LOGIN_OK) begin_load();
+	else if (loginState == LOGIN_FAILED && !loginRejected) start_login();
+}
+
+void ra_game_end(void) {
+	if (!client) return;
+	pump();
+	if (gameLoaded || rc_client_is_game_loaded(client)) rc_client_unload_game(client);
+	gameWanted = gameLoaded = false;
+	emu = NULL;
+	for (int i = 0; i < nPopups; ++i) ui_free_image(popups[i].tex);
+	nPopups = 0;
+}
+
+void ra_frame(void) {
+	if (!client) return;
+	pump();
+	rc_client_do_frame(client);
+}
+
+void ra_idle(void) {
+	if (!client) return;
+	pump();
+	rc_client_idle(client);
+}
+
+void ra_reset(void) {
+	if (client && gameLoaded) rc_client_reset(client);
+}
+
+void ra_state_saved(const char* statePath) {
+	if (!client) return;
+	if (!gameLoaded) {
+		/* nothing to save yet: don't leave an older state's progress beside it */
+		char path[1200];
+		snprintf(path, sizeof(path), "%s.ra", statePath);
+		unlink(path);
+		return;
+	}
+	size_t n = rc_client_progress_size(client);
+	uint8_t* buf = n ? malloc(n) : NULL;
+	if (!buf) return;
+	if (rc_client_serialize_progress_sized(client, buf, n) == RC_OK) {
+		char path[1200];
+		snprintf(path, sizeof(path), "%s.ra", statePath);
+		FILE* f = fopen(path, "wb");
+		if (f) {
+			fwrite(buf, 1, n, f);
+			fclose(f);
+		}
+	}
+	free(buf);
+}
+
+void ra_state_loaded(const char* statePath) {
+	if (!client) return;
+	if (gameLoaded) apply_progress(statePath);
+	else if (gameWanted) snprintf(pendingProgress, sizeof(pendingProgress), "%s", statePath);
+}
+
+#endif

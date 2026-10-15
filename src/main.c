@@ -14,6 +14,7 @@
 #include "logo.h"
 #include "paths.h"
 #include "ui.h"
+#include "ra.h"
 
 #include <libgen.h>
 #include <signal.h>
@@ -92,6 +93,7 @@ int main(int argc, char** argv) {
 	signal(SIGHUP, on_signal);
 
 	if (!ui_init(&cfg, true)) return 1;
+	ra_init(&cfg); /* signs in to RetroAchievements in the background */
 #ifdef __ANDROID__
 	fprintf(stderr, "startup: screens ready\n"); /* logcat's timestamps time the start-up steps */
 #endif
@@ -106,6 +108,7 @@ int main(int argc, char** argv) {
 		}
 	}
 	logo_shutdown();
+	ra_shutdown();
 	ui_shutdown();
 	return 0;
 }
