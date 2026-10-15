@@ -65,7 +65,8 @@ static const char* menuLabels[] = {
 };
 static int menuItems[12], nMenuItems;
 /* two pages, switched with L1/R1 or the tabs */
-static int pages[2][12], pageLen[2], curPage;
+#define N_PAGES 3
+static int pages[N_PAGES][12], pageLen[N_PAGES], curPage;
 /* Buttons still held when the menu closes (or after a HOME combo) are kept
  * from the game until released, so e.g. the A that picked "Save state"
  * doesn't make Samus jump. */
@@ -74,7 +75,7 @@ static bool suppress[B_COUNT];
 static void suppress_held(void) {
 	for (int b = 0; b < B_COUNT; ++b) suppress[b] = btnNow[b];
 }
-static const char* pageNames[2] = { "Game", "Display" };
+static const char* pageNames[N_PAGES] = { "Game", "Display", "Extras" };
 static bool restartArmed;
 static bool menuOpen;
 static int menuSel;
@@ -282,12 +283,18 @@ static SDL_Rect item_rect(int scr, int i) {
 	return (SDL_Rect) { (r.w - w) / 2, top + i * (h + gap), w, h };
 }
 
-static SDL_Rect tab_rect(int scr, int t) {
+/* box t of n across the top of the menu: the page tabs (n = N_PAGES), or
+ * Back and the title on the cheats / achievements screens (n = 2) */
+static SDL_Rect top_box(int scr, int t, int n) {
 	SDL_Rect r = screens[scr].rect;
 	int px = ui_px(scr);
 	int w = menu_width(scr);
-	int tw = (w - px * 3) / 2;
+	int tw = (w - px * 3 * (n - 1)) / n;
 	return (SDL_Rect) { (r.w - w) / 2 + t * (tw + px * 3), px * 7, tw, px * 14 };
+}
+
+static SDL_Rect tab_rect(int scr, int t) {
+	return top_box(scr, t, 2);
 }
 
 static void set_page(int page) {
@@ -300,9 +307,9 @@ static void set_page(int page) {
 	restartArmed = false;
 }
 
-static int tab_at(int scr, int x, int y) {
-	for (int t = 0; t < 2; ++t) {
-		SDL_Rect r = tab_rect(scr, t);
+static int tab_at(int scr, int x, int y, int n) {
+	for (int t = 0; t < n; ++t) {
+		SDL_Rect r = top_box(scr, t, n);
 		if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return t;
 	}
 	return -1;
@@ -370,13 +377,13 @@ static void draw_menu(void) {
 		}
 		return;
 	}
-	for (int t = 0; t < 2; ++t) {
-		SDL_Rect r = tab_rect(scr, t);
+	for (int t = 0; t < N_PAGES; ++t) {
+		SDL_Rect r = top_box(scr, t, N_PAGES);
 		bool on = t == curPage;
 		ui_fill_round(scr, r, on ? C_BTN_EDGE : C_BTN, rad);
 		ui_label(scr, r.x + r.w / 2, r.y + r.h / 2, cap, pageNames[t], on ? (SDL_Color) { 20, 16, 36, 255 } : C_DIS);
 	}
-	SDL_Rect t0 = tab_rect(scr, 0), t1 = tab_rect(scr, 1);
+	SDL_Rect t0 = top_box(scr, 0, N_PAGES), t1 = top_box(scr, N_PAGES - 1, N_PAGES);
 	/* L1 / R1 button prompts beside the tabs */
 	int gw = px * 25 / 2, gh = px * 8;
 	SDL_Rect g0 = { t0.x - px * 9 - gw / 2, t0.y + (t0.h - gh) / 2, gw, gh };
@@ -1272,14 +1279,14 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	if (mf.prof && mf.prof->frame.t && !mapframe_load_atlas(&mf, framePath)) frame_request(rom, emu.gameCode, framePath);
 	uint32_t frameGen = logo_generation();
 
-	pageLen[0] = pageLen[1] = 0;
+	memset(pageLen, 0, sizeof(pageLen));
 	pages[0][pageLen[0]++] = M_RESUME;
 	pages[0][pageLen[0]++] = M_RESTART;
 	pages[0][pageLen[0]++] = M_SAVE;
 	pages[0][pageLen[0]++] = M_LOAD;
-	pages[0][pageLen[0]++] = M_CHEATS;
-	if (ra_enabled()) pages[0][pageLen[0]++] = M_ACH;
-	pages[0][pageLen[0]++] = M_SHOT;
+	pages[2][pageLen[2]++] = M_CHEATS;
+	if (ra_enabled()) pages[2][pageLen[2]++] = M_ACH;
+	pages[2][pageLen[2]++] = M_SHOT;
 	if (fromLibrary) pages[0][pageLen[0]++] = M_LIBRARY;
 	pages[0][pageLen[0]++] = M_EXIT;
 	pages[1][pageLen[1]++] = M_SWAP;
@@ -1381,7 +1388,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (p.screen != ui_touch_screen()) continue;
 			if (achOpen) {
 				if (p.kind == 1) {
-					if (tab_at(p.screen, p.x, p.y) == 0) {
+					if (tab_at(p.screen, p.x, p.y, 2) == 0) {
 						close_ach(); /* Back */
 						ignorePointerUp = true;
 						continue;
@@ -1400,7 +1407,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (cheatsOpen) {
 				int px = ui_px(p.screen);
 				if (p.kind == 1) {
-					if (tab_at(p.screen, p.x, p.y) == 0) {
+					if (tab_at(p.screen, p.x, p.y, 2) == 0) {
 						cheatsOpen = false; /* Back */
 						ignorePointerUp = true;
 						continue;
@@ -1429,7 +1436,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				continue;
 			}
 			if (p.kind == 1) {
-				int t = tab_at(p.screen, p.x, p.y);
+				int t = tab_at(p.screen, p.x, p.y, N_PAGES);
 				if (t >= 0) {
 					if (t != curPage) set_page(t);
 					ignorePointerUp = true;
@@ -1532,7 +1539,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		} else if (menuOpen) {
 			if (!comboOpened) { /* (START just opened it: not also a close) */
 				if (btn_pressed(B_L) && curPage > 0) set_page(curPage - 1);
-				if (btn_pressed(B_R) && curPage < 1) set_page(curPage + 1);
+				if (btn_pressed(B_R) && curPage < N_PAGES - 1) set_page(curPage + 1);
 				if (btn_pressed(B_DOWN)) menuSel = (menuSel + 1) % nMenuItems;
 				if (btn_pressed(B_UP)) menuSel = (menuSel + nMenuItems - 1) % nMenuItems;
 				if (btn_pressed(B_B) || btn_pressed(B_START)) menuOpen = false;

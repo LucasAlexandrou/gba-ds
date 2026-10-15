@@ -24,6 +24,10 @@
 #include <time.h>
 #include <unistd.h>
 
+/* The server adds "Warning: ..." achievements (unknown emulator, outdated
+ * client...) with ids from here on: not real ones, so never listed. */
+#define WARNING_ID 101000001u
+
 extern char** environ;
 
 static rc_client_t* client;
@@ -604,6 +608,7 @@ static void load_done(int result, const char* error, rc_client_t* c, void* ud) {
 		for (uint32_t i = 0; i < list->num_buckets; ++i) {
 			for (uint32_t j = 0; j < list->buckets[i].num_achievements; ++j) {
 				const rc_client_achievement_t* a = list->buckets[i].achievements[j];
+				if (a->id >= WARNING_ID) continue;
 				/* the list shows each in its current state; popups need the unlocked one */
 				if (!a->unlocked) fetch_badge(a->badge_locked_url, false);
 				fetch_badge(a->badge_url, false);
@@ -623,6 +628,10 @@ static void on_event(const rc_client_event_t* ev, rc_client_t* c) {
 	switch (ev->type) {
 	case RC_CLIENT_EVENT_ACHIEVEMENT_TRIGGERED: {
 		const rc_client_achievement_t* a = ev->achievement;
+		if (a->id >= WARNING_ID) {
+			fprintf(stderr, "ra: server warning: %s (%s)\n", a->title, a->description ? a->description : "");
+			break;
+		}
 		fprintf(stderr, "ra: unlocked \"%s\" (%u points)\n", a->title, a->points);
 		popup_add(POP_UNLOCK, "ACHIEVEMENT UNLOCKED", a->title, a->description, (int) a->points, a->badge_url);
 		break;
@@ -876,8 +885,10 @@ void ra_list_open(void) {
 	for (uint32_t b = 0; b < achList->num_buckets; ++b) {
 		const rc_client_achievement_bucket_t* bk = &achList->buckets[b];
 		if (!bk->num_achievements) continue;
+		int head = nRows;
 		rows[nRows++].heading = bk->label ? bk->label : "";
 		for (uint32_t j = 0; j < bk->num_achievements; ++j) {
+			if (bk->achievements[j]->id >= WARNING_ID) continue;
 			ListRow* r = &rows[nRows++];
 			r->ach = bk->achievements[j];
 			const char* url = r->ach->unlocked ? r->ach->badge_url : r->ach->badge_locked_url;
@@ -885,6 +896,10 @@ void ra_list_open(void) {
 				badge_path(url, r->path, sizeof(r->path));
 				fetch_badge(url, false);
 			}
+		}
+		if (nRows == head + 1) { /* only warnings: no heading either */
+			nRows = head;
+			memset(&rows[head], 0, sizeof(*rows));
 		}
 	}
 }

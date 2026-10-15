@@ -11,6 +11,8 @@ ACH = [
   dict(ID=102, Title="School II", Description="Get all the gaps in School II", Points=10, MemAddr="1=1.900.", BadgeName="00102"),
   dict(ID=103, Title="Never", Description="Can't be had", Points=25, MemAddr="0=1", BadgeName="00103"),
   dict(ID=104, Title="Slow and steady", Description="Play for a while (a measured achievement: shows progress)", Points=3, MemAddr="M:1=1.5000.", BadgeName="00104"),
+  # what the real server adds for clients it doesn't know (GBA DS hides it)
+  dict(ID=101000001, Title="Warning: Unknown Emulator", Description="Hardcore unlocks cannot be earned using this emulator.", Points=0, MemAddr="1=1", BadgeName="00000"),
 ] + [dict(ID=110 + i, Title=f"Filler {i}", Description=f"Locked achievement number {i}, to fill the list and test scrolling", Points=i, MemAddr="0=1", BadgeName=f"0011{i}") for i in range(1, 9)]
 log = open("requests.log", "a")
 class H(BaseHTTPRequestHandler):
