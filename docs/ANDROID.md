@@ -396,6 +396,21 @@ frontend launch intents.
   the second display, interval 1). Cause not known yet (the logcat sent was
   filtered to GBADS). Now off by default; `vsync = 1` in GBA DS/gba-ds.cfg
   turns it on, for getting `adb logcat -b crash` from the crash.
+- That log: not a crash but a hang. `adb logcat -b crash` was empty; the
+  log repeated `BufferQueueConsumer: [SurfaceView[]#2(BLAST Consumer)]
+  acquireBuffer: max acquired buffer count reached: 6 (max 4)` and
+  `BLASTBufferQueue ... Failed to acquire a buffer`. In sync mode the
+  second display's SurfaceView doesn't get its buffers back fast enough,
+  the producer (eglSwapBuffers on the game thread, holding winLock) blocks
+  for good, and the UI thread then waits on winLock. So interval 1 is
+  never used on the Presentation surface now (vsync = 1 only affects the
+  game when it's on the activity's display). The remaining idea for
+  uneven frames: pace the loop to the game display's refresh
+  (AChoreographer) at 60.0 Hz instead of the GBA's 59.73, with the audio
+  source rate raised to match (0.45%), as RetroArch does; with timer pacing
+  at 59.73 the posting time drifts across the 60 Hz refresh every ~3.7 s,
+  and near the latch deadline small jitter turns into repeated and dropped
+  frames.
 - GammaOS's default Intent Template, per launch.log: `action=null data=null
   type=null flags=0x10800000 component=.../.LauncherActivity`, no extras, no
   ClipData. It only starts the package's launcher activity and says nothing

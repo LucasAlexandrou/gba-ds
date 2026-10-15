@@ -808,8 +808,12 @@ void ui_present(void) {
 		 * a late frame meant one shown twice and the next one never). The
 		 * game loop still keeps time, so this only absorbs uneven frames. */
 		android_second_restore(); /* the interval applies to the current surface */
+		/* Never on the second display's surface: its buffers come back too
+		 * slowly on the RG DS Plus, and with interval 1 the queue filled up
+		 * ("max acquired buffer count reached") and the game froze. */
+		if (syncWant >= 0 && views[syncWant].offwin) syncWant = -1;
 		for (int i = 0; i < nViews; ++i) {
-			if (views[i].offwin) android_second_set_interval(syncWant == i ? 1 : 0);
+			if (views[i].offwin) android_second_set_interval(0);
 			else if (views[i].ren) SDL_RenderSetVSync(views[i].ren, syncWant == i ? 1 : 0);
 		}
 		fprintf(stderr, "presenting %s in step with its display\n",
