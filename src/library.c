@@ -271,12 +271,15 @@ static int draw_brand(int scr, int id, int x, int y, int h) {
 	return w;
 }
 
-static void truncate_to(char* out, size_t outSize, const char* s, int maxChars) {
-	if (maxChars < 3) maxChars = 3;
-	if ((int) strlen(s) <= maxChars) {
-		snprintf(out, outSize, "%s", s);
-	} else {
-		snprintf(out, outSize, "%.*s..", maxChars - 2, s);
+/* s, cut short with "..." if it's wider than maxW in that font and size. */
+static void fit_text(char* out, size_t outSize, int font, int capPx, const char* s, int maxW) {
+	snprintf(out, outSize, "%s", s);
+	if (ui_font_width(font, capPx, out) <= maxW) return;
+	size_t n = strlen(out);
+	while (n > 0) {
+		do --n; while (n > 0 && ((unsigned char) out[n] & 0xC0) == 0x80); /* whole UTF-8 characters */
+		snprintf(out, outSize, "%.*s...", (int) n, s);
+		if (ui_font_width(font, capPx, out) <= maxW) return;
 	}
 }
 
@@ -332,7 +335,7 @@ static void draw_preview(Config* cfg, int scr, int sel) {
 		ui_text(scr, r.w - m - ui_text_width(v, vpx), cy - vpx * 7 / 2, vpx, v, C_DIM);
 	}
 	if (nGames == 0 || sel < 0) {
-		ui_text_center(scr, r.w / 2, r.h / 2 - px * 4, px, "NO GAMES FOUND", C_TEXT);
+		ui_label(scr, r.w / 2, r.h / 2, px * 6, "No games found", C_TEXT);
 		return;
 	}
 	GameEntry* g = &games[sel];
@@ -345,7 +348,7 @@ static void draw_preview(Config* cfg, int scr, int sel) {
 		SDL_Rect a = { r.w - m - w, m + (gameH - h) / 2, w, h };
 		ui_image(scr, logoTex, logoW, logoH, "stretch", &a);
 	}
-	if (!g->supported) ui_text(scr, m, m + headH + px * 4, px, "NO MAP SCREEN - PLAYS NORMALLY", C_DIM);
+	if (!g->supported) ui_font_text(scr, TF_BODY, m, m + headH + px * 7, px * 4, "No map screen: plays normally", C_DIM, -1);
 
 	/* the resume point (the game screen only), or a note that there isn't one,
 	 * with clear space above (below the game's logo) and below (above the hints) */
@@ -353,10 +356,8 @@ static void draw_preview(Config* cfg, int scr, int sel) {
 	SDL_Rect area = { m, y, r.w - m * 2, gy - px * 14 - y };
 	if (thumbTex[0] || thumbTex[1]) {
 		ui_image(scr, thumbTex, GBA_W, GBA_H, "fit", &area);
-	} else if (brandTex[BRAND_NO_SAVES][0] || brandTex[BRAND_NO_SAVES][1]) {
-		int h = px * 14;
-		int w = brandW[BRAND_NO_SAVES] * h / brandH[BRAND_NO_SAVES];
-		draw_brand(scr, BRAND_NO_SAVES, (r.w - w) / 2, area.y + (area.h - h) / 2, h);
+	} else {
+		ui_label(scr, r.w / 2, area.y + area.h / 2, px * 7, "no save state yet!", C_TEXT);
 	}
 }
 
@@ -414,11 +415,12 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 	ListGeom g = list_geom(scr);
 	ui_fill(scr, (SDL_Rect) { 0, 0, r.w, r.h }, C_BG);
 	if (nGames == 0) {
-		ui_text_center(scr, r.w / 2, r.h / 2 - px * 12, px, "NO SUPPORTED GAMES IN", C_TEXT);
-		char dir[200];
-		truncate_to(dir, sizeof(dir), cfg->romDir, r.w / (px * 6) - 2);
-		ui_text_center(scr, r.w / 2, r.h / 2, px, dir, C_GOLD);
-		ui_text_center(scr, r.w / 2, r.h / 2 + px * 12, px, "(SUPPORTED GAMES ONLY, UNZIPPED)", C_DIM);
+		ui_label(scr, r.w / 2, r.h / 2 - px * 14, px * 6, "No supported games in", C_TEXT);
+		char dir[300];
+		fit_text(dir, sizeof(dir), TF_BODY, px * 5, cfg->romDir, r.w - px * 16);
+		ui_font_text(scr, TF_BODY, r.w / 2, r.h / 2, px * 5, dir, C_GOLD, 0);
+		ui_font_text(scr, TF_BODY, r.w / 2, r.h / 2 + px * 14, px * 4,
+		             "Only games with a map screen are listed (show_all = 1 lists every one)", C_DIM, 0);
 	}
 	int done, total;
 	logo_progress(&done, &total);
@@ -450,9 +452,9 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 			ui_label(scr, t.x + t.w / 2, t.y + t.h / 2, px * 4, "Loading thumbnail...", C_DIM);
 		} else {
 			/* no logo to be had (no map profile, or extraction failed): the name */
-			char line[200];
-			truncate_to(line, sizeof(line), games[i].name, (t.w - px * 8) / (px * 6));
-			ui_text_center(scr, t.x + t.w / 2, t.y + (t.h - px * 7) / 2, px, line, C_TEXT);
+			char line[300];
+			fit_text(line, sizeof(line), TF_BOLD, px * 5, games[i].name, t.w - px * 10);
+			ui_label(scr, t.x + t.w / 2, t.y + t.h / 2, px * 5, line, C_TEXT);
 		}
 		if (games[i].flag >= 0) {
 			/* region flag in the bottom-right corner */
@@ -461,10 +463,10 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 			draw_brand(scr, games[i].flag, t.x + t.w - fw - px * 3, t.y + t.h - fh - px * 3, fh);
 		}
 		if (!games[i].supported && cfg->showAll) {
-			int tagW = ui_text_width("NO MAP", px) + px * 6;
+			int tagW = ui_label_width(scr, px * 4, "No map") + px * 6;
 			SDL_Rect tg = { t.x + t.w - tagW - px * 3, t.y + px * 3, tagW, px * 11 };
-			ui_fill(scr, tg, C_TAG);
-			ui_text(scr, tg.x + px * 3, tg.y + px * 2, px, "NO MAP", C_TEXT);
+			ui_fill_round(scr, tg, C_TAG, px * 2);
+			ui_label(scr, tg.x + tg.w / 2, tg.y + tg.h / 2, px * 4, "No map", C_TEXT);
 		}
 	}
 	/* header drawn last so tiles scroll underneath it */
@@ -498,24 +500,9 @@ static SettingsGeom settings_geom(int scr) {
 }
 
 /* Upper-case pixel text, wrapped to width; returns the y below it. */
+/* Body text in Jost, word-wrapped; returns the y below it. */
 static int draw_wrapped(int scr, int x, int y, int width, int px, const char* text, SDL_Color c) {
-	int perLine = SDL_max(8, width / (px * 6));
-	char line[160];
-	const char* p = text;
-	while (*p) {
-		int n = (int) strlen(p);
-		if (n > perLine) {
-			n = perLine;
-			while (n > 0 && p[n] != ' ') --n;
-			if (n == 0) n = perLine;
-		}
-		snprintf(line, sizeof(line), "%.*s", n, p);
-		ui_text(scr, x, y, px, line, c);
-		y += px * 10;
-		p += n;
-		while (*p == ' ') ++p;
-	}
-	return y;
+	return ui_font_wrap(scr, TF_BODY, x, y, width, px * 4, text, c);
 }
 
 #ifdef __ANDROID__
@@ -542,11 +529,11 @@ static void draw_settings(const Config* cfg, int scr, int sel) {
 	for (char* p = dirs; *p; ++p) {
 		if (*p == ':') *p = ' ';
 	}
-	snprintf(line, sizeof(line), "GAMES ARE READ FROM: %s", dirs);
+	snprintf(line, sizeof(line), "Games are read from: %s", dirs);
 	int y = draw_wrapped(scr, tx, g.textY, tw, px, line, C_DIM);
 	y = draw_wrapped(scr, tx, y + px * 4, tw, px,
-	                 pickPending ? "CHOOSE A FOLDER IN ANDROID'S FILE PICKER..."
-	                             : "ROM FOLDER OPENS ANDROID'S FILE PICKER. GAMES IN ITS SUBFOLDERS ARE FOUND TOO.",
+	                 pickPending ? "Choose a folder in Android's file picker..."
+	                             : "ROM Folder opens Android's file picker. Games in its subfolders are found too.",
 	                 C_DIM);
 	if (settingsMsg[0]) draw_wrapped(scr, tx, y + px * 6, tw, px, settingsMsg, C_GOLD);
 }
@@ -557,7 +544,7 @@ static void settings_toggle(Config* cfg) {
 		pickPending = true;
 		settingsMsg[0] = 0;
 	} else {
-		snprintf(settingsMsg, sizeof(settingsMsg), "COULD NOT OPEN THE FILE PICKER");
+		snprintf(settingsMsg, sizeof(settingsMsg), "Couldn't open the file picker.");
 	}
 }
 
@@ -569,7 +556,7 @@ static bool settings_poll(Config* cfg) {
 	if (!st) return false;
 	pickPending = false;
 	if (st < 0) {
-		snprintf(settingsMsg, sizeof(settingsMsg), "NO FOLDER CHOSEN");
+		snprintf(settingsMsg, sizeof(settingsMsg), "No folder chosen.");
 		return false;
 	}
 	snprintf(cfg->romDir, sizeof(cfg->romDir), "%s", path);
@@ -600,9 +587,9 @@ static void draw_settings(const Config* cfg, int scr, int sel) {
 	ui_label(scr, g.back.x + g.back.w / 2, g.back.y + g.back.h / 2, px * 5, "Back", C_TEXT);
 	int tx = g.toggle.x + px * 2, tw = g.toggle.w - px * 4;
 	int y = draw_wrapped(scr, tx, g.textY, tw, px,
-	                     "ADDS GBA DS TO THE EMULATORS FOR GAME BOY ADVANCE GAMES IN EMULATIONSTATION. PICK IT FOR ONE GAME "
-	                     "(ITS ADVANCED GAME OPTIONS: EMULATOR) OR FOR ALL OF THEM (THE SYSTEM'S ADVANCED SETTINGS). "
-	                     "THE OTHER EMULATORS KEEP WORKING AS BEFORE.",
+	                     "Adds GBA DS to the emulators for Game Boy Advance games in EmulationStation. Pick it for one game "
+	                     "(its Advanced Game Options > Emulator) or for all of them (the system's advanced settings). "
+	                     "The other emulators keep working as before.",
 	                     C_DIM);
 	if (settingsMsg[0]) draw_wrapped(scr, tx, y + px * 6, tw, px, settingsMsg, C_GOLD);
 }
@@ -623,15 +610,15 @@ static void draw_wait(int scr, int done, int total) {
 	int px = ui_px(scr);
 	ui_dim(scr, 235);
 	int cy = r.h / 2;
-	ui_text_center(scr, r.w / 2, cy - px * 16, px, "PREPARING GAMES...", C_TEXT);
+	ui_label(scr, r.w / 2, cy - px * 14, px * 6, "Preparing games...", C_TEXT);
 	int bw = r.w / 2, bh = px * 4;
 	SDL_Rect bar = { (r.w - bw) / 2, cy - bh / 2, bw, bh };
 	ui_fill(scr, bar, C_ROW);
 	if (total > 0) ui_fill(scr, (SDL_Rect) { bar.x, bar.y, bw * done / total, bh }, C_SEL);
 	char line[64];
-	snprintf(line, sizeof(line), "%d OF %d", done, total);
-	ui_text_center(scr, r.w / 2, cy + px * 8, px, line, C_DIM);
-	ui_text_center(scr, r.w / 2, cy + px * 20, px, "FIRST RUN ONLY.  B: BACK", C_DIM);
+	snprintf(line, sizeof(line), "%d of %d", done, total);
+	ui_font_text(scr, TF_BODY, r.w / 2, cy + px * 11, px * 4, line, C_DIM, 0);
+	ui_font_text(scr, TF_BODY, r.w / 2, cy + px * 22, px * 4, "First run only. B: back", C_DIM, 0);
 }
 
 static int clamp_scroll(int scr, int scroll) {
@@ -726,7 +713,7 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 				thumbFor = -2;
 				sel = nGames ? 0 : -1;
 				scroll = 0;
-				snprintf(settingsMsg, sizeof(settingsMsg), "%d GAME%s FOUND", nGames, nGames == 1 ? "" : "S");
+				snprintf(settingsMsg, sizeof(settingsMsg), "%d game%s found.", nGames, nGames == 1 ? "" : "s");
 			}
 			if (btn_pressed(B_UP) || btn_pressed(B_DOWN)) settingsSel = !settingsSel;
 			if (btn_pressed(B_A) || btn_pressed(B_START)) {

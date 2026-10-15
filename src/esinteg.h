@@ -15,7 +15,7 @@
 #include <stddef.h>
 
 bool es_integration_on(const Config* cfg);
-/* Turns it on or off; msg gets a short message for the user (upper case). */
+/* Turns it on or off; msg gets a short message for the user. */
 bool es_integration_set(const Config* cfg, bool on, char* msg, size_t msgSize);
 /* If it's on, rewrites the files (ROCKNIX updates can change the GBA
  * system's emulator list, and GBA DS may have moved). */

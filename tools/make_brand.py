@@ -10,6 +10,9 @@ only the rendered images are. Outputs:
     assets/brand/gba-ds-logo-1024.png   1024 px wide
     src/brand_data.c                    PNGs used by the app, as byte arrays
 
+Menu and other UI text isn't here: the app draws it in Jost (assets/fonts,
+embedded by tools/embed_fonts.py).
+
 Needs Pillow.
 """
 import io
@@ -75,16 +78,6 @@ def button(futura, letter, size=96):
     b = font.getbbox(letter)
     d.text(((s - (b[0] + b[2])) / 2, (s - (b[1] + b[3])) / 2), letter, font=font, fill=NAVY)
     return img.resize((size, size), Image.LANCZOS)
-
-
-def label(futura, text, cap=48):
-    """Text in Futura Bold Italic, white on transparent."""
-    font = sized(futura, cap)
-    b = font.getbbox(text)
-    pad = cap // 4
-    img = Image.new("RGBA", (b[2] - b[0] + 2 * pad, b[3] - b[1] + 2 * pad), (0, 0, 0, 0))
-    ImageDraw.Draw(img).text((pad - b[0], pad - b[1]), text, font=font, fill=WHITE)
-    return img
 
 
 def pill(futura, text, w=100, h=64):
@@ -154,41 +147,6 @@ def flag(kind, w=60, h=40):
     return out.resize((w, h), Image.LANCZOS)
 
 
-# Menu text drawn in Futura Bold Italic (white; the app tints it). Each image
-# is TEXT_CAP * 2 tall with the capitals centred vertically, so labels line up
-# whatever their letters. Keep in sync with the labels in src/game.c.
-TEXT_CAP = 44
-MENU_TEXTS = [
-    "Game", "Display", "Paused",
-    "Resume", "Restart Game", "Tap Again to Restart", "Save State", "Load State", "Close Game", "Close GBA DS",
-    "Swap Screens", "Scale: Pixel Perfect", "Scale: Full Width", "Scale: Stretch", "Scale: Zoom",
-    "LCD Grid: On", "LCD Grid: Off", "Show FPS: On", "Show FPS: Off",
-    "Overlays: None", "Overlays: Primary", "Overlays: Secondary", "Overlays: Both",
-    "Map Animations: On", "Map Animations: Off",
-    "Map Refresh: Every 3 s", "Map Refresh: Every 1.5 s", "Map Refresh: Every 1 s", "Map Refresh: Every 0.5 s",
-    "Map Refresh: Custom", "Cheats", "Back", "Take Screenshot",
-    # control scheme picker (second screen)
-    "Controls", "Auto",
-    # game list
-    "Play", "Quit", "Touch or use the D-Pad to select a game", "Loading thumbnail...",
-    "Settings", "GBA DS in EmulationStation: On", "GBA DS in EmulationStation: Off",
-    # Android
-    "ROM Folder",
-]
-
-
-def menu_text(futura, text):
-    font = sized(futura, TEXT_CAP)
-    cap = font.getbbox("H")
-    full = font.getbbox(text)
-    pad = TEXT_CAP // 4
-    w = full[2] - min(full[0], 0) + 2 * pad
-    h = TEXT_CAP * 2
-    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    ImageDraw.Draw(img).text((pad - min(full[0], 0), h / 2 - (cap[1] + cap[3]) / 2), text, font=font, fill=WHITE)
-    return img
-
-
 def scale_h(img, h):
     return img.resize((round(img.width * h / img.height), h), Image.LANCZOS)
 
@@ -215,7 +173,6 @@ def main():
         "logo": scale_h(full, 192),
         "btn_a": button(futura, "A"),
         "btn_b": button(futura, "B"),
-        "no_saves": label(futura, "no save state yet!"),
         "btn_l1": pill(futura, "L1"),
         "btn_r1": pill(futura, "R1"),
         "flag_us": flag("us"),
@@ -241,19 +198,6 @@ def main():
         lines.append(f"\t[BRAND_{name.upper()}] = {{ {name}_png, sizeof({name}_png) }},")
     lines.append("};")
     lines.append("")
-    for i, t in enumerate(MENU_TEXTS):
-        data = png_bytes(menu_text(futura, t))
-        lines.append(f"static const unsigned char text{i}_png[{len(data)}] = {{")
-        for j in range(0, len(data), 20):
-            lines.append("\t" + ", ".join(str(b) for b in data[j:j + 20]) + ",")
-        lines.append("};")
-    lines.append("")
-    lines.append(f"const int brandTextCap = {TEXT_CAP};")
-    lines.append(f"const int brandTextCount = {len(MENU_TEXTS)};")
-    lines.append("const BrandText brandTexts[] = {")
-    for i, t in enumerate(MENU_TEXTS):
-        lines.append(f'\t{{ "{t}", text{i}_png, sizeof(text{i}_png) }},')
-    lines.append("};")
     with open(os.path.join(ROOT, "src", "brand_data.c"), "w") as f:
         f.write("\n".join(lines) + "\n")
     for name, img in images.items():

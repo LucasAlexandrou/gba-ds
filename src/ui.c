@@ -2,6 +2,7 @@
 #include "android.h"
 #include "brand.h"
 #include "font.h"
+#include "textfont.h"
 #include "logo.h"
 #include "paths.h"
 #include "profiles.h"
@@ -629,7 +630,7 @@ typedef struct {
 	bool hasRect;
 	SDL_Color col;
 	char mode[16];
-	char text[200];
+	char text[256];
 } DrawOp;
 #ifdef __ANDROID__
 typedef struct {
@@ -723,7 +724,7 @@ static bool sw_render(int v) {
 		case OP_FILL: ui_fill(o->screen, o->r, o->col); break;
 		case OP_ROUND: ui_fill_round(o->screen, o->r, o->col, o->a); break;
 		case OP_TEXT: ui_text(o->screen, o->a, o->b, o->c, o->text, o->col); break;
-		case OP_LABEL: ui_label(o->screen, o->a, o->b, o->c, o->text, o->col); break;
+		case OP_LABEL: ui_font_text(o->screen, o->d & 15, o->a, o->b, o->c, o->text, o->col, (o->d >> 4) - 1); break;
 		case OP_CLIP: ui_clip(o->screen, &o->r); break;
 		case OP_NOCLIP: ui_clip(o->screen, NULL); break;
 		}
@@ -1242,61 +1243,112 @@ void ui_fill_round(int screen, SDL_Rect r, SDL_Color c, int radius) {
 	for (int i = 0; i < 4; ++i) SDL_RenderCopy(views[s->view].ren, t, &src[i], &dst[i]);
 }
 
-static SDL_Texture** labelTex[2];
-static int labelW[64], labelH[64];
+/* ---------------------------------------------------------- text in Jost
+ * Rasterized by textfont.c, kept as white textures (tinted when drawn), per
+ * view; the least recently drawn are dropped when the cache is full. */
+typedef struct {
+	char* text;
+	int view, font, cap;
+	SDL_Texture* tex; /* NULL: nothing to draw (empty, or rendering failed) */
+	int w, h, baseline, left;
+	uint64_t used;
+} TextEntry;
+#define TEXT_CACHE 192
+static TextEntry textCache[TEXT_CACHE];
+static uint64_t textUse;
 
-static int label_tex(int screen, const char* text);
-
-int ui_label_width(int screen, int capPx, const char* text) {
-	int idx = label_tex(screen, text);
-	if (idx < 0) return ui_text_width(text, SDL_max(1, capPx / 6));
-	return labelW[idx] * (capPx * labelH[idx] / brandTextCap) / labelH[idx];
+static TextEntry* text_entry(int view, int font, int cap, const char* text) {
+	TextEntry* slot = NULL;
+	for (int i = 0; i < TEXT_CACHE; ++i) {
+		TextEntry* e = &textCache[i];
+		if (e->text && e->view == view && e->font == font && e->cap == cap && !strcmp(e->text, text)) {
+			e->used = ++textUse;
+			return e;
+		}
+		if (!slot || !e->text || (slot->text && e->used < slot->used)) slot = e;
+	}
+	if (slot->text) {
+		if (slot->tex) SDL_DestroyTexture(slot->tex);
+		free(slot->text);
+	}
+	memset(slot, 0, sizeof(*slot));
+	slot->text = strdup(text);
+	slot->view = view, slot->font = font, slot->cap = cap;
+	slot->used = ++textUse;
+	TfBitmap b;
+	if (slot->text && tf_render(font, cap, text, &b)) {
+		SDL_Surface* surf = SDL_CreateRGBSurfaceWithFormat(0, b.w, b.h, 32, SDL_PIXELFORMAT_ARGB8888);
+		if (surf) {
+			for (int y = 0; y < b.h; ++y) {
+				Uint32* row = (Uint32*) ((Uint8*) surf->pixels + y * surf->pitch);
+				for (int x = 0; x < b.w; ++x) row[x] = ((Uint32) b.alpha[y * b.w + x] << 24) | 0xFFFFFFu;
+			}
+			slot->tex = SDL_CreateTextureFromSurface(views[view].ren, surf);
+			SDL_FreeSurface(surf);
+			if (slot->tex) SDL_SetTextureBlendMode(slot->tex, SDL_BLENDMODE_BLEND);
+			slot->w = b.w, slot->h = b.h, slot->baseline = b.baseline, slot->left = b.left;
+		}
+		tf_free(&b);
+	}
+	return slot;
 }
 
-void ui_label(int screen, int cx, int cy, int capPx, const char* text, SDL_Color c) {
+int ui_font_width(int font, int capPx, const char* text) {
+	return tf_width(font, capPx, text);
+}
+
+void ui_font_text(int screen, int font, int x, int cy, int capPx, const char* text, SDL_Color c, int align) {
+	if (!text || !text[0] || capPx <= 0) return;
 	RECORD(screen, OP_LABEL) {
-		o->a = cx, o->b = cy, o->c = capPx, o->col = c;
+		o->a = x, o->b = cy, o->c = capPx, o->d = font | ((align + 1) << 4), o->col = c;
 		snprintf(o->text, sizeof(o->text), "%s", text);
 		return;
 	}
-	int idx = label_tex(screen, text);
 	Screen* s = &screens[screen];
-	int v = s->view;
-	if (idx < 0) {
-		/* no image: the pixel font, about the same height */
-		int px = SDL_max(1, capPx / 6);
-		ui_text_center(screen, cx, cy - px * 7 / 2, px, text, c);
-		return;
-	}
-	SDL_Texture* t = labelTex[v][idx];
-	int h = capPx * labelH[idx] / brandTextCap;
-	int w = labelW[idx] * h / labelH[idx];
-	SDL_SetTextureColorMod(t, c.r, c.g, c.b);
-	SDL_SetTextureAlphaMod(t, c.a);
-	SDL_Rect dst = { s->rect.x + cx - w / 2, s->rect.y + cy - h / 2, w, h };
-	SDL_RenderCopy(views[v].ren, t, NULL, &dst);
+	TextEntry* e = text_entry(s->view, font, capPx, text);
+	if (!e->tex) return;
+	int w = tf_width(font, capPx, text);
+	int left = align < 0 ? x : align > 0 ? x - w : x - w / 2;
+	/* capitals centred on cy */
+	SDL_Rect dst = { s->rect.x + left - e->left, s->rect.y + cy + capPx / 2 - e->baseline, e->w, e->h };
+	SDL_SetTextureColorMod(e->tex, c.r, c.g, c.b);
+	SDL_SetTextureAlphaMod(e->tex, c.a);
+	SDL_RenderCopy(views[s->view].ren, e->tex, NULL, &dst);
 }
 
-/* Index of the label image for text, loaded for the screen's view; -1 if none. */
-static int label_tex(int screen, const char* text) {
-	int idx = -1;
-	for (int i = 0; i < brandTextCount && i < 64; ++i) {
-		if (!strcmp(brandTexts[i].text, text)) idx = i;
-	}
-	Screen* s = &screens[screen];
-	int v = s->view;
-	if (idx >= 0 && !labelTex[v]) labelTex[v] = calloc(64, sizeof(SDL_Texture*));
-	if (idx >= 0 && !labelTex[v][idx]) {
-		SDL_Surface* surf = image_load_mem(brandTexts[idx].png, brandTexts[idx].size);
-		if (surf) {
-			labelW[idx] = surf->w, labelH[idx] = surf->h;
-			labelTex[v][idx] = SDL_CreateTextureFromSurface(views[v].ren, surf);
-			SDL_FreeSurface(surf);
-			if (labelTex[v][idx]) {
-				SDL_SetTextureBlendMode(labelTex[v][idx], SDL_BLENDMODE_BLEND);
-				SDL_SetTextureScaleMode(labelTex[v][idx], SDL_ScaleModeLinear);
-			}
+int ui_label_width(int screen, int capPx, const char* text) {
+	(void) screen;
+	return tf_width(TF_BOLD, capPx, text);
+}
+
+void ui_label(int screen, int cx, int cy, int capPx, const char* text, SDL_Color c) {
+	ui_font_text(screen, TF_BOLD, cx, cy, capPx, text, c, 0);
+}
+
+int ui_font_wrap(int screen, int font, int x, int y, int width, int capPx, const char* text, SDL_Color c) {
+	int lineH = capPx * 2;
+	char line[512];
+	const char* p = text;
+	while (*p) {
+		/* as many words as fit */
+		int n = 0, fit = 0;
+		while (p[n]) {
+			int e = n;
+			while (p[e] && p[e] != ' ') ++e;
+			if (e >= (int) sizeof(line)) break;
+			memcpy(line, p, e);
+			line[e] = 0;
+			if (fit && tf_width(font, capPx, line) > width) break;
+			fit = e;
+			n = e;
+			while (p[n] == ' ') ++n;
 		}
+		if (!fit) fit = n ? n : (int) strlen(p);
+		snprintf(line, sizeof(line), "%.*s", fit, p);
+		ui_font_text(screen, font, x, y + capPx / 2, capPx, line, c, -1);
+		y += lineH;
+		p += fit;
+		while (*p == ' ') ++p;
 	}
-	return idx >= 0 && labelTex[v][idx] ? idx : -1;
+	return y;
 }

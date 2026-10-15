@@ -57,9 +57,11 @@ Android session at the same time. To keep them from colliding:
   notes for sessions go in `docs/ANDROID.md`, not here, except for build and
   release steps both sessions need.
 - **Generated files are regenerated, never merged by hand.** For
-  `src/brand_data.c`, each side edits `tools/make_brand.py`; whoever merges
-  re-runs it (needs the fonts; ask the owner) and commits the result. Same
-  for `src/logo_masks.c` and `tools/make_logo_masks.py`.
+  `src/brand_data.c` (artwork only now; menu text needs no regenerating),
+  each side edits `tools/make_brand.py`; whoever merges re-runs it (needs the
+  fonts; ask the owner) and commits the result. Same for `src/logo_masks.c`
+  and `tools/make_logo_masks.py`, and `src/fonts_data.c` /
+  `tools/embed_fonts.py`.
 - **Android-only code stays out of the shared paths:** `src/android.c`,
   `android/`, or `#ifdef __ANDROID__`. A change to how shared code behaves
   (`ui.c`, `game.c`, `library.c`, `emu.c`...) affects ROCKNIX too: build
@@ -83,11 +85,16 @@ Android session at the same time. To keep them from colliding:
 - libmgba options live in `scripts/mgba-options.sh` (shared by all builds). It's
   a full mGBA configuration with everything optional off, not
   `LIBMGBA_ONLY` (that forces zlib off; .zip ROMs need it), and LTO off.
-- Generated sources: `src/brand_data.c` (`tools/make_brand.py` with the
+- **UI text is drawn in Jost** (OFL, `assets/fonts/`, embedded into
+  `src/fonts_data.c` by `tools/embed_fonts.py`) with stb_truetype
+  (`src/textfont.c`): `ui_label` (bold, centred), `ui_font_text` /
+  `ui_font_wrap` (TF_BOLD or TF_BODY, any UTF-8). New text is just a string;
+  write it in normal sentence case. The pixel font (`ui_text`) is left for
+  the FPS counter and version number.
+- Generated sources: `src/fonts_data.c` (above), `src/brand_data.c` (artwork
+  only: the logo, button prompts and flags; `tools/make_brand.py` needs the
   Futura Bold Italic and Gamecuben fonts, which aren't in the repo: ask the
   owner for them) and `src/logo_masks.c` (`tools/make_logo_masks.py`).
-  New menu text must be added to MENU_TEXTS in make_brand.py and the file
-  regenerated.
 
 ## Testing without the device
 

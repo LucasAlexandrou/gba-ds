@@ -155,13 +155,13 @@ static char* read_es_systems(const Config* cfg, char* used, size_t usedSize) {
 static bool install(const Config* cfg, char* msg, size_t msgSize) {
 	char dir[600];
 	if (!app_dir(dir, sizeof(dir))) {
-		snprintf(msg, msgSize, "CAN'T FIND THE GBA DS FOLDER");
+		snprintf(msg, msgSize, "Can't find the GBA DS folder.");
 		return false;
 	}
 	char src[700];
 	char* xml = read_es_systems(cfg, src, sizeof(src));
 	if (!xml) {
-		snprintf(msg, msgSize, "NO ES_SYSTEMS.CFG FOUND");
+		snprintf(msg, msgSize, "No es_systems.cfg found.");
 		return false;
 	}
 	const char *sys, *sysEnd;
@@ -175,7 +175,7 @@ static bool install(const Config* cfg, char* msg, size_t msgSize) {
 	const char* run = cmd ? strstr(cmd, RUNEMU) : NULL;
 	if (!cmd || !emus || !run || run >= cmd + cmdLen) {
 		fprintf(stderr, "es: no usable gba system in %s\n", src);
-		snprintf(msg, msgSize, "UNEXPECTED ES_SYSTEMS.CFG (SEE LOG)");
+		snprintf(msg, msgSize, "Unexpected es_systems.cfg (see the log).");
 		free(xml);
 		return false;
 	}
@@ -243,12 +243,12 @@ static bool install(const Config* cfg, char* msg, size_t msgSize) {
 	free(out);
 	if (!ok) {
 		fprintf(stderr, "es: writing %s: %s\n", cfgPath, strerror(errno));
-		snprintf(msg, msgSize, "COULDN'T WRITE TO %s", cfg->esConfigDir);
+		snprintf(msg, msgSize, "Couldn't write to %s.", cfg->esConfigDir);
 		unlink(cfgPath);
 		return false;
 	}
 	fprintf(stderr, "es: wrote %s and %s (from %s)\n", cfgPath, script, src);
-	snprintf(msg, msgSize, "ON. RESTART EMULATIONSTATION TO SEE IT.");
+	snprintf(msg, msgSize, "On. Restart EmulationStation to see it.");
 	return true;
 }
 
@@ -259,7 +259,7 @@ bool es_integration_set(const Config* cfg, bool on, char* msg, size_t msgSize) {
 	bool ok = unlink(p) == 0 || errno == ENOENT;
 	join(p, sizeof(p), cfg->esConfigDir, SCRIPT_NAME);
 	unlink(p);
-	snprintf(msg, msgSize, ok ? "OFF. RESTART EMULATIONSTATION TO APPLY." : "COULDN'T REMOVE THE SETTING FILE");
+	snprintf(msg, msgSize, ok ? "Off. Restart EmulationStation to apply." : "Couldn't remove the setting file.");
 	return ok;
 }
 

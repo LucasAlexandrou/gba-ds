@@ -41,7 +41,7 @@ separate_arguments(MGBA_DEFINES)
 set(S "${GBADS_ROOT}/src")
 add_library(main SHARED
 	${S}/main.c ${S}/config.c ${S}/font.c ${S}/ui.c ${S}/library.c ${S}/game.c ${S}/paths.c ${S}/image.c
-	${S}/brand_data.c ${S}/logo.c ${S}/mapframe.c ${S}/cheats.c ${S}/esinteg.c
+	${S}/brand_data.c ${S}/logo.c ${S}/mapframe.c ${S}/cheats.c ${S}/esinteg.c ${S}/textfont.c ${S}/fonts_data.c
 	${S}/emu.c ${S}/mapcap.c ${S}/profiles.c ${S}/logo_masks.c
 	${S}/android.c)
 set_target_properties(main PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)

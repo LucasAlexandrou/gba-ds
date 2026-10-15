@@ -2,6 +2,8 @@
 
 ## v1.1.1 (not yet released)
 
+- **New interface font.** All text is now drawn in Jost, an open-source font in the style of the Futura menus, including the parts that used the small blocky font before: cheat names, game names, Settings help and on-screen messages. Long names are cut to fit.
+
 - **Two more scaling options** (pause menu → Display → Scale): **Zoom** fills the screen height and keeps the picture's shape, cutting off its left and right edges; **Stretch** fills the whole screen. Scale now steps through Pixel Perfect, Full Width, Zoom and Stretch.
 - **Map Refresh** (pause menu → Display): how often the map updates, every 3, 1.5 (the default), 1 or 0.5 seconds. Faster keeps the map more up to date on devices with power to spare. Also `map_interval` in gba-ds.cfg.
 

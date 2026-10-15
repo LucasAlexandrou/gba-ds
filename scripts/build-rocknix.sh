@@ -72,7 +72,8 @@ cp README.md "$PKG/README.md"
 # mGBA is statically linked (MPL-2.0): ship its licence and where to get its source
 mkdir -p "$PKG/licenses"
 cp "$DEPS/mgba/LICENSE" "$PKG/licenses/mGBA-LICENSE.txt"
-printf "GBA DS %s statically links libmgba (c) Jeffrey Pfau, MPL-2.0.\nmGBA source: https://github.com/mgba-emu/mgba (commit %s)\nGBA DS source: https://github.com/kyannon/gba-ds\n" "$VERSION" "$MGBA_COMMIT" > "$PKG/licenses/README.txt"
+cp assets/fonts/Jost-OFL.txt "$PKG/licenses/Jost-OFL.txt"
+printf "GBA DS %s statically links libmgba (c) Jeffrey Pfau, MPL-2.0.\nmGBA source: https://github.com/mgba-emu/mgba (commit %s)\nIts text is set in Jost (c) The Jost Project Authors, SIL Open Font License 1.1 (Jost-OFL.txt).\nGBA DS source: https://github.com/kyannon/gba-ds\n" "$VERSION" "$MGBA_COMMIT" > "$PKG/licenses/README.txt"
 cp "dist/GBA DS.sh" "$ROOT/build/pkg/"
 # EmulationStation artwork for the Ports entry
 mkdir -p "$ROOT/build/pkg/images"

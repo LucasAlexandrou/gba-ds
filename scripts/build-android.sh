@@ -50,6 +50,7 @@ LIC=android/app/src/main/assets/licenses
 rm -rf "$LIC" && mkdir -p "$LIC"
 cp "$DEPS/mgba/LICENSE" "$LIC/mGBA-LICENSE.txt"
 cp "$DEPS/SDL2/LICENSE.txt" "$LIC/SDL2-LICENSE.txt"
+cp assets/fonts/Jost-OFL.txt "$LIC/Jost-OFL.txt"
 printf "GBA DS %s statically links libmgba (c) Jeffrey Pfau, MPL-2.0.\nmGBA source: https://github.com/mgba-emu/mgba (commit %s)\nSDL2 (c) Sam Lantinga, zlib licence: https://github.com/libsdl-org/SDL (%s)\nGBA DS source: https://github.com/kyannon/gba-ds\n" \
 	"$VERSION" "$(git -C "$DEPS/mgba" rev-parse --short HEAD)" "$SDL_BRANCH" > "$LIC/README.txt"
 

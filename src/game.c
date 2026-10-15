@@ -191,10 +191,16 @@ static int cheat_row_at(int scr, int x, int y) {
 }
 
 /* fits s into maxChars, ending in "..." when cut */
-static void fit_text(char* out, size_t size, const char* s, int maxChars) {
-	if (maxChars < 4) maxChars = 4;
+/* s in Jost, cut short with "..." if it's wider than maxW. */
+static void fit_text(char* out, size_t size, int font, int capPx, const char* s, int maxW) {
 	snprintf(out, size, "%s", s);
-	if ((int) strlen(out) > maxChars && maxChars + 1 < (int) size) strcpy(out + maxChars - 3, "...");
+	if (ui_font_width(font, capPx, out) <= maxW) return;
+	size_t n = strlen(out);
+	while (n > 0) {
+		do --n; while (n > 0 && ((unsigned char) out[n] & 0xC0) == 0x80); /* whole UTF-8 characters */
+		snprintf(out, size, "%.*s...", (int) n, s);
+		if (ui_font_width(font, capPx, out) <= maxW) return;
+	}
 }
 
 static void draw_cheats(int scr) {
@@ -209,16 +215,17 @@ static void draw_cheats(int scr) {
 	ui_label(scr, t.x + t.w / 2, t.y + t.h / 2, cap, "Cheats", (SDL_Color) { 20, 16, 36, 255 });
 	SDL_Rect clip = { screens[scr].rect.x, screens[scr].rect.y + g.top, r.w, g.listH };
 	ui_clip(scr, &clip);
-	int pillW = ui_text_width("OFF", g.tpx) + px * 6;
-	int maxChars = (g.w - pillW - px * 10) / (g.tpx * 6);
+	int tcap = g.tpx * 5; /* Jost capitals, about the pixel font's height */
+	int pillW = ui_label_width(scr, tcap, "Off") + px * 8;
+	int nameW = g.w - pillW - px * 10;
 	for (int i = 0; i < nCheatRows; ++i) {
 		int y = g.top + i * (g.rowH + g.gap) - cheatScroll;
 		if (y + g.rowH <= g.top || y >= g.top + g.listH) continue;
-		char line[200];
+		char line[300];
 		if (cheatRows[i] < 0) {
 			const CheatFile* f = &cheats.files[-1 - cheatRows[i]];
-			fit_text(line, sizeof(line), f->label, g.w / (g.tpx * 6));
-			ui_text(scr, g.x + px * 2, y + (g.rowH - g.tpx * 7) / 2, g.tpx, line, C_GOLD);
+			fit_text(line, sizeof(line), TF_BOLD, tcap, f->label, g.w - px * 4);
+			ui_font_text(scr, TF_BOLD, g.x + px * 2, y + g.rowH / 2, tcap, line, C_GOLD, -1);
 			continue;
 		}
 		const Cheat* c = &cheats.items[cheatRows[i]];
@@ -226,13 +233,12 @@ static void draw_cheats(int scr) {
 		SDL_Rect row = { g.x, y, g.w, g.rowH };
 		if (sel) ui_fill_round(scr, (SDL_Rect) { row.x - px / 2, row.y - px / 2, row.w + px, row.h + px }, C_BTN_EDGE, rad);
 		ui_fill_round(scr, row, sel ? C_BTN_SEL : C_BTN, rad);
-		fit_text(line, sizeof(line), c->desc, maxChars);
-		ui_text(scr, g.x + px * 4, y + (g.rowH - g.tpx * 7) / 2, g.tpx, line, C_TEXT);
+		fit_text(line, sizeof(line), TF_BODY, tcap, c->desc, nameW);
+		ui_font_text(scr, TF_BODY, g.x + px * 4, y + g.rowH / 2, tcap, line, C_TEXT, -1);
 		SDL_Rect pill = { g.x + g.w - pillW - px * 3, y + px * 2, pillW, g.rowH - px * 4 };
 		ui_fill_round(scr, pill, c->on ? (SDL_Color) { 64, 168, 112, 255 } : (SDL_Color) { 60, 56, 84, 255 }, px * 2);
-		const char* st = c->on ? "ON" : "OFF";
-		ui_text(scr, pill.x + (pill.w - ui_text_width(st, g.tpx)) / 2, pill.y + (pill.h - g.tpx * 7) / 2, g.tpx, st,
-		        c->on ? C_TEXT : (SDL_Color) { 160, 156, 184, 255 });
+		ui_label(scr, pill.x + pill.w / 2, pill.y + pill.h / 2, tcap, c->on ? "On" : "Off",
+		         c->on ? C_TEXT : (SDL_Color) { 160, 156, 184, 255 });
 	}
 	ui_clip(scr, NULL);
 	/* scroll bar */
@@ -243,27 +249,15 @@ static void draw_cheats(int scr) {
 		int by = g.top + (g.listH - bh) * cheatScroll / maxS;
 		ui_fill_round(scr, (SDL_Rect) { r.w - px * 4, by, px * 2, bh }, C_BTN_EDGE, px);
 	}
-	/* footer: the selected cheat's whole name when the row had to cut it
-	 * (two lines), and how many are on */
-	int per = (r.w - px * 12) / (g.tpx * 6);
+	/* footer: the selected cheat's whole name when the row had to cut it */
 	if (cheatSel >= 0 && cheatSel < nCheatRows && cheatRows[cheatSel] >= 0 &&
-	    (int) strlen(cheats.items[cheatRows[cheatSel]].desc) > maxChars) {
-		const char* d = cheats.items[cheatRows[cheatSel]].desc;
-		char l1[200], l2[200];
-		int len = (int) strlen(d), cut = len;
-		if (len > per) {
-			cut = per;
-			while (cut > per / 2 && d[cut] != ' ') --cut;
-			if (d[cut] != ' ') cut = per;
-		}
-		snprintf(l1, sizeof(l1), "%.*s", cut, d);
-		fit_text(l2, sizeof(l2), d + cut + (d[cut] == ' '), per);
-		ui_text_center(scr, r.w / 2, g.footY, g.tpx, l1, C_GOLD);
-		if (l2[0]) ui_text_center(scr, r.w / 2, g.footY + g.tpx * 9, g.tpx, l2, C_GOLD);
+	    ui_font_width(TF_BODY, tcap, cheats.items[cheatRows[cheatSel]].desc) > nameW) {
+		ui_font_wrap(scr, TF_BODY, px * 6, g.footY - tcap / 2, r.w - px * 12, tcap, cheats.items[cheatRows[cheatSel]].desc,
+		             C_GOLD);
 	}
 	char count[48];
-	snprintf(count, sizeof(count), "%d ON", cheats_on(&cheats));
-	ui_text(scr, r.w - px * 4 - ui_text_width(count, g.tpx), r.h - g.tpx * 8, g.tpx, count, C_DIS);
+	snprintf(count, sizeof(count), "%d on", cheats_on(&cheats));
+	ui_font_text(scr, TF_BODY, r.w - px * 4, r.h - g.tpx * 5, tcap, count, C_DIS, 1);
 }
 
 static int menu_width(int scr) {
@@ -395,7 +389,7 @@ static void draw_menu(void) {
 	}
 	if (menuNote[0]) {
 		SDL_Rect last = item_rect(scr, nMenuItems - 1);
-		ui_text_center(scr, screens[scr].rect.w / 2, last.y + last.h + px * 6, px, menuNote, C_GOLD);
+		ui_font_text(scr, TF_BOLD, screens[scr].rect.w / 2, last.y + last.h + px * 9, px * 5, menuNote, C_GOLD, 0);
 	}
 	if (nScreens > 1) {
 		int o = ui_other_screen();
@@ -964,9 +958,9 @@ static void draw_osd(void) {
 	int gap = r.h - (img.y + img.h);
 	int fpx = small_text_px(s, img.y < gap ? img.y : gap);
 	int fy = gap >= 7 * fpx + 2 ? img.y + img.h + (gap - 7 * fpx) / 2 : r.h - fpx * 9;
-	int fx = img.x + fpx * 2;
-	ui_text(s, fx + 1, fy + 1, fpx, osd, (SDL_Color) { 0, 0, 0, 255 });
-	ui_text(s, fx, fy, fpx, osd, C_TEXT);
+	int fx = img.x + fpx * 2, cy = fy + fpx * 7 / 2, cap = fpx * 6;
+	ui_font_text(s, TF_BOLD, fx + SDL_max(1, fpx / 2), cy + SDL_max(1, fpx / 2), cap, osd, (SDL_Color) { 0, 0, 0, 255 }, -1);
+	ui_font_text(s, TF_BOLD, fx, cy, cap, osd, C_TEXT, -1);
 }
 
 static void draw_game(void) {
@@ -1036,12 +1030,12 @@ static bool activate(int item, enum GameExit* exitTo) {
 		shotPending = true;
 		break;
 	case M_CHEATS:
-		if (!cheats.n) snprintf(menuNote, sizeof(menuNote), "NO CHEATS FOUND (SEE README)");
+		if (!cheats.n) snprintf(menuNote, sizeof(menuNote), "No cheats found (see the README)");
 		else open_cheats();
 		break;
 	case M_SWAP:
 		swap_screens();
-		snprintf(menuNote, sizeof(menuNote), "SCREENS SWAPPED");
+		snprintf(menuNote, sizeof(menuNote), "Screens swapped");
 		break;
 	case M_SCALE: {
 		/* Pixel Perfect, Full Width, Zoom, Stretch */
@@ -1071,21 +1065,21 @@ static bool activate(int item, enum GameExit* exitTo) {
 		break;
 	case M_SAVE:
 		if (emu_state_save_file(&emu, gp.state)) {
-			ui_osd("STATE SAVED");
+			ui_osd("State saved");
 			menuOpen = false;
 		} else {
-			snprintf(menuNote, sizeof(menuNote), "SAVE FAILED");
+			snprintf(menuNote, sizeof(menuNote), "Save failed");
 		}
 		break;
 	case M_LOAD:
 		if (!item_enabled(M_LOAD)) {
-			snprintf(menuNote, sizeof(menuNote), "NO SAVED STATE YET");
+			snprintf(menuNote, sizeof(menuNote), "No saved state yet");
 		} else if (emu_state_load_file(&emu, gp.state)) {
-			ui_osd("STATE LOADED");
+			ui_osd("State loaded");
 			menuOpen = false;
 			return false;
 		} else {
-			snprintf(menuNote, sizeof(menuNote), "LOAD FAILED");
+			snprintf(menuNote, sizeof(menuNote), "Load failed");
 		}
 		break;
 	case M_OVERLAY:
@@ -1110,14 +1104,14 @@ static bool activate(int item, enum GameExit* exitTo) {
 	case M_RESTART:
 		if (!restartArmed) {
 			restartArmed = true;
-			snprintf(menuNote, sizeof(menuNote), "UNSAVED PROGRESS WILL BE LOST");
+			snprintf(menuNote, sizeof(menuNote), "Unsaved progress will be lost");
 			break;
 		}
 		emu_reset(&emu);
 		mapShownIdx = -1; /* back to the logo until the next map */
 		restartArmed = false;
 		menuOpen = false;
-		ui_osd("GAME RESTARTED");
+		ui_osd("Game restarted");
 		break;
 	case M_LIBRARY:
 		*exitTo = GAME_TO_LIBRARY;
@@ -1147,7 +1141,7 @@ static void take_screenshot(void) {
 	strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", &tmv);
 	snprintf(path, sizeof(path), "%s/%s-%s.png", dir, gp.base, stamp);
 	for (int n = 2; file_exists(path) && n < 100; ++n) snprintf(path, sizeof(path), "%s/%s-%s-%d.png", dir, gp.base, stamp, n);
-	ui_osd(ui_screenshot_stacked(path) ? "SCREENSHOT SAVED" : "SCREENSHOT FAILED");
+	ui_osd(ui_screenshot_stacked(path) ? "Screenshot saved" : "Screenshot failed");
 }
 
 /* ---------------------------------------------------------------- session */
@@ -1157,7 +1151,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	debug = getenv("GBADS_DEBUG") != NULL;
 	game_paths(cfg, rom, &gp);
 	if (!emu_open(&emu, rom, gp.sav, true)) {
-		ui_osd("COULD NOT LOAD GAME");
+		ui_osd("Couldn't load the game");
 		return fromLibrary ? GAME_TO_LIBRARY : GAME_QUIT_APP;
 	}
 	fprintf(stderr, "game %s (%s), save %s\n", gp.base, emu.gameCode, gp.sav);
@@ -1248,10 +1242,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		cfg->loadState[0] = 0;
 	} else if (cfg->autoResume && file_exists(gp.autoState)) {
 		if (emu_state_load_file(&emu, gp.autoState)) {
-			ui_osd("RESUMED  -  TAP OR HOME FOR MENU");
+			ui_osd("Resumed. Tap or HOME for the menu");
 		}
 	} else {
-		ui_osd("TAP THE SCREEN OR PRESS HOME FOR MENU");
+		ui_osd("Tap the screen or press HOME for the menu");
 	}
 
 	/* The device runs at a fixed rate. The GBA's own rate follows the game's
@@ -1419,8 +1413,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		bool mod = btnNow[modBtn];
 		if (mod && !menuOpen) {
 			if (btn_pressed(B_START)) exitTo = GAME_QUIT_APP, done = true, comboUsed = true;
-			if (btn_pressed(B_R)) ui_osd(emu_state_save_file(&emu, gp.state) ? "STATE SAVED" : "SAVE FAILED"), comboUsed = true;
-			if (btn_pressed(B_L) && file_exists(gp.state)) emu_state_load_file(&emu, gp.state), ui_osd("STATE LOADED"), forceMap = true, comboUsed = true;
+			if (btn_pressed(B_R)) ui_osd(emu_state_save_file(&emu, gp.state) ? "State saved" : "Save failed"), comboUsed = true;
+			if (btn_pressed(B_L) && file_exists(gp.state)) emu_state_load_file(&emu, gp.state), ui_osd("State loaded"), forceMap = true, comboUsed = true;
 			if (btn_pressed(B_X)) cfg->showFps = !cfg->showFps, comboUsed = true;
 			if (btn_pressed(B_Y)) swap_screens(), comboUsed = true;
 		}

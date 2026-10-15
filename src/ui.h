@@ -3,6 +3,7 @@
 #define GBADS_UI_H
 
 #include "config.h"
+#include "textfont.h"
 
 #include <SDL.h>
 #include <stdbool.h>
@@ -95,8 +96,14 @@ void ui_clip(int screen, const SDL_Rect* clip);
 void ui_update_texture(SDL_Texture* t, const void* px, int pitch);
 /* Filled box with rounded corners (radius in pixels). */
 void ui_fill_round(int screen, SDL_Rect local, SDL_Color c, int radius);
-/* Built-in Futura text (brandTexts) centred on cx, cy with capitals capPx tall,
- * tinted c. Falls back to the pixel font if the text has no image. */
+/* Text in Jost (textfont.h: TF_BOLD for labels and headings, TF_BODY for
+ * longer text), any UTF-8 string, capitals capPx tall and centred on cy.
+ * align: -1 starts at x, 0 is centred on x, 1 ends at x. */
+void ui_font_text(int screen, int font, int x, int cy, int capPx, const char* text, SDL_Color c, int align);
+int ui_font_width(int font, int capPx, const char* text);
+/* Word-wrapped to width, starting at the top-left x, y; returns the y below. */
+int ui_font_wrap(int screen, int font, int x, int y, int width, int capPx, const char* text, SDL_Color c);
+/* Labels: bold, centred on cx, cy. */
 void ui_label(int screen, int cx, int cy, int capPx, const char* text, SDL_Color c);
 int ui_label_width(int screen, int capPx, const char* text); /* width ui_label draws */
 void ui_dim(int screen, Uint8 alpha);
