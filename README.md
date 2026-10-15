@@ -32,7 +32,7 @@ The European and Japanese releases are supported as well as the USA ones: map, l
 
 ## How it works
 
-Emulation is [libmgba](https://mgba.io). GBA DS runs a second, silent copy of the emulator next to the real one. About every 1.5 seconds, and right after each room transition (detected as a fade to black), it does the following:
+Emulation is [libmgba](https://mgba.io). GBA DS runs a second, silent copy of the emulator next to the real one. About every 1.5 seconds (adjustable: **Map Refresh** in the pause menu), and right after each room transition (detected as a fade to black), it does the following:
 
 1. It copies the live game's state into the silent copy. The game you're playing is never paused or touched.
 2. It presses the map button there, waits for the map screen to appear and settle, then records a short loop of frames so the blinking or pulsing player marker still animates.
@@ -99,7 +99,7 @@ Everything except the battery saves (`.sav`, next to the ROMs) is in the `GBA DS
 - **Resume:** leaving a game saves its state automatically, and launching it again picks up exactly there. Turn this off with `auto_resume = 0`. Battery saves are written as usual too, so in-game saves are never at risk.
 - **Pause menu:** tap the touchscreen or press **HOME**. Both screens dim, the game and its sound pause, and the menu appears on the touchscreen. It has two pages. Switch between them with **L1/R1** or by tapping the tabs at the top.
   - **Game:** Resume · Restart game (tap twice; unsaved progress is lost) · Save state · Load state (greyed out until you've saved one) · Cheats (see below) · Take screenshot (both screens as they look right now, with your display settings, stacked top to bottom into one PNG in `/storage/roms/screenshots`; `screenshot_dir` changes the folder) · Close game (back to the game list) · Close GBA DS (back to EmulationStation). Both save a resume point first.
-  - **Display:** Swap screens · Scale (pixel perfect / full width) · LCD grid · Overlays (primary / secondary / both / none) · Map animations (off shows a still map, without the blinking markers) · Show FPS (frames per second and % of full speed).
+  - **Display:** Swap screens · Scale (pixel perfect / full width / zoom: fills the height, cutting off the left and right edges / stretch: fills the whole screen) · LCD grid · Overlays (primary / secondary / both / none) · Map animations (off shows a still map, without the blinking markers) · Map refresh (every 3 / 1.5 / 1 / 0.5 seconds; shorter is more up to date but works the CPU harder, so try it on your device) · Show FPS (frames per second and % of full speed).
 
   Display choices are remembered for next time. The menu works by touch or with the D-pad and A; B, Start or HOME closes it.
 
@@ -185,7 +185,7 @@ Put PNGs in `gba-ds/overlays/`. Each is 1024×768 and is drawn over the whole sc
 | every game | `primary.png` | `secondary.png` |
 
 - `<CODE>` is the game code: `A2CE` Aria of Sorrow, `AAME` Circle of the Moon, `ACHE` Harmony of Dissonance, `BMXE` Zero Mission, `AMTE` Fusion, `AZLE` A Link to the Past.
-- `<scale>` is that screen's scaling: `integer` (pixel perfect), `fit` (full width) or `stretch`.
+- `<scale>` is that screen's scaling: `integer` (pixel perfect), `fit` (full width), `zoom` or `stretch`.
 - Map overlays named the old way (`<CODE>-<scale>.png`, `<CODE>.png`) still work, ahead of the global ones.
 - The secondary overlay is only drawn while a map is showing, not over the logo screen.
 
@@ -218,7 +218,7 @@ Settings live in `gba-ds.cfg` next to the binary. The file is commented. The opt
 - `map_crop`: on by default. It tidies the Metroid map screens. Set it to 0 to show the pause screen exactly as the game draws it.
   - Zero Mission keeps its whole pause screen, frame included, and only the lettering is erased: the L and R key letters, SLEEP, the area name, STATUS, and the A on the button beside the minimap. The keys, plates and button stay; the blank plates (magenta) and L/R keys (orange) are recoloured to the dark grey-green of the curved pieces beside the area name so they don't stand out.
   - Fusion also keeps its whole pause screen. The L and R key letters, SLEEP, the area name and STATUS are erased, and the plates (which cycle through four colours) are recoloured to the frame's greys. The "A OBJECTIVE" prompt is removed and the map grid behind it rebuilt, inside two small boxes around the button and the word.
-- `map_interval`: frames between periodic map refreshes (default 90). The map also refreshes after every room transition.
+- `map_interval`: frames (60 a second) between periodic map refreshes (default 90, every 1.5 s; the pause menu's Map Refresh sets 180, 90, 60 or 30). The map also refreshes after every room transition. Each refresh runs the hidden copy of the game for a moment, so very short intervals can make the sound crackle on a slower device; the log reports it.
 
 Logs go to `/storage/roms/ports/gba-ds/gba-ds.log`. If the sound ever crackles, the log says so: every 5 seconds with a problem it reports audio underruns, slow frames and how busy the background map capture was. With `GBADS_DEBUG=1`, the log also records every button, key and touch.
 

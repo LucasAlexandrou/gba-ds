@@ -818,6 +818,9 @@ static void fit_rect(const SDL_Rect* area, int w, int h, const char* mode, SDL_R
 	}
 	double s = SDL_min((double) area->w / w, (double) area->h / h);
 	if (!strcmp(mode, "integer") && s >= 1.0) s = (int) s;
+	/* zoom: fill the height; whatever is wider than the area is cut off at
+	 * the sides (ui_image_pixels clips to the screen) */
+	if (!strcmp(mode, "zoom")) s = (double) area->h / h;
 	out->w = (int) (w * s);
 	out->h = (int) (h * s);
 	out->x = area->x + (area->w - out->w) / 2;
@@ -902,6 +905,8 @@ static SDL_Texture* pipe_grid(int v, int w, int h, int k, int strength) {
 	return e->tex;
 }
 
+static void draw_pixels(SDL_Renderer* ren, int v, SDL_Texture* src, int w, int h, const SDL_Rect* dstp, bool lcd);
+
 void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, bool lcd) {
 	RECORD(screen, OP_PIXELS) {
 		rec_tex(o, texPerView);
@@ -915,6 +920,24 @@ void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, c
 	SDL_Texture* src = texPerView[v];
 	SDL_Rect dst;
 	fit_rect(&s->rect, w, h, mode, &dst);
+	/* zoom can be wider than the screen: keep it off the other screen */
+	bool clip = dst.x < s->rect.x || dst.y < s->rect.y || dst.x + dst.w > s->rect.x + s->rect.w ||
+	            dst.y + dst.h > s->rect.y + s->rect.h;
+	SDL_Rect prev;
+	bool hadClip = SDL_RenderIsClipEnabled(ren);
+	if (hadClip) SDL_RenderGetClipRect(ren, &prev);
+	if (clip) {
+		SDL_Rect c = s->rect;
+		if (hadClip) SDL_IntersectRect(&prev, &s->rect, &c); /* inside an existing ui_clip */
+		SDL_RenderSetClipRect(ren, &c);
+	}
+	draw_pixels(ren, v, src, w, h, &dst, lcd);
+	if (clip) SDL_RenderSetClipRect(ren, hadClip ? &prev : NULL);
+}
+
+/* ui_image_pixels' drawing, into dst on the current (screen) target. */
+static void draw_pixels(SDL_Renderer* ren, int v, SDL_Texture* src, int w, int h, const SDL_Rect* dstp, bool lcd) {
+	SDL_Rect dst = *dstp;
 	int k = SDL_max(1, SDL_min(dst.w / w, dst.h / h));
 	bool exact = dst.w == w * k && dst.h == h * k;
 	if (!lcd && (exact || cfg->smooth)) {
@@ -944,6 +967,10 @@ void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, c
 		}
 		return;
 	}
+	SDL_Rect clipRect;
+	SDL_RenderGetClipRect(ren, &clipRect);
+	bool clipped = SDL_RenderIsClipEnabled(ren);
+	SDL_RenderSetClipRect(ren, NULL); /* the clip belongs to the screen, not the pipe target */
 	SDL_SetRenderTarget(ren, target);
 	SDL_SetTextureScaleMode(src, SDL_ScaleModeNearest);
 	SDL_RenderCopy(ren, src, NULL, NULL);
@@ -952,6 +979,7 @@ void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, c
 		if (grid) SDL_RenderCopy(ren, grid, NULL, NULL);
 	}
 	SDL_SetRenderTarget(ren, NULL);
+	if (clipped) SDL_RenderSetClipRect(ren, &clipRect);
 	SDL_SetTextureScaleMode(target, exact ? SDL_ScaleModeNearest : SDL_ScaleModeLinear);
 	SDL_RenderCopy(ren, target, NULL, &dst);
 }

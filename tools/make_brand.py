@@ -161,10 +161,12 @@ TEXT_CAP = 44
 MENU_TEXTS = [
     "Game", "Display", "Paused",
     "Resume", "Restart Game", "Tap Again to Restart", "Save State", "Load State", "Close Game", "Close GBA DS",
-    "Swap Screens", "Scale: Pixel Perfect", "Scale: Full Width", "Scale: Stretch",
+    "Swap Screens", "Scale: Pixel Perfect", "Scale: Full Width", "Scale: Stretch", "Scale: Zoom",
     "LCD Grid: On", "LCD Grid: Off", "Show FPS: On", "Show FPS: Off",
     "Overlays: None", "Overlays: Primary", "Overlays: Secondary", "Overlays: Both",
-    "Map Animations: On", "Map Animations: Off", "Cheats", "Back", "Take Screenshot",
+    "Map Animations: On", "Map Animations: Off",
+    "Map Refresh: Every 3 s", "Map Refresh: Every 1.5 s", "Map Refresh: Every 1 s", "Map Refresh: Every 0.5 s",
+    "Map Refresh: Custom", "Cheats", "Back", "Take Screenshot",
     # control scheme picker (second screen)
     "Controls", "Auto",
     # game list

@@ -2,6 +2,9 @@
 
 ## v1.1.1 (not yet released)
 
+- **Two more scaling options** (pause menu → Display → Scale): **Zoom** fills the screen height and keeps the picture's shape, cutting off its left and right edges; **Stretch** fills the whole screen. Scale now steps through Pixel Perfect, Full Width, Zoom and Stretch.
+- **Map Refresh** (pause menu → Display): how often the map updates, every 3, 1.5 (the default), 1 or 0.5 seconds. Faster keeps the map more up to date on devices with power to spare. Also `map_interval` in gba-ds.cfg.
+
 ## v1.1 (2026-10-14)
 
 - **Android version** (an APK, first tested on the RG DS Plus with GammaOS): the game on the top screen and the map or logo on the bottom touchscreen, as on ROCKNIX, with the game list, pause menu, cheats and map capture. SELECT+START opens the pause menu (Android keeps HOME), and BACK does too. Save states, cheats, overlays and screenshots live in a `GBA DS` folder on the internal storage. See the README.
