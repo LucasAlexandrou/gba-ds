@@ -312,3 +312,9 @@ CHANGELOG until someone tests them on a more capable device.
 Not done yet (next): game list and pause menu polish, SELECT+START menu
 combo, saving when Android pauses or kills the app, file access settings,
 frontend launch intents.
+
+## For the next release
+
+Player-facing Android changes since the last release, for the main session
+to move into CHANGELOG.md and the release notes (see CLAUDE.md, "More than
+one session"). Empty after each release.

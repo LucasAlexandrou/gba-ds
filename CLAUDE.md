@@ -11,9 +11,11 @@ with photos and screenshots; nothing ships untested on the device.
 
 ## Conventions
 
-- **Branches:** all work goes to `dev`. `main` only moves at release time,
-  fast-forwarded to the release commit. The owner creates GitHub releases
-  and tags by hand (sessions get HTTP 403 on releases and can't push tags).
+- **Branches:** ROCKNIX and shared work goes to `dev`; Android work to
+  `android` (see "More than one session" below). `main` only moves at
+  release time, fast-forwarded to the release commit. The owner creates
+  GitHub releases and tags by hand (sessions get HTTP 403 on releases and
+  can't push tags).
 - **Commits:** author `kyannon <341221214+kyannon@users.noreply.github.com>`,
   with the Co-Authored-By / Claude-Session trailers the session asks for.
 - **VERSION** holds `X.Y.Z-dev` (or `X.Y-dev`) on `dev`; CHANGELOG.md has a
@@ -37,6 +39,37 @@ with photos and screenshots; nothing ships untested on the device.
 - Test builds for the device: `dist/gba-ds-vX.Y.Z-dev-rocknix-aarch64.zip`,
   sent to the owner after each change; Android test APKs are the artifacts
   of the workflow runs on `android` / `dev` (link the run).
+
+## More than one session
+
+The owner runs a main session (ROCKNIX work, `dev`, `main`, releases) and an
+Android session at the same time. To keep them from colliding:
+
+- **The main session owns `dev`, `main`, the changelog and releases.** The
+  Android session works on `android` only. When an Android milestone is
+  done and tested on the device, it merges `android` into `dev` in one step
+  (and nothing else on `dev`). Before starting new Android work, it merges
+  `dev` into `android` so it builds on current shared code.
+- **Only the main session edits CHANGELOG.md.** The Android session lists
+  its player-facing changes under "For the next release" in
+  `docs/ANDROID.md`; the main session moves them into the changelog and the
+  release notes at release time, and empties that list. Android-specific
+  notes for sessions go in `docs/ANDROID.md`, not here, except for build and
+  release steps both sessions need.
+- **Generated files are regenerated, never merged by hand.** For
+  `src/brand_data.c`, each side edits `tools/make_brand.py`; whoever merges
+  re-runs it (needs the fonts; ask the owner) and commits the result. Same
+  for `src/logo_masks.c` and `tools/make_logo_masks.py`.
+- **Android-only code stays out of the shared paths:** `src/android.c`,
+  `android/`, or `#ifdef __ANDROID__`. A change to how shared code behaves
+  (`ui.c`, `game.c`, `library.c`, `emu.c`...) affects ROCKNIX too: build
+  and test the ROCKNIX side as well, and say so in the commit message.
+- **Fetch before starting and before pushing.** `git fetch` the branch
+  you're on and the other one; if the push is rejected, rebase onto (or
+  merge) the remote and resolve conflicts, keeping both sessions' work.
+  Never force-push or drop the other session's commits.
+- One session at a time on a given task; when the owner switches sessions,
+  read the other session's latest commits on `dev` / `android` first.
 
 ## Building
 
