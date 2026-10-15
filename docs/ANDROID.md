@@ -439,6 +439,20 @@ frontend launch intents.
   other view's redraw off to the next frame, at most 3 frames in a row
   (logged: "N redraw(s) of the other screen put off a frame"). Desktop
   check with a 0 ms budget: the map still steps (73 of 300 redraws vs 75).
+- After the deferral (AoS, 2026-10-15): slow frames with the map 79 in 70 s
+  -> 43 in 66 s; without it 33/76 s -> 23/80 s. What's left is mostly one
+  frame's emulation taking 12-17 ms against a 5-6 ms average. On the
+  desktop (CotM state, tools: a 3600-frame emu_frame loop) only 12 frames
+  in 3600 took over 2.5x the average; on the device about one a second, so
+  most of it isn't the emulation. Owner chose tuning over a frame of
+  buffering (latency). Now: the game thread is pinned to one core (fastest,
+  highest-numbered of equals; android_pin_game_thread) and the worker
+  threads (map capture, logo extraction, RetroAchievements, save writer,
+  software second screen) to the others, since threads start on their
+  creator's cores. `pin_cores = 0` in GBA DS/gba-ds.cfg turns it off, for
+  comparing. The log lists the cores the app may use (with max MHz), and
+  each slow frame and 5 s report says how often the game thread was
+  preempted (getrusage RUSAGE_THREAD ru_nivcsw) and which cpu it was on.
 - Opening the pause menu costs one ~300 ms frame (its text images); not
   looked at yet.
 - Slow frames: game.c logs, each second there are any, the worst frame's

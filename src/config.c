@@ -27,6 +27,7 @@ void config_defaults(Config* c) {
 	c->sway = true;
 	c->audioLatency = 64;
 	c->ffSpeed = 3;
+	c->pinCores = true;
 	c->autoResume = true;
 	c->showAll = false;
 	c->nameTags = false;
@@ -75,6 +76,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	STR("border_color", borderColor)
 	INT("lcd_strength", lcdStrength)
 	BOOL("vsync", vsync)
+	BOOL("pin_cores", pinCores)
 	BOOL("map", map)
 	BOOL("map_crop", mapCrop)
 	BOOL("map_animations", mapAnim)

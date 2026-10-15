@@ -17,6 +17,30 @@
 #include <string.h>
 #include <time.h>
 #include <sys/stat.h>
+#ifdef __linux__
+#include <sys/resource.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
+
+/* Times the game thread was taken off its core (involuntary context
+ * switches): another thread got it, so the frame ran late through no work
+ * of ours. Linux only; 0 elsewhere. */
+static long thread_preemptions(void) {
+#if defined(__linux__) && defined(RUSAGE_THREAD)
+	struct rusage ru;
+	if (getrusage(RUSAGE_THREAD, &ru) == 0) return ru.ru_nivcsw;
+#endif
+	return 0;
+}
+static int current_cpu(void) {
+#if defined(__linux__) && defined(SYS_getcpu)
+	unsigned cpu = 0;
+	return syscall(SYS_getcpu, &cpu, NULL, NULL) == 0 ? (int) cpu : -1;
+#else
+	return -1;
+#endif
+}
 
 #define GBA_FPS (16777216.0 / 280896.0)
 
@@ -59,6 +83,8 @@ static Uint64 emuTicks, drawTicks; /* time spent emulating / drawing, for the 5 
 typedef struct {
 	double total, input, emulate, ra, map, draw, top, bottom;
 	int redraws;
+	long preempted; /* times the thread was put off its core during the frame */
+	int cpu;
 	unsigned long long frame;
 } SlowFrame;
 static SlowFrame slowWorst;
@@ -81,9 +107,10 @@ static void slow_frame_report(bool debug) {
 	const SlowFrame* w = &slowWorst;
 	fprintf(stderr,
 	        "slow frames: %d in the last second; worst (frame %llu) %.1f ms: input/menu %.1f, emulating %.1f, "
-	        "RetroAchievements %.1f, map %.1f, drawing %.1f (top screen %s %.1f, bottom %s %.1f)\n",
+	        "RetroAchievements %.1f, map %.1f, drawing %.1f (top screen %s %.1f, bottom %s %.1f); "
+	        "preempted %ld time(s), on cpu %d\n",
 	        slowCount, w->frame, w->total, w->input, w->emulate, w->ra, w->map, w->draw,
-	        w->redraws & 1 ? "redrawn" : "kept", w->top, w->redraws & 2 ? "redrawn" : "kept", w->bottom);
+	        w->redraws & 1 ? "redrawn" : "kept", w->top, w->redraws & 2 ? "redrawn" : "kept", w->bottom, w->preempted, w->cpu);
 	slowCount = 0;
 	slowWorst.total = 0;
 }
@@ -1280,6 +1307,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		if (ctlProf) ctl_load();
 	}
 	if (cfg->map) {
+#ifdef __ANDROID__
+		android_set_pinning(cfg->pinCores);
+#endif
 		mc = mapcap_create(rom, emu.gameCode, cfg->mapCrop);
 		const MapProfile* lp = profile_find(emu.gameCode);
 		logoOnly = lp && lp->logoOnly;
@@ -1398,9 +1428,12 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	 * (with the full 16.7 ms it clocked down until frames barely fit; with
 	 * 65% the average was 11 ms and uneven frames went to 17-21 ms) */
 	android_perf_init((int64_t) (frameSec * 0.5 * 1e9));
+	android_set_pinning(cfg->pinCores);
+	android_pin_game_thread();
 #endif
 	while (!done) {
 		Uint64 workT0 = SDL_GetPerformanceCounter(); /* this frame's work, without the wait at the end */
+		long preempt0 = thread_preemptions();
 		if (mf.prof && mf.prof->frame.t && !mf.atlas && logo_generation() != frameGen) {
 			frameGen = logo_generation();
 			if (mapframe_load_atlas(&mf, framePath)) canvasDirty = true;
@@ -1665,6 +1698,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		 * how often the background map capture was running. */
 		{
 			static int underruns, slow, captureBusy, n;
+			static long preemptT0 = -1;
+			if (preemptT0 < 0) preemptT0 = thread_preemptions();
 			static Uint64 lastIter;
 			Uint64 nowT = SDL_GetPerformanceCounter();
 			if (lastIter && !ff && (nowT - lastIter) * 1000 / SDL_GetPerformanceFrequency() > 25) ++slow;
@@ -1680,11 +1715,12 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				if (report) {
 					double ms = 1000.0 / SDL_GetPerformanceFrequency() / n;
 					fprintf(stderr, "frame %llu: last 5 s: %.1f fps, %d audio underrun(s), %d slow frame(s), map capture busy %d%%, "
-					                "audio queue %d ms; per frame: emulating %.2f ms, drawing %.2f ms\n",
+					                "audio queue %d ms; per frame: emulating %.2f ms, drawing %.2f ms; game thread preempted %ld time(s)\n",
 					        (unsigned long long) frameCount, fps, underruns, slow, captureBusy * 100 / n,
-					        queuedNow * 1000 / want.freq, emuTicks * ms, drawTicks * ms);
+					        queuedNow * 1000 / want.freq, emuTicks * ms, drawTicks * ms, thread_preemptions() - preemptT0);
 				}
 				underruns = slow = captureBusy = n = 0;
+				preemptT0 = thread_preemptions();
 				emuTicks = drawTicks = 0;
 			}
 		}
@@ -1855,6 +1891,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				f.bottom = vBot != vTop ? ui_last_present_ms(vBot) : 0;
 				int red = ui_last_redraws();
 				f.redraws = ((red >> vTop) & 1) | (vBot != vTop ? ((red >> vBot) & 1) << 1 : 0);
+				f.preempted = thread_preemptions() - preempt0;
+				f.cpu = current_cpu();
 				slow_frame_note(f);
 			}
 			static Uint64 lastReport;

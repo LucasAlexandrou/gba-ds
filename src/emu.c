@@ -45,6 +45,9 @@ static struct mLogger quietLogger = { .log = quiet_log };
  * right away); only the flush to the card moves to a worker thread. */
 #include <unistd.h>
 #include <sys/stat.h>
+#ifdef __ANDROID__
+#include "android.h"
+#endif
 
 typedef struct {
 	struct VFile d;
@@ -58,6 +61,9 @@ typedef struct {
 
 static void* async_save_worker(void* arg) {
 	AsyncSave* a = arg;
+#ifdef __ANDROID__
+	android_pin_worker_thread("save writer"); /* threads start on their creator's cores: not the game's */
+#endif
 	pthread_mutex_lock(&a->lock);
 	for (;;) {
 		while (!a->pending && !a->quit) pthread_cond_wait(&a->cond, &a->lock);

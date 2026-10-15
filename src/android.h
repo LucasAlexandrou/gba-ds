@@ -42,6 +42,14 @@ int android_take_ra_credentials(char* user, size_t userSize, char* pass, size_t 
 void android_perf_init(int64_t targetNs);
 void android_perf_report(int64_t workNs);
 
+/* Cores: the game thread alone on the fastest core (the highest-numbered of
+ * equals, away from cpu0's interrupts), the map capture thread on the
+ * others. android_set_pinning(false) (pin_cores = 0) turns it off; call it
+ * before either thread pins itself. */
+void android_set_pinning(bool on);
+void android_pin_game_thread(void);
+void android_pin_worker_thread(const char* what); /* what: for the log */
+
 /* Size of the second display, if there is one. */
 bool android_second_size(int* w, int* h);
 /* Copies a finished frame (ABGR8888, i.e. R,G,B,A bytes) to the second

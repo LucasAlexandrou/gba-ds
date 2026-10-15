@@ -240,6 +240,9 @@ static void run_job(Job* j) {
 
 static void* worker_main(void* arg) {
 	(void) arg;
+#ifdef __ANDROID__
+	android_pin_worker_thread("RetroAchievements");
+#endif
 	pthread_mutex_lock(&qLock);
 	for (;;) {
 		while (!calls && !downloads && !workerQuit) {

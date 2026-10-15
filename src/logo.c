@@ -1,6 +1,9 @@
 #include "logo.h"
 #include "emu.h"
 #include "profiles.h"
+#ifdef __ANDROID__
+#include "android.h"
+#endif
 
 #include <mgba/flags.h>
 #include <mgba/core/core.h>
@@ -282,6 +285,9 @@ static void* worker(void* arg) {
 	(void) arg;
 	/* background work: let the game (and its audio) have the CPU first */
 	setpriority(PRIO_PROCESS, (id_t) syscall(SYS_gettid), 19);
+#ifdef __ANDROID__
+	android_pin_worker_thread("logo extraction");
+#endif
 	pthread_mutex_lock(&qlock);
 	while (!stopping) {
 		Job* j = queue;

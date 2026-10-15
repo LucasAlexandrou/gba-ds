@@ -1,5 +1,8 @@
 #include "mapcap.h"
 #include "profiles.h"
+#ifdef __ANDROID__
+#include "android.h"
+#endif
 
 #include <pthread.h>
 #include <sys/resource.h>
@@ -670,6 +673,9 @@ static void* worker(void* arg) {
 	size_t n = mc->cropPixels;
 	/* the live game (and its audio) gets the CPU first */
 	setpriority(PRIO_PROCESS, (id_t) syscall(SYS_gettid), 10);
+#ifdef __ANDROID__
+	android_pin_worker_thread("map capture");
+#endif
 	pthread_mutex_lock(&mc->lock);
 	while (mc->running) {
 		if (!mc->pending) {

@@ -1,6 +1,9 @@
 /* Android glue: see android.h. The Java side is in android/app/src/main/java
  * (GbaDsActivity, SecondScreen). */
 #ifdef __ANDROID__
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE /* sched_setaffinity, CPU_SET */
+#endif
 
 #include "android.h"
 #include "emu.h"
@@ -16,6 +19,7 @@
 #include <android/native_window_jni.h>
 #include <jni.h>
 #include <pthread.h>
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -153,6 +157,78 @@ void android_perf_init(int64_t targetNs) {
 	APerformanceHintManager* m = getManager();
 	hintSession = m ? create(m, &tid, 1, targetNs) : NULL;
 	fprintf(stderr, "performance hint: %s\n", hintSession ? "on (game thread)" : "refused by the system");
+}
+
+/* ------------------------------------------------------------- cores */
+
+static bool pinOn = true;
+static int gameCore = -1;
+static cpu_set_t workerCores;
+static int nWorkerCores;
+static pthread_once_t coresOnce = PTHREAD_ONCE_INIT;
+
+static long core_max_khz(int cpu) {
+	char path[96];
+	snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", cpu);
+	FILE* f = fopen(path, "r");
+	long k = 0;
+	if (f) {
+		if (fscanf(f, "%ld", &k) != 1) k = 0;
+		fclose(f);
+	}
+	return k;
+}
+
+static void pick_cores(void) {
+	cpu_set_t allowed;
+	CPU_ZERO(&allowed);
+	if (sched_getaffinity(0, sizeof(allowed), &allowed) != 0) {
+		fprintf(stderr, "cores: can't read which ones the app may use (%s)\n", strerror(errno));
+		return;
+	}
+	char list[256] = "";
+	size_t len = 0;
+	long best = -1;
+	int n = 0;
+	for (int c = 0; c < CPU_SETSIZE && c < 64; ++c) {
+		if (!CPU_ISSET(c, &allowed)) continue;
+		++n;
+		long k = core_max_khz(c);
+		len += (size_t) snprintf(list + len, len < sizeof(list) ? sizeof(list) - len : 0, "%s%d (%ld MHz)", len ? ", " : "", c, k / 1000);
+		if (len >= sizeof(list)) len = sizeof(list) - 1;
+		if (k >= best) best = k, gameCore = c; /* ties: the higher number */
+	}
+	CPU_ZERO(&workerCores);
+	nWorkerCores = 0;
+	for (int c = 0; c < CPU_SETSIZE && c < 64; ++c) {
+		if (CPU_ISSET(c, &allowed) && c != gameCore) CPU_SET(c, &workerCores), ++nWorkerCores;
+	}
+	if (n < 2) gameCore = -1; /* nothing to separate */
+	fprintf(stderr, "cores the app may use: %s\n", list);
+}
+
+void android_set_pinning(bool on) {
+	pinOn = on;
+	if (!on) fprintf(stderr, "cores: not pinning threads (pin_cores = 0)\n");
+}
+
+void android_pin_game_thread(void) {
+	if (!pinOn) return;
+	pthread_once(&coresOnce, pick_cores);
+	if (gameCore < 0) return;
+	cpu_set_t one;
+	CPU_ZERO(&one);
+	CPU_SET(gameCore, &one);
+	if (sched_setaffinity(0, sizeof(one), &one) == 0) fprintf(stderr, "cores: game thread on cpu %d\n", gameCore);
+	else fprintf(stderr, "cores: couldn't pin the game thread (%s)\n", strerror(errno));
+}
+
+void android_pin_worker_thread(const char* what) {
+	if (!pinOn) return;
+	pthread_once(&coresOnce, pick_cores);
+	if (gameCore < 0 || !nWorkerCores) return;
+	if (sched_setaffinity(0, sizeof(workerCores), &workerCores) == 0) fprintf(stderr, "cores: %s kept off cpu %d\n", what, gameCore);
+	else fprintf(stderr, "cores: couldn't move the %s thread (%s)\n", what, strerror(errno));
 }
 
 void android_perf_report(int64_t workNs) {
@@ -392,6 +468,7 @@ static void post_frame(const uint8_t* px, int fw, int fh) {
 }
 
 static void* present_thread(void* arg) {
+	android_pin_worker_thread("software second screen");
 	for (;;) {
 		pthread_mutex_lock(&bufLock);
 		while (!fresh) pthread_cond_wait(&bufCond, &bufLock);
