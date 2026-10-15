@@ -110,6 +110,7 @@ typedef struct {
 	long preempted; /* times the thread was put off its core during the frame */
 	int cpu, mhz;   /* where it ended, and that core's clock then */
 	double cpuMs;   /* time the thread actually ran (the rest it waited) */
+	double waitEmu, waitDraw; /* of the waiting: during emulation, during drawing */
 	double audio;   /* of emulating: handing the sound to SDL (its lock is shared with the audio thread) */
 } SlowFrame;
 static SlowFrame slowWorst;
@@ -133,9 +134,9 @@ static void slow_frame_report(bool debug) {
 	fprintf(stderr,
 	        "slow frames: %d in the last second; worst (frame %llu) %.1f ms: input/menu %.1f, emulating %.1f (sound hand-off %.1f), "
 	        "RetroAchievements %.1f, map %.1f, drawing %.1f (top screen %s %.1f, bottom %s %.1f); "
-	        "ran %.1f ms of it (waited %.1f), preempted %ld time(s), on cpu %d at %d MHz\n",
+	        "ran %.1f ms of it (waited %.1f: %.1f while emulating, %.1f while drawing), preempted %ld time(s), on cpu %d at %d MHz\n",
 	        slowCount, w->frame, w->total, w->input, w->emulate, w->audio, w->ra, w->map, w->draw,
-	        w->redraws & 1 ? "redrawn" : "kept", w->top, w->redraws & 2 ? "redrawn" : "kept", w->bottom, w->cpuMs, w->total - w->cpuMs, w->preempted, w->cpu, w->mhz);
+	        w->redraws & 1 ? "redrawn" : "kept", w->top, w->redraws & 2 ? "redrawn" : "kept", w->bottom, w->cpuMs, w->total - w->cpuMs, w->waitEmu, w->waitDraw, w->preempted, w->cpu, w->mhz);
 	slowCount = 0;
 	slowWorst.total = 0;
 }
@@ -1754,6 +1755,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			fprintf(stderr, "audio queue %d ms%s\n", queuedNow * 1000 / want.freq, ff ? " (ff)" : "");
 		}
 		Uint64 emuT0 = SDL_GetPerformanceCounter(), raT = 0, audT = 0;
+		double emuCpu0 = thread_cpu_ms();
 		for (int i = 0; i < runs; ++i) {
 			emu_frame(&emu, keys);
 			Uint64 raT0 = SDL_GetPerformanceCounter();
@@ -1791,6 +1793,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			audT += SDL_GetPerformanceCounter() - audT0;
 		}
 		Uint64 emuT1 = SDL_GetPerformanceCounter();
+		double emuCpu1 = thread_cpu_ms();
 		emuTicks += emuT1 - emuT0;
 		++frameCount;
 
@@ -1882,6 +1885,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 
 		Uint64 drawT0 = SDL_GetPerformanceCounter();
+		double drawCpu0 = thread_cpu_ms();
 		/* only the view the game is on needs it (all of them right after a swap,
 		 * since the menu draws the game without uploading) */
 		for (int i = 0; i < nViews; ++i) {
@@ -1922,7 +1926,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				f.preempted = thread_preemptions() - preempt0;
 				f.cpu = current_cpu();
 				f.mhz = cpu_mhz(f.cpu);
-				f.cpuMs = thread_cpu_ms() - cpuMs0;
+				double cpuNow = thread_cpu_ms();
+				f.cpuMs = cpuNow - cpuMs0;
+				f.waitEmu = SDL_max(0.0, (double) (emuT1 - emuT0) * msPer - (emuCpu1 - emuCpu0));
+				f.waitDraw = SDL_max(0.0, (double) (drawT1 - drawT0) * msPer - (cpuNow - drawCpu0));
 				f.audio = (double) audT * msPer;
 				slow_frame_note(f);
 			}

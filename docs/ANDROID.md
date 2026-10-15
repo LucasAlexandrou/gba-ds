@@ -465,6 +465,14 @@ frontend launch intents.
   slow frame that ran its full length points at slow clocks or work; one
   that mostly waited points at another thread or a lock. (The frame
   number in those lines was 0 in the pinning build: initializer order.)
+- With those numbers (AoS, 2026-10-15): steady-state slow frames ran
+  9-14 ms (an ordinary frame's work) and waited 5-15 ms, mostly at full
+  clock (2160 MHz); the sound hand-off was under 1 ms. So it's neither slow
+  clocks nor heavier work: the thread is off the CPU for part of the frame.
+  Next: the line splits the waiting into emulation (can only be another
+  thread taking the core) and drawing (could also be the GPU driver or a
+  surface's buffers making us wait), and the game thread asks for nice
+  -10 (falls back to -8, -4; logged).
 - Opening the pause menu costs one ~300 ms frame (its text images); not
   looked at yet.
 - Slow frames: game.c logs, each second there are any, the worst frame's

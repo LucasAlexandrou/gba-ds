@@ -152,7 +152,14 @@ void android_perf_init(int64_t targetNs) {
 	/* the game thread ahead of the app's other threads (as for display
 	 * threads); refused on some systems, which is fine */
 	int32_t tid = gettid();
-	if (setpriority(PRIO_PROCESS, (id_t) tid, -4) == 0) fprintf(stderr, "game thread priority raised\n");
+	/* as high as the system lets an app go, short of audio's: other
+	 * threads of ours and ordinary system work wait for the game */
+	static const int nices[] = { -10, -8, -4 };
+	int got = 0;
+	for (int i = 0; i < 3 && !got; ++i) {
+		if (setpriority(PRIO_PROCESS, (id_t) tid, nices[i]) == 0) got = nices[i];
+	}
+	if (got) fprintf(stderr, "game thread priority raised (nice %d)\n", got);
 	else fprintf(stderr, "game thread priority: %s\n", strerror(errno));
 	APerformanceHintManager* m = getManager();
 	hintSession = m ? create(m, &tid, 1, targetNs) : NULL;
