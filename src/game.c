@@ -57,7 +57,7 @@ static Uint64 emuTicks, drawTicks; /* time spent emulating / drawing, for the 5 
 /* Slow frames (work over a frame's time): the worst each second, broken down,
  * logged on Android (where frame time is tight) or with GBADS_DEBUG. */
 typedef struct {
-	double total, input, emulate, ra, map, draw;
+	double total, input, emulate, ra, map, draw, top, bottom;
 	int redraws;
 	unsigned long long frame;
 } SlowFrame;
@@ -81,9 +81,9 @@ static void slow_frame_report(bool debug) {
 	const SlowFrame* w = &slowWorst;
 	fprintf(stderr,
 	        "slow frames: %d in the last second; worst (frame %llu) %.1f ms: input/menu %.1f, emulating %.1f, "
-	        "RetroAchievements %.1f, map %.1f, drawing %.1f (%s)\n",
+	        "RetroAchievements %.1f, map %.1f, drawing %.1f (top screen %s %.1f, bottom %s %.1f)\n",
 	        slowCount, w->frame, w->total, w->input, w->emulate, w->ra, w->map, w->draw,
-	        w->redraws == 3 ? "both screens redrawn" : w->redraws ? "one screen redrawn" : "nothing redrawn");
+	        w->redraws & 1 ? "redrawn" : "kept", w->top, w->redraws & 2 ? "redrawn" : "kept", w->bottom);
 	slowCount = 0;
 	slowWorst.total = 0;
 }
@@ -871,6 +871,8 @@ static void compose_still(const MapResult* r, int pick, uint32_t* out, unsigned 
  * from the one on screen where the markers animate (a pulse caught at
  * another point of its loop) keeps the old still, so it doesn't jump around
  * every time the map is refreshed. Returns true if the still changed. */
+static bool stillStale; /* stillPx is from an older map (built only when it's shown) */
+
 static bool update_still(void) {
 	int w = mapRes.w, h = mapRes.h, wh = w * h;
 	uint32_t* px = malloc((size_t) wh * 4);
@@ -1186,6 +1188,10 @@ static bool activate(int item, enum GameExit* exitTo) {
 		break;
 	case M_MAPANIM:
 		cfg->mapAnim = !cfg->mapAnim;
+		if (!cfg->mapAnim && stillStale && mapRes.nFrames > 0) {
+			update_still(); /* skipped while animations were on */
+			stillStale = false;
+		}
 		if (mc && mapShownIdx >= 0) {
 			mapAnimStart = frameCount;
 			upload_map_frame(cfg->mapAnim ? 0 : STILL_IDX);
@@ -1387,7 +1393,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	int fpsFrames = 0;
 
 #ifdef __ANDROID__
-	android_perf_init((int64_t) (frameSec * 1e9));
+	/* a target well under the frame time: the system clocks the CPU so each
+	 * frame's work takes about this long, leaving room for heavier frames
+	 * (with the full 16.7 ms it clocked down until frames barely fit) */
+	android_perf_init((int64_t) (frameSec * 0.65 * 1e9));
 #endif
 	while (!done) {
 		Uint64 workT0 = SDL_GetPerformanceCounter(); /* this frame's work, without the wait at the end */
@@ -1779,10 +1788,14 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				if (mapRes.hasTile) mapframe_set_tile(&mf, mapRes.tile, mapRes.tileK, mapRes.tileX, mapRes.tileY);
 				mapShownIdx = -1;
 				mapAnimStart = frameCount;
-				bool stillChanged = update_still();
+				/* the still (each marker frozen) is only shown with map animations
+				 * off, and building it is real work: only then */
+				bool stillChanged = false;
+				stillStale = cfg->mapAnim;
+				if (!stillStale) stillChanged = update_still();
 				upload_map_frame(cfg->mapAnim ? 0 : STILL_IDX);
 				if (debug) fprintf(stderr, "frame %llu: map updated (%d frame(s) %d apart%s)\n", (unsigned long long) frameCount,
-				                   mapRes.nFrames, mapRes.frameStep, stillChanged ? "" : ", still unchanged");
+				                   mapRes.nFrames, mapRes.frameStep, stillStale ? "" : stillChanged ? ", still changed" : ", still unchanged");
 			} else if (cfg->mapAnim && mapRes.nFrames > 1 && mapShownIdx >= 0) {
 				int idx = (int) ((frameCount - mapAnimStart) / SDL_max(1, mapRes.frameStep)) % mapRes.nFrames;
 				upload_map_frame(idx);
@@ -1825,8 +1838,15 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			double total = (double) (drawT1 - workT0) * msPer;
 			if (!ff && total > frameSec * 1000.0) {
 				SlowFrame f = { total, (double) (emuT0 - workT0) * msPer, (double) (emuT1 - emuT0 - raT) * msPer, (double) raT * msPer,
-					            (double) (drawT0 - emuT1) * msPer, (double) (drawT1 - drawT0) * msPer, ui_last_redraws(),
+					            (double) (drawT0 - emuT1) * msPer, (double) (drawT1 - drawT0) * msPer, 0, 0, 0,
 					            (unsigned long long) frameCount };
+				/* by screen (top first, as they're stacked), not by view */
+				int sTop = 0, sBot = nScreens > 1 ? 1 : 0;
+				int vTop = screens[sTop].view, vBot = screens[sBot].view;
+				f.top = ui_last_present_ms(vTop);
+				f.bottom = vBot != vTop ? ui_last_present_ms(vBot) : 0;
+				int red = ui_last_redraws();
+				f.redraws = ((red >> vTop) & 1) | (vBot != vTop ? ((red >> vBot) & 1) << 1 : 0);
 				slow_frame_note(f);
 			}
 			static Uint64 lastReport;

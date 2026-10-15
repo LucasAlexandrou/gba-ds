@@ -10,6 +10,8 @@
 #include <EGL/egl.h>
 #include <android/log.h>
 #include <dlfcn.h>
+#include <errno.h>
+#include <sys/resource.h>
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 #include <jni.h>
@@ -143,8 +145,12 @@ void android_perf_init(int64_t targetNs) {
 		fprintf(stderr, "performance hint: not available on this Android version\n");
 		return;
 	}
-	APerformanceHintManager* m = getManager();
+	/* the game thread ahead of the app's other threads (as for display
+	 * threads); refused on some systems, which is fine */
 	int32_t tid = gettid();
+	if (setpriority(PRIO_PROCESS, (id_t) tid, -4) == 0) fprintf(stderr, "game thread priority raised\n");
+	else fprintf(stderr, "game thread priority: %s\n", strerror(errno));
+	APerformanceHintManager* m = getManager();
 	hintSession = m ? create(m, &tid, 1, targetNs) : NULL;
 	fprintf(stderr, "performance hint: %s\n", hintSession ? "on (game thread)" : "refused by the system");
 }

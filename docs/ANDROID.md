@@ -360,6 +360,16 @@ frontend launch intents.
   letter cut, GPOS kerning: ~0.3 ms per frame on a desktop CPU, several
   times that on the A55). ui.c now caches text widths (WIDTH_CACHE), which
   also helps labels and wrapped text everywhere.
+- Device log after that (Circle of the Moon, 2026-10-15): ~59-60 fps, a
+  few frames a second over 16.7 ms (17-25 ms): map work 5-9 ms (the still
+  map composed on every capture), emulation 13-20 ms at times, drawing
+  10-20 ms on some frames. Changes: the performance hint's target is 65%
+  of a frame (11 ms; with the full 16.7 ms ADPF clocked the CPU down until
+  frames barely fit); the still map (compose_still: flood fill + sorts) is
+  built only when map animations are off (stillStale, built on toggling
+  them off); the game thread asks for nice -4 (logged); the slow-frame
+  line splits drawing into top / bottom screen. The map capture thread was
+  already at nice +10.
 - Slow frames: game.c logs, each second there are any, the worst frame's
   breakdown ("slow frames: N in the last second; worst ... input/menu,
   emulating, RetroAchievements, map, drawing (which screens redrawn)").

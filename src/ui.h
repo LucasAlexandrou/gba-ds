@@ -82,6 +82,8 @@ void ui_present(void);
 /* Which views the last ui_present drew (bit 0: view 0, bit 1: view 1; on
  * Android a view whose picture didn't change isn't redrawn). */
 int ui_last_redraws(void);
+/* Time the last ui_present spent drawing / presenting a view (ms). */
+double ui_last_present_ms(int view);
 
 SDL_Renderer* ui_ren(int screen);
 /* Draws a texture (one per view, indexed by view) letterboxed into a screen area. */

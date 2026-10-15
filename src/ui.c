@@ -771,9 +771,14 @@ void ui_clear(void) {
 }
 
 static int lastRedraws;
+static double lastPresentMs[2];
 
 int ui_last_redraws(void) {
 	return lastRedraws;
+}
+
+double ui_last_present_ms(int view) {
+	return view >= 0 && view < 2 ? lastPresentMs[view] : 0;
 }
 
 void ui_present(void) {
@@ -786,6 +791,7 @@ void ui_present(void) {
 	static int frames;
 	lastRedraws = 0;
 	for (int i = 0; i < nViews; ++i) {
+		Uint64 vt0 = SDL_GetPerformanceCounter();
 		if (!views[i].retained) {
 			SDL_RenderPresent(views[i].ren);
 			lastRedraws |= 1 << i;
@@ -794,6 +800,7 @@ void ui_present(void) {
 			android_second_present(views[i].surf);
 			handover += SDL_GetPerformanceCounter() - t0;
 		}
+		lastPresentMs[i] = (double) (SDL_GetPerformanceCounter() - vt0) * 1000.0 / (double) SDL_GetPerformanceFrequency();
 	}
 	for (int i = 0; i < 2; ++i) ret[i].nOps = 0, ret[i].state = 0;
 	if (++frames == 300) {
@@ -812,7 +819,11 @@ void ui_present(void) {
 		frames = 0;
 	}
 #else
-	for (int i = 0; i < nViews; ++i) SDL_RenderPresent(views[i].ren);
+	for (int i = 0; i < nViews; ++i) {
+		Uint64 vt0 = SDL_GetPerformanceCounter();
+		SDL_RenderPresent(views[i].ren);
+		lastPresentMs[i] = (double) (SDL_GetPerformanceCounter() - vt0) * 1000.0 / (double) SDL_GetPerformanceFrequency();
+	}
 	lastRedraws = (1 << nViews) - 1;
 #endif
 }
