@@ -16,6 +16,7 @@ void config_defaults(Config* c) {
 	strcpy(c->screenshotDir, "/storage/roms/screenshots");
 	strcpy(c->cheatDir, "/config/retroarch/cheats:/storage/.config/retroarch/cheats");
 	strcpy(c->esConfigDir, "/storage/.config/emulationstation");
+	strcpy(c->libraryView, "list");
 	strcpy(c->touchScreen, "second");
 	strcpy(c->touchMap, "window");
 	c->map = true;
@@ -96,6 +97,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	STR("load_state", loadState)
 	INT("quit_after", quitAfter)
 	STR("es_config_dir", esConfigDir)
+	STR("library_view", libraryView)
 	STR("input_script", inputScript)
 	return false;
 #undef STR

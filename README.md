@@ -147,6 +147,7 @@ The choice is remembered per game.
 | Drag | Scroll the list |
 | B, HOME, or QUIT | Back to EmulationStation |
 | SELECT, or tap Settings | Settings (GBA DS in EmulationStation) |
+| X, or tap the button left of Settings | Switch between the list of names and the grid of logos (remembered) |
 
 ### Where files go
 

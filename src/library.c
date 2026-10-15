@@ -142,6 +142,30 @@ static bool dir_seen(const char* d) {
 	return false;
 }
 
+/* Drops language lists like "(En,Fr,De,Es,It)" from a file name (the region
+ * flag already tells copies apart); region tags like "(USA)" stay. */
+static void strip_language_tags(char* name) {
+	for (char* o = strchr(name, '('); o; o = strchr(o, '(')) {
+		char* p = o + 1;
+		bool langs = true;
+		for (;;) {
+			if (!isalpha((unsigned char) p[0]) || !isalpha((unsigned char) p[1])) { langs = false; break; }
+			p += 2;
+			if (*p == '-' && isalpha((unsigned char) p[1]) && isalpha((unsigned char) p[2])) p += 3; /* En-GB */
+			if (*p == ',' || *p == '+') { ++p; continue; }
+			break;
+		}
+		if (!langs || *p != ')') { ++o; continue; }
+		char* end = p + 1;
+		char* start = o;
+		while (start > name && start[-1] == ' ') --start;
+		memmove(start, end, strlen(end) + 1);
+		o = start;
+	}
+	size_t n = strlen(name);
+	while (n && name[n - 1] == ' ') name[--n] = 0;
+}
+
 static void scan_dir(Config* cfg, const char* d, int depth) {
 	if (dir_seen(d)) {
 		fprintf(stderr, "library: %s already listed\n", d);
@@ -180,6 +204,7 @@ static void scan_dir(Config* cfg, const char* d, int depth) {
 		for (char* c = g.name; *c; ++c) {
 			if (*c == '_') *c = ' ';
 		}
+		strip_language_tags(g.name);
 		const MapProfile* prof = profile_find(g.code);
 		if (prof && prof->listName) snprintf(g.name, sizeof(g.name), "%s", prof->listName);
 		games = realloc(games, sizeof(*games) * (nGames + 1));
@@ -369,6 +394,10 @@ typedef struct {
 	int headerH, listH, m, gap, tileW, tileH, rowH, cols, visibleRows;
 } ListGeom;
 
+/* The game list as names (default) or a grid of logos: library_view in
+ * <state_dir>/library.cfg, switched by the header button or X. */
+static bool listMode = true;
+
 static ListGeom list_geom(int scr) {
 	ListGeom g;
 	SDL_Rect r = screens[scr].rect;
@@ -376,10 +405,16 @@ static ListGeom list_geom(int scr) {
 	g.headerH = px * 20;
 	g.listH = r.h - g.headerH;
 	g.m = px * 4;
-	g.gap = px * 4;
-	g.cols = 2;
+	if (listMode) { /* one row per game */
+		g.gap = px * 2;
+		g.cols = 1;
+		g.tileH = px * 17;
+	} else { /* two columns of logos */
+		g.gap = px * 4;
+		g.cols = 2;
+		g.tileH = px * 40;
+	}
 	g.tileW = (r.w - g.m * 2 - g.gap * (g.cols - 1)) / g.cols;
-	g.tileH = px * 40;
 	g.rowH = g.tileH + g.gap;
 	g.visibleRows = SDL_max(1, (g.listH - g.m) / g.rowH);
 	return g;
@@ -409,6 +444,57 @@ static SDL_Rect settings_button(int scr) {
 	return (SDL_Rect) { r.w - w - px * 4, (px * 20 - h) / 2, w, h };
 }
 
+/* square button left of Settings: switches between list and grid */
+static SDL_Rect view_button(int scr) {
+	SDL_Rect sb = settings_button(scr);
+	int px = ui_px(scr);
+	return (SDL_Rect) { sb.x - px * 3 - sb.h, sb.y, sb.h, sb.h };
+}
+
+/* Four squares (in the list: switch to the grid) or three lines (in the
+ * grid: switch to the list). */
+static void draw_view_button(int scr) {
+	SDL_Rect b = view_button(scr);
+	int px = ui_px(scr);
+	ui_fill_round(scr, b, C_ROW, px * 3);
+	int cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+	if (listMode) {
+		int sq = b.h * 12 / 56, gap = b.h * 6 / 56;
+		for (int i = 0; i < 2; ++i) {
+			for (int j = 0; j < 2; ++j) {
+				SDL_Rect q = { cx - sq - gap / 2 + i * (sq + gap), cy - sq - gap / 2 + j * (sq + gap), sq, sq };
+				ui_fill_round(scr, q, C_TEXT, SDL_max(1, sq / 4));
+			}
+		}
+	} else {
+		int lw = b.h * 28 / 56, lh = SDL_max(2, b.h * 5 / 56), gap = b.h * 7 / 56;
+		for (int j = -1; j <= 1; ++j) {
+			SDL_Rect l = { cx - lw / 2, cy + j * (lh + gap) - lh / 2, lw, lh };
+			ui_fill_round(scr, l, C_TEXT, lh / 2);
+		}
+	}
+}
+
+/* library.cfg: the game list's own settings (and, on Android, the ROM
+ * folder picked in Settings). */
+static void save_library_cfg(const Config* cfg) {
+	char file[1100];
+	snprintf(file, sizeof(file), "%s/library.cfg", cfg->stateDir);
+	FILE* f = fopen(file, "w");
+	if (!f) return;
+	fprintf(f, "# written by the game list\nlibrary_view = %s\n", listMode ? "list" : "grid");
+#ifdef __ANDROID__
+	fprintf(f, "rom_dir = %s\n", cfg->romDir);
+#endif
+	fclose(f);
+}
+
+static void toggle_view(Config* cfg) {
+	listMode = !listMode;
+	snprintf(cfg->libraryView, sizeof(cfg->libraryView), "%s", listMode ? "list" : "grid");
+	save_library_cfg(cfg);
+}
+
 static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 	SDL_Rect r = screens[scr].rect;
 	int px = ui_px(scr);
@@ -431,6 +517,27 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 		bool on = i == sel;
 		if (on) ui_fill_round(scr, (SDL_Rect) { t.x - px, t.y - px, t.w + px * 2, t.h + px * 2 }, C_EDGE, px * 4);
 		ui_fill_round(scr, t, on ? C_SEL : C_ROW, px * 3);
+		if (listMode) {
+			/* name on the left; region flag and "No map" on the right */
+			int right = t.x + t.w - px * 5;
+			if (games[i].flag >= 0) {
+				int fh = px * 7;
+				int fw = brandH[games[i].flag] ? brandW[games[i].flag] * fh / brandH[games[i].flag] : 0;
+				draw_brand(scr, games[i].flag, right - fw, t.y + (t.h - fh) / 2, fh);
+				right -= fw + px * 4;
+			}
+			if (!games[i].supported && cfg->showAll) {
+				int tagW = ui_label_width(scr, px * 4, "No map") + px * 6;
+				SDL_Rect tg = { right - tagW, t.y + (t.h - px * 11) / 2, tagW, px * 11 };
+				ui_fill_round(scr, tg, C_TAG, px * 2);
+				ui_label(scr, tg.x + tg.w / 2, tg.y + tg.h / 2, px * 4, "No map", C_TEXT);
+				right -= tagW + px * 4;
+			}
+			char line[300];
+			fit_text(line, sizeof(line), TF_BOLD, px * 5, games[i].name, right - (t.x + px * 6));
+			ui_font_text(scr, TF_BOLD, t.x + px * 6, t.y + t.h / 2, px * 5, line, C_TEXT, -1);
+			continue;
+		}
 		if (!tileTried[i]) {
 			tileTried[i] = true;
 			bool pixelArt;
@@ -472,7 +579,8 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 	/* header drawn last so tiles scroll underneath it */
 	ui_fill(scr, (SDL_Rect) { 0, 0, r.w, g.headerH }, C_HEADER);
 	SDL_Rect sb = settings_button(scr);
-	ui_label(scr, sb.x / 2, g.headerH / 2, px * 5, "Touch or use the D-Pad to select a game", C_TEXT);
+	ui_label(scr, view_button(scr).x / 2, g.headerH / 2, px * 5, "Touch or use the D-Pad to select a game", C_TEXT);
+	draw_view_button(scr);
 	ui_fill_round(scr, sb, C_ROW, px * 3);
 	ui_label(scr, sb.x + sb.w / 2, sb.y + sb.h / 2, px * 5, "Settings", C_TEXT);
 }
@@ -560,13 +668,7 @@ static bool settings_poll(Config* cfg) {
 		return false;
 	}
 	snprintf(cfg->romDir, sizeof(cfg->romDir), "%s", path);
-	char file[1100];
-	snprintf(file, sizeof(file), "%s/library.cfg", cfg->stateDir);
-	FILE* f = fopen(file, "w");
-	if (f) {
-		fprintf(f, "# written by the game list's Settings\nrom_dir = %s\n", path);
-		fclose(f);
-	}
+	save_library_cfg(cfg);
 	return true;
 }
 #else
@@ -653,6 +755,7 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 	for (int i = 0; i < nGames; ++i) {
 		if (!strcmp(games[i].path, last)) sel = i;
 	}
+	listMode = strcmp(cfg->libraryView, "grid") != 0;
 	int ls = ui_touch_screen();
 	int scroll = sel > 0 ? keep_visible(ls, sel, 0) : 0;
 	bool dragging = false, pressed = false;
@@ -738,6 +841,11 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 			SDL_Delay(15);
 			continue;
 		}
+		if (btn_pressed(B_X)) {
+			toggle_view(cfg);
+			scroll = sel >= 0 ? keep_visible(ls, sel, 0) : 0;
+			continue;
+		}
 		if (btn_pressed(B_SELECT)) {
 			settingsOpen = true;
 			settingsSel = 0;
@@ -772,8 +880,14 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 		while (ui_next_pointer(&p)) {
 			if (p.screen != ls) continue;
 			if (p.kind == 1) {
-				SDL_Rect sb = settings_button(ls);
+				SDL_Rect sb = settings_button(ls), vb = view_button(ls);
 				SDL_Point pt = { p.x, p.y };
+				if (SDL_PointInRect(&pt, &vb)) {
+					toggle_view(cfg);
+					scroll = sel >= 0 ? keep_visible(ls, sel, 0) : 0;
+					pressed = false;
+					break;
+				}
 				if (SDL_PointInRect(&pt, &sb)) {
 					settingsOpen = true;
 					settingsSel = 0;
