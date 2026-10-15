@@ -416,6 +416,17 @@ frontend launch intents.
   ClipData. It only starts the package's launcher activity and says nothing
   about the game, so nothing can be done on our side: the explicit template
   is required (README).
+- Log with the 50% performance-hint target (CotM, 2026-10-15): per-frame
+  averages unchanged (emulating ~6.5 ms, drawing ~3.8 ms), 1-3 frames a
+  second still at 17-21 ms: the hint's target doesn't buy faster clocks
+  here, so frame speed isn't the lever. One 214 ms "emulating" frame: the
+  battery save being flushed (mGBA's GBASavedataClean -> _vfdSync:
+  futimens + msync + fsync, on the game thread; fsync on Android's shared
+  storage is slow). emu.c now wraps the save's VFile on Android
+  (async_save_open): still the mapped file, but sync hands the fsync to a
+  worker thread; close waits for it. Desktop: -DGBADS_ASYNC_SAVE turns it
+  on (tested: same .sav as without). Also early in that session, a few
+  100-600 ms draws of one screen (frames 670-1090), cause unknown.
 - Opening the pause menu costs one ~300 ms frame (its text images); not
   looked at yet.
 - Slow frames: game.c logs, each second there are any, the worst frame's
@@ -430,5 +441,5 @@ to move into CHANGELOG.md and the release notes (see CLAUDE.md, "More than
 one session"). Empty after each release.
 
 - **GammaOS's own launcher** can start games with GBA DS: Game Systems → Game Boy Advance, Launch Type **Custom Package**, Package `io.github.kyannon.gbads`, and the Intent Template given in the README.
-- Smoother play: achievement popups no longer slow the game down, and text everywhere costs less to draw.
+- Smoother play: achievement popups no longer slow the game down, and text everywhere costs less to draw, and no more freeze when the game saves.
 - **RetroAchievements on Android** (casual mode), as on ROCKNIX: progress and unlocks on the second screen, and the Achievements list in the pause menu. Sign in in the game list's **Settings** → **RetroAchievements**; GBA DS keeps a sign-in token, not your password.

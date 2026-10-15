@@ -36,6 +36,102 @@ static void quiet_log(struct mLogger* l, int cat, enum mLogLevel level, const ch
 }
 static struct mLogger quietLogger = { .log = quiet_log };
 
+#if defined(__ANDROID__) || defined(GBADS_ASYNC_SAVE)
+/* ------------------------------------------------- battery saves, async
+ * When a game writes its save, mGBA flushes it from the emulation thread a
+ * few frames later: futimens + msync + fsync. On Android's shared storage
+ * the fsync took ~200 ms, a visible freeze at every save point. The save
+ * stays a mapped file as before (so what the game writes is in the file
+ * right away); only the flush to the card moves to a worker thread. */
+#include <unistd.h>
+#include <sys/stat.h>
+
+typedef struct {
+	struct VFile d;
+	struct VFile* inner;
+	char path[1024];
+	pthread_t thread;
+	pthread_mutex_t lock;
+	pthread_cond_t cond;
+	bool started, pending, quit;
+} AsyncSave;
+
+static void* async_save_worker(void* arg) {
+	AsyncSave* a = arg;
+	pthread_mutex_lock(&a->lock);
+	for (;;) {
+		while (!a->pending && !a->quit) pthread_cond_wait(&a->cond, &a->lock);
+		if (!a->pending) break; /* quit, nothing left to flush */
+		a->pending = false;
+		pthread_mutex_unlock(&a->lock);
+		int fd = open(a->path, O_RDWR); /* fsync flushes the file, whichever descriptor */
+		if (fd >= 0) {
+			futimens(fd, NULL);
+			if (fsync(fd) != 0) fprintf(stderr, "save: couldn't flush %s\n", a->path);
+			else if (getenv("GBADS_DEBUG")) fprintf(stderr, "save: flushed %s\n", a->path);
+			close(fd);
+		}
+		pthread_mutex_lock(&a->lock);
+	}
+	pthread_mutex_unlock(&a->lock);
+	return NULL;
+}
+
+static bool as_sync(struct VFile* vf, void* buffer, size_t size) {
+	(void) buffer;
+	(void) size;
+	AsyncSave* a = (AsyncSave*) vf;
+	pthread_mutex_lock(&a->lock);
+	if (!a->started) a->started = pthread_create(&a->thread, NULL, async_save_worker, a) == 0;
+	bool ok = a->started;
+	if (ok) {
+		a->pending = true;
+		pthread_cond_signal(&a->cond);
+	}
+	pthread_mutex_unlock(&a->lock);
+	if (!ok) return a->inner->sync(a->inner, buffer, size);
+	return true;
+}
+
+static bool as_close(struct VFile* vf) {
+	AsyncSave* a = (AsyncSave*) vf;
+	if (a->started) {
+		pthread_mutex_lock(&a->lock);
+		a->quit = true;
+		pthread_cond_signal(&a->cond);
+		pthread_mutex_unlock(&a->lock);
+		pthread_join(a->thread, NULL); /* any flush asked for is done first */
+	}
+	bool ok = a->inner->close(a->inner);
+	pthread_mutex_destroy(&a->lock);
+	pthread_cond_destroy(&a->cond);
+	free(a);
+	return ok;
+}
+
+static off_t as_seek(struct VFile* vf, off_t o, int w) { return ((AsyncSave*) vf)->inner->seek(((AsyncSave*) vf)->inner, o, w); }
+static ssize_t as_read(struct VFile* vf, void* b, size_t n) { return ((AsyncSave*) vf)->inner->read(((AsyncSave*) vf)->inner, b, n); }
+static ssize_t as_readline(struct VFile* vf, char* b, size_t n) { return ((AsyncSave*) vf)->inner->readline(((AsyncSave*) vf)->inner, b, n); }
+static ssize_t as_write(struct VFile* vf, const void* b, size_t n) { return ((AsyncSave*) vf)->inner->write(((AsyncSave*) vf)->inner, b, n); }
+static void* as_map(struct VFile* vf, size_t n, int f) { return ((AsyncSave*) vf)->inner->map(((AsyncSave*) vf)->inner, n, f); }
+static void as_unmap(struct VFile* vf, void* m, size_t n) { ((AsyncSave*) vf)->inner->unmap(((AsyncSave*) vf)->inner, m, n); }
+static void as_truncate(struct VFile* vf, size_t n) { ((AsyncSave*) vf)->inner->truncate(((AsyncSave*) vf)->inner, n); }
+static ssize_t as_size(struct VFile* vf) { return ((AsyncSave*) vf)->inner->size(((AsyncSave*) vf)->inner); }
+
+static struct VFile* async_save_open(const char* path) {
+	struct VFile* inner = VFileOpen(path, O_CREAT | O_RDWR);
+	if (!inner) return NULL;
+	AsyncSave* a = calloc(1, sizeof(*a));
+	if (!a) return inner;
+	a->inner = inner;
+	snprintf(a->path, sizeof(a->path), "%s", path);
+	pthread_mutex_init(&a->lock, NULL);
+	pthread_cond_init(&a->cond, NULL);
+	a->d = (struct VFile) { as_close, as_seek, as_read, as_readline, as_write, as_map, as_unmap, as_truncate, as_size, as_sync };
+	return &a->d;
+}
+#endif
+
 bool emu_open(Emu* e, const char* romPath, const char* savePath, bool audio) {
 	memset(e, 0, sizeof(*e));
 	mLogSetDefaultLogger(&quietLogger);
@@ -65,7 +161,11 @@ bool emu_open(Emu* e, const char* romPath, const char* savePath, bool audio) {
 		return false;
 	}
 	if (savePath) {
+#if defined(__ANDROID__) || defined(GBADS_ASYNC_SAVE)
+		struct VFile* vf = async_save_open(savePath);
+#else
 		struct VFile* vf = VFileOpen(savePath, O_CREAT | O_RDWR);
+#endif
 		if (vf) {
 			e->core->loadSave(e->core, vf);
 		} else {
