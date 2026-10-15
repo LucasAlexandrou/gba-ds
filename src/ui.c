@@ -770,6 +770,12 @@ void ui_clear(void) {
 #endif
 }
 
+static int lastRedraws;
+
+int ui_last_redraws(void) {
+	return lastRedraws;
+}
+
 void ui_present(void) {
 	if (pendingShot[0]) {
 		ui_screenshot(pendingShot);
@@ -778,10 +784,12 @@ void ui_present(void) {
 #ifdef __ANDROID__
 	static Uint64 handover;
 	static int frames;
+	lastRedraws = 0;
 	for (int i = 0; i < nViews; ++i) {
 		if (!views[i].retained) {
 			SDL_RenderPresent(views[i].ren);
-		} else if (sw_render(i) && views[i].surf) {
+			lastRedraws |= 1 << i;
+		} else if (sw_render(i) && (lastRedraws |= 1 << i, views[i].surf)) {
 			Uint64 t0 = SDL_GetPerformanceCounter();
 			android_second_present(views[i].surf);
 			handover += SDL_GetPerformanceCounter() - t0;
@@ -805,6 +813,7 @@ void ui_present(void) {
 	}
 #else
 	for (int i = 0; i < nViews; ++i) SDL_RenderPresent(views[i].ren);
+	lastRedraws = (1 << nViews) - 1;
 #endif
 }
 
@@ -1293,8 +1302,37 @@ static TextEntry* text_entry(int view, int font, int cap, const char* text) {
 	return slot;
 }
 
+/* Text widths, remembered: measuring Jost text (kerning for every pair of
+ * letters) costs real time on the handhelds' small cores, and the same
+ * strings are measured every frame (centred labels, wrapped text, the
+ * achievement popups fitting their lines). Direct-mapped by hash. */
+#define WIDTH_CACHE 1024
+static struct {
+	uint64_t hash;
+	char* text;
+	int font, cap, w;
+} widthCache[WIDTH_CACHE];
+
+static int text_width(int font, int capPx, const char* text) {
+	uint64_t h = 1469598103934665603ull ^ (uint64_t) (font * 131 + capPx);
+	for (const unsigned char* p = (const unsigned char*) text; *p; ++p) h = (h ^ *p) * 1099511628211ull;
+	unsigned slot = (unsigned) (h ^ (h >> 32)) % WIDTH_CACHE;
+	if (widthCache[slot].text && widthCache[slot].hash == h && widthCache[slot].font == font &&
+	    widthCache[slot].cap == capPx && !strcmp(widthCache[slot].text, text)) {
+		return widthCache[slot].w;
+	}
+	int w = tf_width(font, capPx, text);
+	char* copy = strdup(text);
+	if (copy) {
+		free(widthCache[slot].text);
+		widthCache[slot].hash = h, widthCache[slot].text = copy;
+		widthCache[slot].font = font, widthCache[slot].cap = capPx, widthCache[slot].w = w;
+	}
+	return w;
+}
+
 int ui_font_width(int font, int capPx, const char* text) {
-	return tf_width(font, capPx, text);
+	return text_width(font, capPx, text);
 }
 
 void ui_font_text(int screen, int font, int x, int cy, int capPx, const char* text, SDL_Color c, int align) {
@@ -1307,7 +1345,7 @@ void ui_font_text(int screen, int font, int x, int cy, int capPx, const char* te
 	Screen* s = &screens[screen];
 	TextEntry* e = text_entry(s->view, font, capPx, text);
 	if (!e->tex) return;
-	int w = tf_width(font, capPx, text);
+	int w = align < 0 ? 0 : text_width(font, capPx, text);
 	int left = align < 0 ? x : align > 0 ? x - w : x - w / 2;
 	/* capitals centred on cy */
 	SDL_Rect dst = { s->rect.x + left - e->left, s->rect.y + cy + capPx / 2 - e->baseline, e->w, e->h };
@@ -1318,7 +1356,7 @@ void ui_font_text(int screen, int font, int x, int cy, int capPx, const char* te
 
 int ui_label_width(int screen, int capPx, const char* text) {
 	(void) screen;
-	return tf_width(TF_BOLD, capPx, text);
+	return text_width(TF_BOLD, capPx, text);
 }
 
 void ui_label(int screen, int cx, int cy, int capPx, const char* text, SDL_Color c) {
@@ -1338,7 +1376,7 @@ int ui_font_wrap(int screen, int font, int x, int y, int width, int capPx, const
 			if (e >= (int) sizeof(line)) break;
 			memcpy(line, p, e);
 			line[e] = 0;
-			if (fit && tf_width(font, capPx, line) > width) break;
+			if (fit && text_width(font, capPx, line) > width) break;
 			fit = e;
 			n = e;
 			while (p[n] == ' ') ++n;

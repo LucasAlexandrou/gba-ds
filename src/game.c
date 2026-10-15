@@ -53,6 +53,40 @@ static uint64_t mapAnimStart, frameCount;
 static bool singleShowsMap;
 static double fps, speedPct;
 static Uint64 emuTicks, drawTicks; /* time spent emulating / drawing, for the 5 s report */
+
+/* Slow frames (work over a frame's time): the worst each second, broken down,
+ * logged on Android (where frame time is tight) or with GBADS_DEBUG. */
+typedef struct {
+	double total, input, emulate, ra, map, draw;
+	int redraws;
+	unsigned long long frame;
+} SlowFrame;
+static SlowFrame slowWorst;
+static int slowCount;
+
+static void slow_frame_note(SlowFrame f) {
+	++slowCount;
+	if (f.total > slowWorst.total) slowWorst = f;
+}
+
+static void slow_frame_report(bool debug) {
+#ifndef __ANDROID__
+	if (!debug) {
+		slowCount = 0;
+		slowWorst.total = 0;
+		return;
+	}
+#endif
+	if (!slowCount) return;
+	const SlowFrame* w = &slowWorst;
+	fprintf(stderr,
+	        "slow frames: %d in the last second; worst (frame %llu) %.1f ms: input/menu %.1f, emulating %.1f, "
+	        "RetroAchievements %.1f, map %.1f, drawing %.1f (%s)\n",
+	        slowCount, w->frame, w->total, w->input, w->emulate, w->ra, w->map, w->draw,
+	        w->redraws == 3 ? "both screens redrawn" : w->redraws ? "one screen redrawn" : "nothing redrawn");
+	slowCount = 0;
+	slowWorst.total = 0;
+}
 static bool debug;
 
 /* ---------------------------------------------------------------- menu */
@@ -1356,9 +1390,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	android_perf_init((int64_t) (frameSec * 1e9));
 #endif
 	while (!done) {
-#ifdef __ANDROID__
-		Uint64 workT0 = SDL_GetPerformanceCounter();
-#endif
+		Uint64 workT0 = SDL_GetPerformanceCounter(); /* this frame's work, without the wait at the end */
 		if (mf.prof && mf.prof->frame.t && !mf.atlas && logo_generation() != frameGen) {
 			frameGen = logo_generation();
 			if (mapframe_load_atlas(&mf, framePath)) canvasDirty = true;
@@ -1649,10 +1681,12 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		if (debug && audio && frameCount % 30 == 0) {
 			fprintf(stderr, "audio queue %d ms%s\n", queuedNow * 1000 / want.freq, ff ? " (ff)" : "");
 		}
-		Uint64 emuT0 = SDL_GetPerformanceCounter();
+		Uint64 emuT0 = SDL_GetPerformanceCounter(), raT = 0;
 		for (int i = 0; i < runs; ++i) {
 			emu_frame(&emu, keys);
+			Uint64 raT0 = SDL_GetPerformanceCounter();
 			ra_frame();
+			raT += SDL_GetPerformanceCounter() - raT0;
 			size_t got;
 			while ((got = emu_audio_read(&emu, samples, 4096)) > 0) {
 				if (!audio || dropAudio) continue;
@@ -1682,7 +1716,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				while ((bytes = SDL_AudioStreamGet(audioConv, conv, sizeof(conv))) > 0) SDL_QueueAudio(audio, conv, bytes);
 			}
 		}
-		emuTicks += SDL_GetPerformanceCounter() - emuT0;
+		Uint64 emuT1 = SDL_GetPerformanceCounter();
+		emuTicks += emuT1 - emuT0;
 		++frameCount;
 
 		/* ---- map refresh */
@@ -1783,7 +1818,23 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		ra_draw(nScreens > 1 ? 1 - game_screen() : 0); /* after the screenshot: not in it */
 		ui_present();
-		drawTicks += SDL_GetPerformanceCounter() - drawT0;
+		Uint64 drawT1 = SDL_GetPerformanceCounter();
+		drawTicks += drawT1 - drawT0;
+		{
+			double msPer = 1000.0 / (double) SDL_GetPerformanceFrequency();
+			double total = (double) (drawT1 - workT0) * msPer;
+			if (!ff && total > frameSec * 1000.0) {
+				SlowFrame f = { total, (double) (emuT0 - workT0) * msPer, (double) (emuT1 - emuT0 - raT) * msPer, (double) raT * msPer,
+					            (double) (drawT0 - emuT1) * msPer, (double) (drawT1 - drawT0) * msPer, ui_last_redraws(),
+					            (unsigned long long) frameCount };
+				slow_frame_note(f);
+			}
+			static Uint64 lastReport;
+			if (drawT1 - lastReport > SDL_GetPerformanceFrequency()) {
+				slow_frame_report(debug);
+				lastReport = drawT1;
+			}
+		}
 #ifdef __ANDROID__
 		if (frameCount == 1) fprintf(stderr, "startup: first frame shown\n");
 #endif

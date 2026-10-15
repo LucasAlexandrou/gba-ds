@@ -79,6 +79,9 @@ void ui_load_script(const char* path);
 
 void ui_clear(void);
 void ui_present(void);
+/* Which views the last ui_present drew (bit 0: view 0, bit 1: view 1; on
+ * Android a view whose picture didn't change isn't redrawn). */
+int ui_last_redraws(void);
 
 SDL_Renderer* ui_ren(int screen);
 /* Draws a texture (one per view, indexed by view) letterboxed into a screen area. */

@@ -93,6 +93,7 @@ Everything except the battery saves (`.sav`, next to the ROMs) is in the `GBA DS
   ```xml
   <command label="GBA DS (Standalone)">%EMULATOR_GBA-DS% %ACTIVITY_CLEAR_TASK% %ACTIVITY_CLEAR_TOP% %DATA%=%ROMSAF%</command>
   ```
+- **GammaOS** (Game Systems → Game Boy Advance): Launch Type **Custom Package**, Package `io.github.kyannon.gbads`. If the default Intent Template doesn't start the game, use `-n io.github.kyannon.gbads/.LauncherActivity -a android.intent.action.VIEW -d {file.uri}`.
 - **Daijisho** (or other frontends): package `io.github.kyannon.gbads`, activity `.LauncherActivity`, with `-a android.intent.action.VIEW -d {file.uri}`, or the file path in an extra: `-e rom {file.path}`.
 
 ## Playing

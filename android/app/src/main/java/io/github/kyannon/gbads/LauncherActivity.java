@@ -102,10 +102,26 @@ public class LauncherActivity extends Activity {
 
     /* ------------------------------------------------------------ the ROM from an intent */
 
-    private static final String[] ROM_EXTRAS = { "rom", "ROM", "Rom", "path", "PATH", "file", "FILE", "romPath", "GamePath" };
+    /* the names frontends' templates use for the game (GammaOS's examples: bootPath) */
+    private static final String[] ROM_EXTRAS = { "rom", "ROM", "Rom", "path", "PATH", "file", "FILE", "romPath", "GamePath",
+            "bootPath", "BootPath", "uri", "URI", "romUri", "filePath", "file_path", "rom_path", "gamePath", "game" };
+
+    /** Everything a launch request carries, for the log (frontends differ; this shows what one sent). */
+    private static void logIntent(Intent in) {
+        StringBuilder b = new StringBuilder("launched with action=").append(in.getAction())
+                .append(" data=").append(in.getData()).append(" type=").append(in.getType())
+                .append(" flags=0x").append(Integer.toHexString(in.getFlags()));
+        if (in.getCategories() != null) b.append(" categories=").append(in.getCategories());
+        if (in.getExtras() != null) {
+            for (String k : in.getExtras().keySet()) b.append(" extra ").append(k).append('=').append(in.getExtras().get(k));
+        }
+        if (in.getClipData() != null && in.getClipData().getItemCount() > 0) b.append(" clip=").append(in.getClipData().getItemAt(0).getUri());
+        Log.i(TAG, b.toString());
+    }
 
     static String romFromIntent(Context c, Intent in) {
         if (in == null) return null;
+        logIntent(in);
         for (String k : ROM_EXTRAS) {
             Object v = in.getExtras() != null ? in.getExtras().get(k) : null;
             if (v instanceof Uri) return fromUri(c, (Uri) v);
@@ -114,7 +130,12 @@ public class LauncherActivity extends Activity {
                 return str.startsWith("file:") || str.startsWith("content:") ? fromUri(c, Uri.parse(str)) : str;
             }
         }
-        return in.getData() != null ? fromUri(c, in.getData()) : null;
+        if (in.getData() != null) return fromUri(c, in.getData());
+        /* some send the file as ClipData only */
+        if (in.getClipData() != null && in.getClipData().getItemCount() > 0 && in.getClipData().getItemAt(0).getUri() != null) {
+            return fromUri(c, in.getClipData().getItemAt(0).getUri());
+        }
+        return null;
     }
 
     private static String fromUri(Context c, Uri u) {
@@ -136,6 +157,11 @@ public class LauncherActivity extends Activity {
             if (path != null && new File(path).canRead()) return path;
             Log.w(TAG, "can't read " + path + " directly, copying it");
         }
+        /* other apps' providers (a frontend's FileProvider, the media store) often
+         * tell the real path; with All files access it can be read in place, so
+         * the battery save stays next to the ROM */
+        String real = realPath(c, u);
+        if (real != null) return real;
         return copyIn(c, u);
     }
 
@@ -148,6 +174,24 @@ public class LauncherActivity extends Activity {
                 ? Environment.getExternalStorageDirectory().getAbsolutePath()
                 : "/storage/" + volume;
         return rest.isEmpty() ? root : root + "/" + rest;
+    }
+
+    private static String realPath(Context c, Uri u) {
+        try (Cursor cur = c.getContentResolver().query(u, new String[] { "_data" }, null, null, null)) {
+            if (cur != null && cur.moveToFirst() && !cur.isNull(0)) {
+                String p = cur.getString(0);
+                if (p != null && new File(p).canRead()) return p;
+            }
+        } catch (RuntimeException e) {
+            /* no such column: fine */
+        }
+        /* FileProviders often keep the path in the URI: content://<authority>/<root>/storage/emulated/0/... */
+        String up = u.getPath();
+        if (up != null) {
+            int i = up.indexOf("/storage/");
+            if (i >= 0 && new File(up.substring(i)).canRead()) return up.substring(i);
+        }
+        return null;
     }
 
     /** Another app's file without a path: a copy in the app's folder (its saves stay there too). */
