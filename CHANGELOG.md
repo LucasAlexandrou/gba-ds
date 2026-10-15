@@ -1,14 +1,13 @@
 # Changelog
 
-## v1.1.1 (not yet released)
+## v1.1.1 (2026-10-15)
 
 - **RetroAchievements** (casual mode) on ROCKNIX, with the account signed in in EmulationStation. Starting a game shows its achievement progress on the second screen, and unlocks pop up there with the badge and points, out of the game's way. Save states keep the achievements' progress with them. **Achievements** in the pause menu lists the game's achievements with badges, points and progress. `retroachievements = 0` in gba-ds.cfg turns it off. Hardcore mode isn't available yet.
-- **New interface font.** All text is now drawn in Jost, an open-source font in the style of the Futura menus, including the parts that used the small blocky font before: cheat names, game names, Settings help and on-screen messages. Long names are cut to fit.
-
+- **Game list as a list again.** The game list now shows one game per row by name, as in earlier versions; the logo grid is still there: tap the button left of Settings, or press X, to switch (GBA DS remembers which you chose). Names leave out tags like "(USA)" and "(En,Fr,De,Es,It)"; the flag tells regional copies apart (`name_tags = 1` in gba-ds.cfg keeps them).
+- **Pause menu:** a third page, **Extras**, now holds Cheats, Achievements and Take Screenshot, so the Game page is just playing, saving and closing.
 - **Two more scaling options** (pause menu → Display → Scale): **Zoom** fills the screen height and keeps the picture's shape, cutting off its left and right edges; **Stretch** fills the whole screen. Scale now steps through Pixel Perfect, Full Width, Zoom and Stretch.
 - **Map Refresh** (pause menu → Display): how often the map updates, every 3, 1.5 (the default), 1 or 0.5 seconds. Faster keeps the map more up to date on devices with power to spare. Also `map_interval` in gba-ds.cfg.
-- **Pause menu:** a third page, **Extras**, now holds Cheats, Achievements and Take Screenshot, so the Game page is just playing, saving and closing.
-- **Game list as a list again.** The game list now shows one game per row by name, as in earlier versions; the logo grid is still there: tap the button left of Settings, or press X, to switch (GBA DS remembers which you chose). Names leave out tags like "(USA)" and "(En,Fr,De,Es,It)"; the flag tells regional copies apart (`name_tags = 1` in gba-ds.cfg keeps them).
+- **New interface font.** All text is now drawn in Jost, an open-source font in the style of the Futura menus, including the parts that used the small blocky font before: cheat names, game names, Settings help and on-screen messages. Long names are cut to fit.
 
 ## v1.1 (2026-10-14)
 
