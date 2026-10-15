@@ -391,6 +391,16 @@ frontend launch intents.
   order; a late frame is shown a refresh late and the queue absorbs it),
   the other stays at 0; and the ADPF target is 50% of a frame. Watch the
   per-screen present times in the log for a swap that blocks.
+- Result: the device crashed a second or two after a game started, right
+  after "presenting the top screen in step with its display" (the game on
+  the second display, interval 1). Cause not known yet (the logcat sent was
+  filtered to GBADS). Now off by default; `vsync = 1` in GBA DS/gba-ds.cfg
+  turns it on, for getting `adb logcat -b crash` from the crash.
+- GammaOS's default Intent Template, per launch.log: `action=null data=null
+  type=null flags=0x10800000 component=.../.LauncherActivity`, no extras, no
+  ClipData. It only starts the package's launcher activity and says nothing
+  about the game, so nothing can be done on our side: the explicit template
+  is required (README).
 - Opening the pause menu costs one ~300 ms frame (its text images); not
   looked at yet.
 - Slow frames: game.c logs, each second there are any, the worst frame's
@@ -404,6 +414,6 @@ Player-facing Android changes since the last release, for the main session
 to move into CHANGELOG.md and the release notes (see CLAUDE.md, "More than
 one session"). Empty after each release.
 
-- **GammaOS's own launcher** can start games with GBA DS: Game Systems → Game Boy Advance, Launch Type **Custom Package**, Package `io.github.kyannon.gbads` (see the README if the default template doesn't work).
-- Smoother play: achievement popups no longer slow the game down, text everywhere costs less to draw, and a frame that runs a little long no longer shows as a stutter.
+- **GammaOS's own launcher** can start games with GBA DS: Game Systems → Game Boy Advance, Launch Type **Custom Package**, Package `io.github.kyannon.gbads`, and the Intent Template given in the README.
+- Smoother play: achievement popups no longer slow the game down, and text everywhere costs less to draw.
 - **RetroAchievements on Android** (casual mode), as on ROCKNIX: progress and unlocks on the second screen, and the Achievements list in the pause menu. Sign in in the game list's **Settings** → **RetroAchievements**; GBA DS keeps a sign-in token, not your password.

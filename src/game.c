@@ -1824,7 +1824,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (gameTexAll || i == screens[game_screen()].view) ui_update_texture(gameTex[i], emu.fb, GBA_W * 4);
 		}
 		gameTexAll = false;
-		ui_sync_view(screens[game_screen()].view);
+		ui_sync_view(cfg->vsync ? screens[game_screen()].view : -1); /* Android; testing (docs/ANDROID.md) */
 		ui_clear();
 		draw_game();
 		if (shotPending) {
