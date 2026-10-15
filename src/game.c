@@ -33,6 +33,28 @@ static long thread_preemptions(void) {
 #endif
 	return 0;
 }
+static double thread_cpu_ms(void) {
+	struct timespec t;
+	if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t) != 0) return 0;
+	return t.tv_sec * 1000.0 + t.tv_nsec / 1e6;
+}
+static int cpu_mhz(int cpu) {
+#ifdef __linux__
+	if (cpu < 0) return 0;
+	char path[96];
+	snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_cur_freq", cpu);
+	FILE* f = fopen(path, "r");
+	long k = 0;
+	if (f) {
+		if (fscanf(f, "%ld", &k) != 1) k = 0;
+		fclose(f);
+	}
+	return (int) (k / 1000);
+#else
+	(void) cpu;
+	return 0;
+#endif
+}
 static int current_cpu(void) {
 #if defined(__linux__) && defined(SYS_getcpu)
 	unsigned cpu = 0;
@@ -83,9 +105,12 @@ static Uint64 emuTicks, drawTicks; /* time spent emulating / drawing, for the 5 
 typedef struct {
 	double total, input, emulate, ra, map, draw, top, bottom;
 	int redraws;
-	long preempted; /* times the thread was put off its core during the frame */
-	int cpu;
+
 	unsigned long long frame;
+	long preempted; /* times the thread was put off its core during the frame */
+	int cpu, mhz;   /* where it ended, and that core's clock then */
+	double cpuMs;   /* time the thread actually ran (the rest it waited) */
+	double audio;   /* of emulating: handing the sound to SDL (its lock is shared with the audio thread) */
 } SlowFrame;
 static SlowFrame slowWorst;
 static int slowCount;
@@ -106,11 +131,11 @@ static void slow_frame_report(bool debug) {
 	if (!slowCount) return;
 	const SlowFrame* w = &slowWorst;
 	fprintf(stderr,
-	        "slow frames: %d in the last second; worst (frame %llu) %.1f ms: input/menu %.1f, emulating %.1f, "
+	        "slow frames: %d in the last second; worst (frame %llu) %.1f ms: input/menu %.1f, emulating %.1f (sound hand-off %.1f), "
 	        "RetroAchievements %.1f, map %.1f, drawing %.1f (top screen %s %.1f, bottom %s %.1f); "
-	        "preempted %ld time(s), on cpu %d\n",
-	        slowCount, w->frame, w->total, w->input, w->emulate, w->ra, w->map, w->draw,
-	        w->redraws & 1 ? "redrawn" : "kept", w->top, w->redraws & 2 ? "redrawn" : "kept", w->bottom, w->preempted, w->cpu);
+	        "ran %.1f ms of it (waited %.1f), preempted %ld time(s), on cpu %d at %d MHz\n",
+	        slowCount, w->frame, w->total, w->input, w->emulate, w->audio, w->ra, w->map, w->draw,
+	        w->redraws & 1 ? "redrawn" : "kept", w->top, w->redraws & 2 ? "redrawn" : "kept", w->bottom, w->cpuMs, w->total - w->cpuMs, w->preempted, w->cpu, w->mhz);
 	slowCount = 0;
 	slowWorst.total = 0;
 }
@@ -1434,6 +1459,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	while (!done) {
 		Uint64 workT0 = SDL_GetPerformanceCounter(); /* this frame's work, without the wait at the end */
 		long preempt0 = thread_preemptions();
+		double cpuMs0 = thread_cpu_ms();
 		if (mf.prof && mf.prof->frame.t && !mf.atlas && logo_generation() != frameGen) {
 			frameGen = logo_generation();
 			if (mapframe_load_atlas(&mf, framePath)) canvasDirty = true;
@@ -1727,12 +1753,13 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		if (debug && audio && frameCount % 30 == 0) {
 			fprintf(stderr, "audio queue %d ms%s\n", queuedNow * 1000 / want.freq, ff ? " (ff)" : "");
 		}
-		Uint64 emuT0 = SDL_GetPerformanceCounter(), raT = 0;
+		Uint64 emuT0 = SDL_GetPerformanceCounter(), raT = 0, audT = 0;
 		for (int i = 0; i < runs; ++i) {
 			emu_frame(&emu, keys);
 			Uint64 raT0 = SDL_GetPerformanceCounter();
 			ra_frame();
 			raT += SDL_GetPerformanceCounter() - raT0;
+			Uint64 audT0 = SDL_GetPerformanceCounter();
 			size_t got;
 			while ((got = emu_audio_read(&emu, samples, 4096)) > 0) {
 				if (!audio || dropAudio) continue;
@@ -1761,6 +1788,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				int bytes;
 				while ((bytes = SDL_AudioStreamGet(audioConv, conv, sizeof(conv))) > 0) SDL_QueueAudio(audio, conv, bytes);
 			}
+			audT += SDL_GetPerformanceCounter() - audT0;
 		}
 		Uint64 emuT1 = SDL_GetPerformanceCounter();
 		emuTicks += emuT1 - emuT0;
@@ -1893,6 +1921,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				f.redraws = ((red >> vTop) & 1) | (vBot != vTop ? ((red >> vBot) & 1) << 1 : 0);
 				f.preempted = thread_preemptions() - preempt0;
 				f.cpu = current_cpu();
+				f.mhz = cpu_mhz(f.cpu);
+				f.cpuMs = thread_cpu_ms() - cpuMs0;
+				f.audio = (double) audT * msPer;
 				slow_frame_note(f);
 			}
 			static Uint64 lastReport;

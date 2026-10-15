@@ -161,7 +161,7 @@ void android_perf_init(int64_t targetNs) {
 
 /* ------------------------------------------------------------- cores */
 
-static bool pinOn = true;
+static bool pinOn; /* pin_cores (off by default); set before the game thread pins */
 static int gameCore = -1;
 static cpu_set_t workerCores;
 static int nWorkerCores;
@@ -212,7 +212,9 @@ static void pick_cores(void) {
 
 void android_set_pinning(bool on) {
 	pinOn = on;
-	if (!on) fprintf(stderr, "cores: not pinning threads (pin_cores = 0)\n");
+	static int logged = -1;
+	if (on != logged) fprintf(stderr, "cores: %s\n", on ? "pinning threads (pin_cores = 1)" : "not pinning threads");
+	logged = on;
 }
 
 void android_pin_game_thread(void) {

@@ -27,7 +27,7 @@ void config_defaults(Config* c) {
 	c->sway = true;
 	c->audioLatency = 64;
 	c->ffSpeed = 3;
-	c->pinCores = true;
+	c->pinCores = false; /* tried on the RG DS Plus: no better (docs/ANDROID.md) */
 	c->autoResume = true;
 	c->showAll = false;
 	c->nameTags = false;

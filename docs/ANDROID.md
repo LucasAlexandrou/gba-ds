@@ -453,6 +453,18 @@ frontend launch intents.
   comparing. The log lists the cores the app may use (with max MHz), and
   each slow frame and 5 s report says how often the game thread was
   preempted (getrusage RUSAGE_THREAD ru_nivcsw) and which cpu it was on.
+- Pinning result (AoS, owner felt no difference): 32 slow frames in 74 s
+  pinned, 27 in 69 s not; so pin_cores is now off by default (still there
+  for testing). Cores: 4 x 2160 MHz. The game thread is preempted ~800-1500
+  times a second either way (ru_nivcsw), with no link to which frames are
+  slow, so the count alone says little. The slow-frame line now also has
+  the thread's CPU time for the frame ("ran X ms of it (waited Y)",
+  CLOCK_THREAD_CPUTIME_ID), the core's clock at that moment
+  (scaling_cur_freq), and the sound hand-off's share of "emulating"
+  (SDL_QueueAudio takes the lock the audio thread holds while it runs). A
+  slow frame that ran its full length points at slow clocks or work; one
+  that mostly waited points at another thread or a lock. (The frame
+  number in those lines was 0 in the pinning build: initializer order.)
 - Opening the pause menu costs one ~300 ms frame (its text images); not
   looked at yet.
 - Slow frames: game.c logs, each second there are any, the worst frame's
