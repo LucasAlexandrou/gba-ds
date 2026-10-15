@@ -379,6 +379,20 @@ frontend launch intents.
   them off); the game thread asks for nice -4 (logged); the slow-frame
   line splits drawing into top / bottom screen. The map capture thread was
   already at nice +10.
+- Device log after that (CotM, run 38767740847): 59.5-60 fps in every 5 s
+  window; 1-3 frames a second at 17-21 ms (average work ~11 ms = the 65%
+  target exactly: the governor clocks down to it), spread over emulation
+  (spikes to 12-20 ms against a 6-7 ms average) and drawing (either screen,
+  3-13 ms). Achievement popup: one 34 ms frame. Both surfaces had swap
+  interval 0, where Android shows only the newest buffer at each refresh:
+  a frame posted late meant the previous one shown twice and that one
+  dropped, i.e. each slow frame was a visible hitch. Now the view the game
+  is on gets swap interval 1 (ui_sync_view: every queued frame shown, in
+  order; a late frame is shown a refresh late and the queue absorbs it),
+  the other stays at 0; and the ADPF target is 50% of a frame. Watch the
+  per-screen present times in the log for a swap that blocks.
+- Opening the pause menu costs one ~300 ms frame (its text images); not
+  looked at yet.
 - Slow frames: game.c logs, each second there are any, the worst frame's
   breakdown ("slow frames: N in the last second; worst ... input/menu,
   emulating, RetroAchievements, map, drawing (which screens redrawn)").
@@ -391,5 +405,5 @@ to move into CHANGELOG.md and the release notes (see CLAUDE.md, "More than
 one session"). Empty after each release.
 
 - **GammaOS's own launcher** can start games with GBA DS: Game Systems → Game Boy Advance, Launch Type **Custom Package**, Package `io.github.kyannon.gbads` (see the README if the default template doesn't work).
-- Smoother play: achievement popups no longer slow the game down, and text everywhere costs less to draw.
+- Smoother play: achievement popups no longer slow the game down, text everywhere costs less to draw, and a frame that runs a little long no longer shows as a stutter.
 - **RetroAchievements on Android** (casual mode), as on ROCKNIX: progress and unlocks on the second screen, and the Achievements list in the pause menu. Sign in in the game list's **Settings** → **RetroAchievements**; GBA DS keeps a sign-in token, not your password.

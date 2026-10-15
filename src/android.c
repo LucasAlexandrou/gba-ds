@@ -441,6 +441,7 @@ static int gpuW, gpuH;
 static EGLDisplay surf2Dpy = EGL_NO_DISPLAY;
 static EGLSurface surf2 = EGL_NO_SURFACE;
 static bool surf2Interval;
+static int surf2Want; /* swap interval wanted (android_second_set_interval) */
 
 bool android_second_gpu_init(int w, int h) {
 	EGLDisplay d = eglGetCurrentDisplay();
@@ -505,7 +506,7 @@ bool android_second_begin(void) {
 		onSurf2 = true;
 	}
 	if (!surf2Interval) {
-		eglSwapInterval(d, 0); /* never wait for the second display's refresh */
+		eglSwapInterval(d, surf2Want);
 		surf2Interval = true;
 	}
 	tBegin += SDL_GetPerformanceCounter() - t0;
@@ -530,6 +531,15 @@ void android_second_restore(void) {
 	onSurf2 = false;
 	tRestore += SDL_GetPerformanceCounter() - t0;
 	++nRestore;
+}
+
+void android_second_set_interval(int interval) {
+	pthread_mutex_lock(&winLock);
+	if (interval != surf2Want) {
+		surf2Want = interval;
+		surf2Interval = false;
+	}
+	pthread_mutex_unlock(&winLock);
 }
 
 void android_second_log_timing(int frames) {

@@ -85,6 +85,11 @@ int ui_last_redraws(void);
 /* Time the last ui_present spent drawing / presenting a view (ms). */
 double ui_last_present_ms(int view);
 
+/* Android: the view whose presents should follow its display's refresh
+ * (the one the game is on: each frame is shown, none dropped when one comes
+ * a little late); -1 for none. Elsewhere: nothing. */
+void ui_sync_view(int view);
+
 SDL_Renderer* ui_ren(int screen);
 /* Draws a texture (one per view, indexed by view) letterboxed into a screen area. */
 void ui_image(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, const SDL_Rect* areaLocal);

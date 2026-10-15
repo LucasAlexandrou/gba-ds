@@ -59,6 +59,10 @@ void android_second_end(void);
  * screen, and before Android pauses the app). */
 void android_second_restore(void);
 void android_second_log_timing(int frames);
+/* Swap interval of the second display's surface (applied at the next
+ * _begin): 1 shows every frame posted, in order; 0 only the latest at each
+ * refresh, dropping any that came too late. */
+void android_second_set_interval(int interval);
 
 #endif
 #endif

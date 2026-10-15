@@ -781,6 +781,17 @@ double ui_last_present_ms(int view) {
 	return view >= 0 && view < 2 ? lastPresentMs[view] : 0;
 }
 
+#ifdef __ANDROID__
+static int syncWant = -1, syncApplied = -2;
+#endif
+void ui_sync_view(int view) {
+#ifdef __ANDROID__
+	syncWant = view;
+#else
+	(void) view;
+#endif
+}
+
 void ui_present(void) {
 	if (pendingShot[0]) {
 		ui_screenshot(pendingShot);
@@ -790,6 +801,21 @@ void ui_present(void) {
 	static Uint64 handover;
 	static int frames;
 	lastRedraws = 0;
+	if (syncWant != syncApplied) {
+		/* Swap interval 1: every frame queued is shown on its own refresh, so a
+		 * frame that took a bit over 16.7 ms is shown one refresh late instead
+		 * of being dropped (interval 0 keeps only the latest at each refresh:
+		 * a late frame meant one shown twice and the next one never). The
+		 * game loop still keeps time, so this only absorbs uneven frames. */
+		android_second_restore(); /* the interval applies to the current surface */
+		for (int i = 0; i < nViews; ++i) {
+			if (views[i].offwin) android_second_set_interval(syncWant == i ? 1 : 0);
+			else if (views[i].ren) SDL_RenderSetVSync(views[i].ren, syncWant == i ? 1 : 0);
+		}
+		fprintf(stderr, "presenting %s in step with its display\n",
+		        syncWant < 0 ? "no screen" : syncWant == screens[0].view ? "the top screen" : "the bottom screen");
+		syncApplied = syncWant;
+	}
 	for (int i = 0; i < nViews; ++i) {
 		Uint64 vt0 = SDL_GetPerformanceCounter();
 		if (!views[i].retained) {

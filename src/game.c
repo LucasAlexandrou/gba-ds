@@ -1395,8 +1395,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 #ifdef __ANDROID__
 	/* a target well under the frame time: the system clocks the CPU so each
 	 * frame's work takes about this long, leaving room for heavier frames
-	 * (with the full 16.7 ms it clocked down until frames barely fit) */
-	android_perf_init((int64_t) (frameSec * 0.65 * 1e9));
+	 * (with the full 16.7 ms it clocked down until frames barely fit; with
+	 * 65% the average was 11 ms and uneven frames went to 17-21 ms) */
+	android_perf_init((int64_t) (frameSec * 0.5 * 1e9));
 #endif
 	while (!done) {
 		Uint64 workT0 = SDL_GetPerformanceCounter(); /* this frame's work, without the wait at the end */
@@ -1823,6 +1824,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (gameTexAll || i == screens[game_screen()].view) ui_update_texture(gameTex[i], emu.fb, GBA_W * 4);
 		}
 		gameTexAll = false;
+		ui_sync_view(screens[game_screen()].view);
 		ui_clear();
 		draw_game();
 		if (shotPending) {
@@ -1890,6 +1892,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 
 	ui_on_background(NULL);
 	ui_on_foreground(NULL);
+	ui_sync_view(-1);
 	fprintf(stderr, "leaving game after %llu frames\n", (unsigned long long) frameCount);
 	auto_save();
 	ra_game_end();
