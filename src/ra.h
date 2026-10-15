@@ -14,6 +14,8 @@
 #include "config.h"
 #include "emu.h"
 
+#include <SDL.h>
+
 #include <stdbool.h>
 
 #ifdef GBADS_RA
@@ -34,6 +36,16 @@ void ra_state_saved(const char* statePath);
 void ra_state_loaded(const char* statePath);
 /* Popups, at the top of the given screen. */
 void ra_draw(int screen);
+/* Signed in (or trying): the pause menu offers the achievement list. */
+bool ra_enabled(void);
+/* The achievement list, drawn in a screen-local area; scrolls in pixels. */
+void ra_list_open(void);
+void ra_list_close(void);
+void ra_list_draw(int screen, SDL_Rect area);
+void ra_list_scroll(int screen, int dy);
+int ra_list_step(int screen); /* one achievement's height */
+int ra_list_scroll_pos(void);
+void ra_list_set_scroll(int screen, int y);
 #else
 static inline void ra_init(const Config* cfg) { (void) cfg; }
 static inline void ra_shutdown(void) {}
@@ -45,6 +57,14 @@ static inline void ra_reset(void) {}
 static inline void ra_state_saved(const char* statePath) { (void) statePath; }
 static inline void ra_state_loaded(const char* statePath) { (void) statePath; }
 static inline void ra_draw(int screen) { (void) screen; }
+static inline bool ra_enabled(void) { return false; }
+static inline void ra_list_open(void) {}
+static inline void ra_list_close(void) {}
+static inline void ra_list_draw(int screen, SDL_Rect area) { (void) screen, (void) area; }
+static inline void ra_list_scroll(int screen, int dy) { (void) screen, (void) dy; }
+static inline int ra_list_step(int screen) { (void) screen; return 1; }
+static inline int ra_list_scroll_pos(void) { return 0; }
+static inline void ra_list_set_scroll(int screen, int y) { (void) screen, (void) y; }
 #endif
 
 #endif

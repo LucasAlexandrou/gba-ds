@@ -326,8 +326,12 @@ static void popup_pop(void) {
 	--nPopups;
 }
 
+/* why the achievement list is empty, while no game is loaded */
+static char listStatus[300];
+
 static void note(const char* title, const char* desc) {
 	popup_add(POP_NOTE, "RETROACHIEVEMENTS", title, desc, 0, NULL);
+	snprintf(listStatus, sizeof(listStatus), "%s. %s", title, desc);
 }
 
 /* text cut to fit width, with "..." */
@@ -600,7 +604,9 @@ static void load_done(int result, const char* error, rc_client_t* c, void* ud) {
 		for (uint32_t i = 0; i < list->num_buckets; ++i) {
 			for (uint32_t j = 0; j < list->buckets[i].num_achievements; ++j) {
 				const rc_client_achievement_t* a = list->buckets[i].achievements[j];
-				if (!a->unlocked) fetch_badge(a->badge_url, false);
+				/* the list shows each in its current state; popups need the unlocked one */
+				if (!a->unlocked) fetch_badge(a->badge_locked_url, false);
+				fetch_badge(a->badge_url, false);
 			}
 		}
 		rc_client_destroy_achievement_list(list);
@@ -745,6 +751,7 @@ void ra_game_start(Emu* e, const char* romPath) {
 	gameWanted = true;
 	pendingProgress[0] = 0;
 	nPopups = 0;
+	snprintf(listStatus, sizeof(listStatus), "Loading the achievements...");
 	/* the RetroAchievements hash of a GBA game: MD5 of the whole ROM */
 	size_t size = 0;
 	uint8_t* rom = emu_rom_read_all(romPath, &size);
@@ -765,8 +772,11 @@ void ra_game_start(Emu* e, const char* romPath) {
 	else if (loginState == LOGIN_FAILED && !loginRejected) start_login();
 }
 
+void ra_list_close(void);
+
 void ra_game_end(void) {
 	if (!client) return;
+	ra_list_close();
 	pump();
 	if (gameLoaded || rc_client_is_game_loaded(client)) rc_client_unload_game(client);
 	gameWanted = gameLoaded = false;
@@ -819,6 +829,182 @@ void ra_state_loaded(const char* statePath) {
 	if (!client) return;
 	if (gameLoaded) apply_progress(statePath);
 	else if (gameWanted) snprintf(pendingProgress, sizeof(pendingProgress), "%s", statePath);
+}
+
+/* ------------------------------------------------------------ achievement list */
+
+/* The pause menu's Achievements page: rc_client's list grouped by progress
+ * (recently unlocked, almost there, locked, unlocked...), each with its
+ * badge, description and points. Scrolls by D-pad, L/R or dragging. */
+typedef struct {
+	const char* heading;                /* a bucket label, or NULL for an achievement */
+	const rc_client_achievement_t* ach;
+	SDL_Texture* tex[2];
+	int texW, texH;
+	bool texTried;
+	char path[1200];
+} ListRow;
+
+static rc_client_achievement_list_t* achList;
+static ListRow* rows;
+static int nRows;
+static int listScroll, listViewH = 1;
+
+bool ra_enabled(void) {
+	return client != NULL;
+}
+
+void ra_list_close(void) {
+	for (int i = 0; i < nRows; ++i) ui_free_image(rows[i].tex);
+	free(rows);
+	rows = NULL;
+	nRows = 0;
+	if (achList) rc_client_destroy_achievement_list(achList);
+	achList = NULL;
+}
+
+void ra_list_open(void) {
+	ra_list_close();
+	listScroll = 0;
+	if (!client || !gameLoaded) return;
+	achList = rc_client_create_achievement_list(client, RC_CLIENT_ACHIEVEMENT_CATEGORY_CORE, RC_CLIENT_ACHIEVEMENT_LIST_GROUPING_PROGRESS);
+	if (!achList) return;
+	int n = 0;
+	for (uint32_t b = 0; b < achList->num_buckets; ++b) n += 1 + (int) achList->buckets[b].num_achievements;
+	rows = calloc((size_t) n, sizeof(*rows));
+	if (!rows) return;
+	for (uint32_t b = 0; b < achList->num_buckets; ++b) {
+		const rc_client_achievement_bucket_t* bk = &achList->buckets[b];
+		if (!bk->num_achievements) continue;
+		rows[nRows++].heading = bk->label ? bk->label : "";
+		for (uint32_t j = 0; j < bk->num_achievements; ++j) {
+			ListRow* r = &rows[nRows++];
+			r->ach = bk->achievements[j];
+			const char* url = r->ach->unlocked ? r->ach->badge_url : r->ach->badge_locked_url;
+			if (url && *url) {
+				badge_path(url, r->path, sizeof(r->path));
+				fetch_badge(url, false);
+			}
+		}
+	}
+}
+
+static int row_h(int px, const ListRow* r) {
+	return r->heading ? px * 13 : px * 23;
+}
+
+static int list_total(int px) {
+	int t = 0;
+	for (int i = 0; i < nRows; ++i) t += row_h(px, &rows[i]);
+	return t;
+}
+
+void ra_list_scroll(int scr, int dy) {
+	int maxS = SDL_max(0, list_total(ui_px(scr)) - listViewH);
+	listScroll = SDL_clamp(listScroll + dy, 0, maxS);
+}
+
+int ra_list_step(int scr) {
+	return ui_px(scr) * 23;
+}
+
+int ra_list_scroll_pos(void) {
+	return listScroll;
+}
+
+void ra_list_set_scroll(int scr, int y) {
+	listScroll = 0;
+	ra_list_scroll(scr, y);
+}
+
+void ra_list_draw(int s, SDL_Rect a) {
+	int px = ui_px(s);
+	SDL_Rect sr = screens[s].rect;
+	if (!client || !gameLoaded || !achList) {
+		const char* msg = !client ? "RetroAchievements is off" : listStatus[0] ? listStatus : "Loading the achievements...";
+		ui_font_wrap(s, TF_BODY, a.x + px * 6, a.y + a.h / 3, a.w - px * 12, px * 5, msg, P_DIM);
+		return;
+	}
+	/* summary */
+	rc_client_user_game_summary_t sum;
+	rc_client_get_user_game_summary(client, &sum);
+	char line[400];
+	if (!sum.num_core_achievements) {
+		snprintf(line, sizeof(line), "This game has no achievements yet");
+	} else {
+		snprintf(line, sizeof(line), "%u of %u unlocked \xC2\xB7 %u of %u points \xC2\xB7 casual", sum.num_unlocked_achievements,
+		         sum.num_core_achievements, sum.points_unlocked, sum.points_core);
+	}
+	ui_font_text(s, TF_BODY, a.x + a.w / 2, a.y + px * 5, px * 4, line, P_GOLD, 0);
+	int top = a.y + px * 12;
+	listViewH = a.y + a.h - top;
+	ra_list_scroll(s, 0); /* keep in range */
+
+	SDL_Rect clip = { sr.x + a.x, sr.y + top, a.w, listViewH };
+	ui_clip(s, &clip);
+	int y = top - listScroll;
+	int rightW = px * 26; /* points / state column */
+	for (int i = 0; i < nRows; ++i) {
+		ListRow* r = &rows[i];
+		int h = row_h(px, r);
+		if (y + h <= top || y >= top + listViewH) {
+			y += h;
+			continue;
+		}
+		if (r->heading) {
+			fit(line, sizeof(line), TF_BOLD, px * 4, r->heading, a.w - px * 4);
+			ui_font_text(s, TF_BOLD, a.x + px * 2, y + px * 8, px * 4, line, P_GOLD, -1);
+			y += h;
+			continue;
+		}
+		const rc_client_achievement_t* ach = r->ach;
+		SDL_Rect box = { a.x, y + px, a.w, h - px * 2 };
+		ui_fill_round(s, box, (SDL_Color) { 34, 30, 58, 240 }, px * 3);
+		/* badge */
+		int b = px * 17, bx = box.x + px * 2, by = box.y + (box.h - b) / 2;
+		if (ach->unlocked) ui_fill_round(s, (SDL_Rect) { bx - px / 2 - 1, by - px / 2 - 1, b + px + 2, b + px + 2 }, P_GOLD, px * 2);
+		if (!r->texTried && r->path[0] && file_exists(r->path)) {
+			r->texTried = true;
+			ui_load_image(r->path, r->tex, &r->texW, &r->texH, true);
+		}
+		if (r->tex[0] || r->tex[1]) {
+			SDL_Rect ba = { bx, by, b, b };
+			ui_image(s, r->tex, r->texW, r->texH, "stretch", &ba);
+		} else {
+			ui_fill_round(s, (SDL_Rect) { bx, by, b, b }, P_BLANK, px * 2);
+		}
+		/* title and description */
+		int tx = bx + b + px * 5, tw = box.x + box.w - rightW - tx;
+		fit(line, sizeof(line), TF_BOLD, px * 5, ach->title, tw);
+		ui_font_text(s, TF_BOLD, tx, box.y + px * 13 / 2, px * 5, line, ach->unlocked ? P_TEXT : P_DIM, -1);
+		int cap = px * 4;
+		while (cap > px * 3 && ui_font_width(TF_BODY, cap, ach->description) > tw) --cap;
+		fit(line, sizeof(line), TF_BODY, cap, ach->description, tw);
+		ui_font_text(s, TF_BODY, tx, box.y + px * 14, cap, line, P_DIM, -1);
+		/* progress bar for measured achievements */
+		if (!ach->unlocked && ach->measured_progress[0] && ach->measured_percent > 0) {
+			SDL_Rect bar = { tx, box.y + px * 18, tw - px * 4, SDL_max(2, px * 3 / 4) };
+			ui_fill_round(s, bar, P_BLANK, bar.h / 2);
+			bar.w = (int) (bar.w * SDL_min(ach->measured_percent, 100.0f) / 100.0f);
+			if (bar.w > 0) ui_fill_round(s, bar, P_EDGE, bar.h / 2);
+		}
+		/* points, then unlocked / progress */
+		int rx = box.x + box.w - px * 5;
+		snprintf(line, sizeof(line), "%u", ach->points);
+		ui_font_text(s, TF_BOLD, rx, box.y + px * 13 / 2, px * 6, line, ach->unlocked ? P_GOLD : P_DIM, 1);
+		const char* sub = ach->unlocked ? "Unlocked" : ach->measured_progress[0] ? ach->measured_progress : ach->points == 1 ? "point" : "points";
+		ui_font_text(s, TF_BODY, rx, box.y + px * 14, px * 3, sub,
+		             ach->unlocked ? (SDL_Color) { 120, 210, 150, 255 } : P_DIM, 1);
+		y += h;
+	}
+	ui_clip(s, NULL);
+	/* scroll bar */
+	int total = list_total(px), maxS = total - listViewH;
+	if (maxS > 0) {
+		int bh = SDL_max(px * 6, listViewH * listViewH / total);
+		int byy = top + (listViewH - bh) * listScroll / maxS;
+		ui_fill_round(s, (SDL_Rect) { sr.w - px * 3, byy, px * 2, bh }, P_EDGE, px);
+	}
 }
 
 #endif

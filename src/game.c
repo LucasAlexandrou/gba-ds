@@ -57,15 +57,15 @@ static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_CHEATS, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
+enum MenuItem { M_RESUME, M_CHEATS, M_ACH, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
 static const char* menuLabels[] = {
 	/* title case: drawn in Futura from the built-in images (tools/make_brand.py) */
 	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_MAPRATE] = "", [M_RESTART] = "Restart Game",
-	[M_LOAD] = "Load State", [M_CHEATS] = "Cheats", [M_SHOT] = "Take Screenshot", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
+	[M_LOAD] = "Load State", [M_CHEATS] = "Cheats", [M_ACH] = "Achievements", [M_SHOT] = "Take Screenshot", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
 };
-static int menuItems[10], nMenuItems;
+static int menuItems[12], nMenuItems;
 /* two pages, switched with L1/R1 or the tabs */
-static int pages[2][8], pageLen[2], curPage;
+static int pages[2][12], pageLen[2], curPage;
 /* Buttons still held when the menu closes (or after a HOME combo) are kept
  * from the game until released, so e.g. the A that picked "Save state"
  * doesn't make Samus jump. */
@@ -91,6 +91,7 @@ static const SDL_Color C_GOLD = { 232, 200, 120, 255 };
 
 static Cheats cheats;
 static SDL_Rect tab_rect(int scr, int t);
+static SDL_Rect ach_area(int scr);
 
 static bool item_enabled(int item) {
 	if (item == M_CHEATS) return cheats.n > 0;
@@ -104,6 +105,11 @@ static bool item_enabled(int item) {
  * pill each: D-pad / A to toggle, L/R a page at a time, B (or the Back box)
  * back to the menu. Touch: tap a cheat to toggle it, drag to scroll. */
 static bool cheatsOpen;
+/* "Achievements" (RetroAchievements signed in): the list from ra.c, under
+ * the same Back / title boxes. D-pad scrolls, L/R a page, B back. */
+static bool achOpen;
+static int achPressY, achPressScroll;
+static bool achPressed;
 static int cheatSel;                 /* row index */
 static int cheatScroll;              /* pixels */
 static int cheatRows[CHEAT_MAX_FILES + 1024], nCheatRows; /* >= 0 cheat index, < 0 file header (-1 - file) */
@@ -343,6 +349,19 @@ static void draw_menu(void) {
 	int px = ui_px(scr);
 	int cap = px * 11 / 2;   /* Futura capital height */
 	int rad = px * 3;        /* box corner radius */
+	if (achOpen) {
+		SDL_Rect b = tab_rect(scr, 0), t = tab_rect(scr, 1);
+		ui_fill_round(scr, b, C_BTN, rad);
+		ui_label(scr, b.x + b.w / 2, b.y + b.h / 2, cap, "Back", C_TEXT);
+		ui_fill_round(scr, t, C_BTN_EDGE, rad);
+		ui_label(scr, t.x + t.w / 2, t.y + t.h / 2, cap, "Achievements", (SDL_Color) { 20, 16, 36, 255 });
+		ra_list_draw(scr, ach_area(scr));
+		if (nScreens > 1) {
+			int o = ui_other_screen();
+			ui_label(o, screens[o].rect.w / 2, screens[o].rect.h / 2, (ui_px(o) + 1) * 7 * 34 / 35, "Paused", C_GOLD);
+		}
+		return;
+	}
 	if (cheatsOpen) {
 		draw_cheats(scr);
 		if (nScreens > 1) {
@@ -1022,8 +1041,21 @@ static void draw_game(void) {
 	draw_osd();
 }
 
+static void close_ach(void) {
+	if (achOpen) ra_list_close();
+	achOpen = false;
+}
+
+/* the list's area: below the Back / title boxes */
+static SDL_Rect ach_area(int scr) {
+	SDL_Rect r = screens[scr].rect;
+	int px = ui_px(scr);
+	return (SDL_Rect) { px * 6, px * 25, r.w - px * 12, r.h - px * 27 };
+}
+
 static void open_menu(void) {
 	cheatsOpen = false;
+	close_ach();
 	set_page(0);
 	menuOpen = true;
 	menuSel = 0;
@@ -1042,6 +1074,11 @@ static bool activate(int item, enum GameExit* exitTo) {
 	case M_SHOT:
 		menuOpen = false; /* taken from the next frame, without the menu */
 		shotPending = true;
+		break;
+	case M_ACH:
+		ra_list_open();
+		achOpen = true;
+		achPressed = false;
 		break;
 	case M_CHEATS:
 		if (!cheats.n) snprintf(menuNote, sizeof(menuNote), "No cheats found (see the README)");
@@ -1241,6 +1278,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[0][pageLen[0]++] = M_SAVE;
 	pages[0][pageLen[0]++] = M_LOAD;
 	pages[0][pageLen[0]++] = M_CHEATS;
+	if (ra_enabled()) pages[0][pageLen[0]++] = M_ACH;
 	pages[0][pageLen[0]++] = M_SHOT;
 	if (fromLibrary) pages[0][pageLen[0]++] = M_LIBRARY;
 	pages[0][pageLen[0]++] = M_EXIT;
@@ -1341,6 +1379,24 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				continue;
 			}
 			if (p.screen != ui_touch_screen()) continue;
+			if (achOpen) {
+				if (p.kind == 1) {
+					if (tab_at(p.screen, p.x, p.y) == 0) {
+						close_ach(); /* Back */
+						ignorePointerUp = true;
+						continue;
+					}
+					achPressed = true;
+					achPressY = p.y;
+					achPressScroll = ra_list_scroll_pos();
+				} else if (p.kind == 3 && achPressed) {
+					ra_list_set_scroll(p.screen, achPressScroll - (p.y - achPressY));
+				} else if (p.kind == 2) {
+					achPressed = false;
+					ignorePointerUp = false;
+				}
+				continue;
+			}
 			if (cheatsOpen) {
 				int px = ui_px(p.screen);
 				if (p.kind == 1) {
@@ -1445,7 +1501,20 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		if (done) break;
 
-		if (menuOpen && cheatsOpen) {
+		if (menuOpen && achOpen) {
+			int scr = ui_touch_screen();
+			static int held[2];
+			for (int k = 0; k < 2; ++k) {
+				int b = k ? B_DOWN : B_UP;
+				held[k] = btnNow[b] ? held[k] + 1 : 0;
+				if (held[k] == 1 || (held[k] > 20 && held[k] % 4 == 0)) ra_list_scroll(scr, (k ? 1 : -1) * ra_list_step(scr));
+			}
+			int page = ach_area(scr).h * 3 / 4;
+			if (btn_pressed(B_L)) ra_list_scroll(scr, -page);
+			if (btn_pressed(B_R)) ra_list_scroll(scr, page);
+			if (btn_pressed(B_B)) close_ach();
+			if (btn_pressed(B_START)) close_ach(), menuOpen = false;
+		} else if (menuOpen && cheatsOpen) {
 			/* D-pad repeats while held */
 			static int held[2];
 			for (int k = 0; k < 2; ++k) {
