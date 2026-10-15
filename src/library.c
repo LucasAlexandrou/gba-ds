@@ -7,6 +7,7 @@
 #include "brand.h"
 #include "emu.h"
 #include "esinteg.h"
+#include "ra.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -589,9 +590,17 @@ static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 
 static char settingsMsg[128];
 
+/* Settings: a row of buttons, each with its text below, then Back.
+ * ROCKNIX: GBA DS in EmulationStation. Android: ROM Folder, RetroAchievements. */
+#ifdef __ANDROID__
+#define SETTINGS_ROWS 2
+#else
+#define SETTINGS_ROWS 1
+#endif
+
 typedef struct {
-	SDL_Rect panel, toggle, back;
-	int textY, px;
+	SDL_Rect panel, row[SETTINGS_ROWS], back;
+	int textY[SETTINGS_ROWS], px;
 } SettingsGeom;
 
 static SettingsGeom settings_geom(int scr) {
@@ -601,63 +610,114 @@ static SettingsGeom settings_geom(int scr) {
 	g.px = px;
 	int m = px * 6, rowH = px * 18;
 	g.panel = (SDL_Rect) { m, m, r.w - m * 2, r.h - m * 2 };
-	g.toggle = (SDL_Rect) { g.panel.x + px * 6, g.panel.y + px * 26, g.panel.w - px * 12, rowH };
-	g.textY = g.toggle.y + rowH + px * 8;
+	for (int i = 0; i < SETTINGS_ROWS; ++i) {
+		g.row[i] = (SDL_Rect) { g.panel.x + px * 6, g.panel.y + px * 26 + i * (rowH + px * 44), g.panel.w - px * 12, rowH };
+		g.textY[i] = g.row[i].y + rowH + px * 8;
+	}
 	g.back = (SDL_Rect) { g.panel.x + (g.panel.w - px * 60) / 2, g.panel.y + g.panel.h - rowH - px * 6, px * 60, rowH };
 	return g;
 }
 
-/* Upper-case pixel text, wrapped to width; returns the y below it. */
 /* Body text in Jost, word-wrapped; returns the y below it. */
 static int draw_wrapped(int scr, int x, int y, int width, int px, const char* text, SDL_Color c) {
 	return ui_font_wrap(scr, TF_BODY, x, y, width, px * 4, text, c);
 }
 
+/* The panel, its buttons (labels[i] on row i; sel == SETTINGS_ROWS is Back). */
+static void draw_settings_frame(int scr, const SettingsGeom* g, int sel, const char* const* labels) {
+	int px = g->px;
+	ui_dim(scr, 200);
+	ui_fill_round(scr, g->panel, C_HEADER, px * 4);
+	ui_label(scr, g->panel.x + g->panel.w / 2, g->panel.y + px * 12, px * 6, "Settings", C_TEXT);
+	for (int i = 0; i <= SETTINGS_ROWS; ++i) {
+		SDL_Rect b = i < SETTINGS_ROWS ? g->row[i] : g->back;
+		if (i == sel) ui_fill_round(scr, (SDL_Rect) { b.x - px, b.y - px, b.w + px * 2, b.h + px * 2 }, C_EDGE, px * 4);
+		ui_fill_round(scr, b, i == sel ? C_SEL : C_ROW, px * 3);
+		ui_label(scr, b.x + b.w / 2, b.y + b.h / 2, px * 5, i < SETTINGS_ROWS ? labels[i] : "Back", C_TEXT);
+	}
+}
+
 #ifdef __ANDROID__
-/* Android: Settings is the ROM folder, chosen with Android's folder picker
- * (android.c), kept in <state_dir>/library.cfg. */
-static bool pickPending;
+/* Android: the ROM folder, chosen with Android's folder picker (android.c),
+ * kept in <state_dir>/library.cfg; the RetroAchievements account, signed in
+ * with a dialog (android.c, GbaDsActivity) and kept as a token by ra.c. */
+static bool pickPending, raDialogPending;
 
 static void draw_settings(const Config* cfg, int scr, int sel) {
 	SettingsGeom g = settings_geom(scr);
 	int px = g.px;
-	ui_dim(scr, 200);
-	ui_fill_round(scr, g.panel, C_HEADER, px * 4);
-	ui_label(scr, g.panel.x + g.panel.w / 2, g.panel.y + px * 12, px * 6, "Settings", C_TEXT);
-	SDL_Rect b[2] = { g.toggle, g.back };
-	for (int i = 0; i < 2; ++i) {
-		if (i == sel) ui_fill_round(scr, (SDL_Rect) { b[i].x - px, b[i].y - px, b[i].w + px * 2, b[i].h + px * 2 }, C_EDGE, px * 4);
-		ui_fill_round(scr, b[i], i == sel ? C_SEL : C_ROW, px * 3);
+	char user[128], err[256];
+	int ra = ra_account(user, sizeof(user), err, sizeof(err));
+	const char* raLabel = ra == RA_ACCOUNT_OK     ? "RetroAchievements: Sign Out" :
+	                      ra == RA_ACCOUNT_BUSY   ? "RetroAchievements: Signing In..." :
+	                      ra == RA_ACCOUNT_OFF    ? "RetroAchievements: Off" :
+	                                                "RetroAchievements: Sign In";
+	const char* labels[SETTINGS_ROWS] = { "ROM Folder", raLabel };
+	draw_settings_frame(scr, &g, sel, labels);
+	int tx = g.row[0].x + px * 2, tw = g.row[0].w - px * 4;
+	char line[1400];
+	if (pickPending) {
+		snprintf(line, sizeof(line), "Choose a folder in Android's file picker...");
+	} else {
+		char dirs[sizeof(cfg->romDir)];
+		snprintf(dirs, sizeof(dirs), "%s", cfg->romDir);
+		for (char* p = dirs; *p; ++p) {
+			if (*p == ':') *p = ' ';
+		}
+		snprintf(line, sizeof(line), "Games are read from %s (subfolders too).", dirs);
 	}
-	ui_label(scr, g.toggle.x + g.toggle.w / 2, g.toggle.y + g.toggle.h / 2, px * 5, "ROM Folder", C_TEXT);
-	ui_label(scr, g.back.x + g.back.w / 2, g.back.y + g.back.h / 2, px * 5, "Back", C_TEXT);
-	int tx = g.toggle.x + px * 2, tw = g.toggle.w - px * 4;
-	char dirs[sizeof(cfg->romDir)], line[1200];
-	snprintf(dirs, sizeof(dirs), "%s", cfg->romDir);
-	for (char* p = dirs; *p; ++p) {
-		if (*p == ':') *p = ' ';
+	draw_wrapped(scr, tx, g.textY[0], tw, px, line, C_DIM);
+	if (raDialogPending) {
+		snprintf(line, sizeof(line), "Enter your account in the sign-in box...");
+	} else if (ra == RA_ACCOUNT_OK) {
+		snprintf(line, sizeof(line), "Signed in as %s. Achievements are earned in casual mode.", user);
+	} else if (ra == RA_ACCOUNT_BUSY) {
+		snprintf(line, sizeof(line), "Signing in as %s...", user);
+	} else if (ra == RA_ACCOUNT_FAILED) {
+		size_t n = strlen(err);
+		while (n && (err[n - 1] == '.' || err[n - 1] == ' ')) err[--n] = 0; /* the server's own full stop */
+		snprintf(line, sizeof(line), "Couldn't sign in as %s%s%s. Sign in to try again.", user, err[0] ? ": " : "", err);
+	} else if (ra == RA_ACCOUNT_OFF) {
+		snprintf(line, sizeof(line), "Switched off in gba-ds.cfg (retroachievements = 0).");
+	} else {
+		snprintf(line, sizeof(line),
+		         "Earn achievements in casual mode with your retroachievements.org account. GBA DS keeps a sign-in token, "
+		         "not your password.");
 	}
-	snprintf(line, sizeof(line), "Games are read from: %s", dirs);
-	int y = draw_wrapped(scr, tx, g.textY, tw, px, line, C_DIM);
-	y = draw_wrapped(scr, tx, y + px * 4, tw, px,
-	                 pickPending ? "Choose a folder in Android's file picker..."
-	                             : "ROM Folder opens Android's file picker. Games in its subfolders are found too.",
-	                 C_DIM);
+	int y = draw_wrapped(scr, tx, g.textY[1], tw, px, line, ra == RA_ACCOUNT_FAILED ? C_GOLD : C_DIM);
 	if (settingsMsg[0]) draw_wrapped(scr, tx, y + px * 6, tw, px, settingsMsg, C_GOLD);
 }
 
-static void settings_toggle(Config* cfg) {
+static void settings_activate(Config* cfg, int row) {
 	(void) cfg;
-	if (android_pick_folder()) {
-		pickPending = true;
-		settingsMsg[0] = 0;
-	} else {
-		snprintf(settingsMsg, sizeof(settingsMsg), "Couldn't open the file picker.");
+	settingsMsg[0] = 0;
+	if (row == 0) {
+		if (android_pick_folder()) pickPending = true;
+		else snprintf(settingsMsg, sizeof(settingsMsg), "Couldn't open the file picker.");
+		return;
+	}
+	char user[128], err[256];
+	int ra = ra_account(user, sizeof(user), err, sizeof(err));
+	if (ra == RA_ACCOUNT_OK) {
+		ra_sign_out();
+		snprintf(settingsMsg, sizeof(settingsMsg), "Signed out of RetroAchievements.");
+	} else if (ra == RA_ACCOUNT_NONE || ra == RA_ACCOUNT_FAILED) {
+		if (android_ra_dialog(user)) raDialogPending = true;
+		else snprintf(settingsMsg, sizeof(settingsMsg), "Couldn't open the sign-in box.");
 	}
 }
 
-/* The picker's answer, once it comes. True if the folder changed. */
+/* Answers from the folder picker and the sign-in box, once they come.
+ * True if the ROM folder changed. */
 static bool settings_poll(Config* cfg) {
+	if (raDialogPending) {
+		char user[128], pass[256];
+		int st = android_take_ra_credentials(user, sizeof(user), pass, sizeof(pass));
+		if (st) raDialogPending = false;
+		if (st > 0 && user[0] && pass[0]) ra_sign_in(user, pass);
+		else if (st > 0) snprintf(settingsMsg, sizeof(settingsMsg), "Enter both your username and your password.");
+		memset(pass, 0, sizeof(pass));
+	}
 	if (!pickPending) return false;
 	char path[1024];
 	int st = android_take_picked_folder(path, sizeof(path));
@@ -675,20 +735,11 @@ static bool settings_poll(Config* cfg) {
 static void draw_settings(const Config* cfg, int scr, int sel) {
 	SettingsGeom g = settings_geom(scr);
 	int px = g.px;
-	ui_dim(scr, 200);
-	ui_fill_round(scr, g.panel, C_HEADER, px * 4);
-	ui_label(scr, g.panel.x + g.panel.w / 2, g.panel.y + px * 12, px * 6, "Settings", C_TEXT);
-	bool on = es_integration_on(cfg);
-	SDL_Rect b[2] = { g.toggle, g.back };
-	for (int i = 0; i < 2; ++i) {
-		if (i == sel) ui_fill_round(scr, (SDL_Rect) { b[i].x - px, b[i].y - px, b[i].w + px * 2, b[i].h + px * 2 }, C_EDGE, px * 4);
-		ui_fill_round(scr, b[i], i == sel ? C_SEL : C_ROW, px * 3);
-	}
-	ui_label(scr, g.toggle.x + g.toggle.w / 2, g.toggle.y + g.toggle.h / 2, px * 5,
-	         on ? "GBA DS in EmulationStation: On" : "GBA DS in EmulationStation: Off", C_TEXT);
-	ui_label(scr, g.back.x + g.back.w / 2, g.back.y + g.back.h / 2, px * 5, "Back", C_TEXT);
-	int tx = g.toggle.x + px * 2, tw = g.toggle.w - px * 4;
-	int y = draw_wrapped(scr, tx, g.textY, tw, px,
+	const char* labels[SETTINGS_ROWS] = { es_integration_on(cfg) ? "GBA DS in EmulationStation: On"
+	                                                             : "GBA DS in EmulationStation: Off" };
+	draw_settings_frame(scr, &g, sel, labels);
+	int tx = g.row[0].x + px * 2, tw = g.row[0].w - px * 4;
+	int y = draw_wrapped(scr, tx, g.textY[0], tw, px,
 	                     "Adds GBA DS to the emulators for Game Boy Advance games in EmulationStation. Pick it for one game "
 	                     "(its Advanced Game Options > Emulator) or for all of them (the system's advanced settings). "
 	                     "The other emulators keep working as before.",
@@ -696,7 +747,8 @@ static void draw_settings(const Config* cfg, int scr, int sel) {
 	if (settingsMsg[0]) draw_wrapped(scr, tx, y + px * 6, tw, px, settingsMsg, C_GOLD);
 }
 
-static void settings_toggle(Config* cfg) {
+static void settings_activate(Config* cfg, int row) {
+	(void) row;
 	es_integration_set(cfg, !es_integration_on(cfg), settingsMsg, sizeof(settingsMsg));
 }
 
@@ -780,6 +832,7 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 		}
 		ui_tick();
 		ui_read_buttons();
+		ra_idle(); /* sign-in answers (at start-up, or from Settings) */
 		ls = ui_touch_screen();
 		ListGeom g = list_geom(ls);
 
@@ -818,9 +871,10 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 				scroll = 0;
 				snprintf(settingsMsg, sizeof(settingsMsg), "%d game%s found.", nGames, nGames == 1 ? "" : "s");
 			}
-			if (btn_pressed(B_UP) || btn_pressed(B_DOWN)) settingsSel = !settingsSel;
+			if (btn_pressed(B_DOWN)) settingsSel = (settingsSel + 1) % (SETTINGS_ROWS + 1);
+			if (btn_pressed(B_UP)) settingsSel = (settingsSel + SETTINGS_ROWS) % (SETTINGS_ROWS + 1);
 			if (btn_pressed(B_A) || btn_pressed(B_START)) {
-				if (settingsSel == 0) settings_toggle(cfg);
+				if (settingsSel < SETTINGS_ROWS) settings_activate(cfg, settingsSel);
 				else settingsOpen = false;
 			}
 			if (btn_pressed(B_B) || btn_pressed(B_SELECT) || btn_released(B_HOME)) settingsOpen = false;
@@ -829,8 +883,12 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 				if (p.screen != ls || p.kind != 1) continue;
 				SettingsGeom sg = settings_geom(ls);
 				SDL_Point pt = { p.x, p.y };
-				if (SDL_PointInRect(&pt, &sg.toggle)) settingsSel = 0, settings_toggle(cfg);
-				else if (SDL_PointInRect(&pt, &sg.back) || !SDL_PointInRect(&pt, &sg.panel)) settingsSel = 1, settingsOpen = false;
+				int hit = -1;
+				for (int i = 0; i < SETTINGS_ROWS; ++i) {
+					if (SDL_PointInRect(&pt, &sg.row[i])) hit = i;
+				}
+				if (hit >= 0) settingsSel = hit, settings_activate(cfg, hit);
+				else if (SDL_PointInRect(&pt, &sg.back) || !SDL_PointInRect(&pt, &sg.panel)) settingsSel = SETTINGS_ROWS, settingsOpen = false;
 			}
 			pressed = false;
 			ui_clear();

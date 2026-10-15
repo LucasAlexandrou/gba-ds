@@ -153,6 +153,141 @@ void android_perf_report(int64_t workNs) {
 	if (hintSession && workNs > 0) hintReport(hintSession, workNs);
 }
 
+/* ------------------------------------------------------------- HTTP (RetroAchievements) */
+
+static jclass httpClass;
+static jmethodID httpRequest;
+
+/* The app's classes are only visible to FindClass from a thread Java
+ * started, so Http is looked up here, while Java loads this library. */
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
+	JNIEnv* env;
+	if ((*vm)->GetEnv(vm, (void**) &env, JNI_VERSION_1_6) != JNI_OK) return JNI_VERSION_1_6;
+	jclass c = (*env)->FindClass(env, "io/github/kyannon/gbads/Http");
+	if (c) {
+		httpClass = (*env)->NewGlobalRef(env, c);
+		httpRequest = (*env)->GetStaticMethodID(env, c, "request",
+		                                        "(Ljava/lang/String;Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;[I)[B");
+		(*env)->DeleteLocalRef(env, c);
+	}
+	if ((*env)->ExceptionCheck(env)) {
+		(*env)->ExceptionClear(env);
+		httpRequest = NULL;
+	}
+	if (!httpRequest) __android_log_write(ANDROID_LOG_ERROR, TAG, "Http.request not found: no RetroAchievements");
+	return JNI_VERSION_1_6;
+}
+
+int android_http(const char* url, const char* contentType, const char* post, const char* userAgent, const char* outPath,
+                 char** body, size_t* len) {
+	if (body) *body = NULL;
+	if (len) *len = 0;
+	JNIEnv* env = (JNIEnv*) SDL_AndroidGetJNIEnv(); /* attaches this thread if needed */
+	if (!env || !httpClass || !httpRequest) return -1;
+	if ((*env)->PushLocalFrame(env, 16) < 0) {
+		(*env)->ExceptionClear(env);
+		return -1;
+	}
+	jstring jurl = (*env)->NewStringUTF(env, url);
+	jstring jtype = contentType ? (*env)->NewStringUTF(env, contentType) : NULL;
+	jstring jua = userAgent ? (*env)->NewStringUTF(env, userAgent) : NULL;
+	jstring jout = outPath ? (*env)->NewStringUTF(env, outPath) : NULL;
+	jbyteArray jpost = NULL;
+	if (post) {
+		jsize n = (jsize) strlen(post);
+		jpost = (*env)->NewByteArray(env, n);
+		if (jpost) (*env)->SetByteArrayRegion(env, jpost, 0, n, (const jbyte*) post);
+	}
+	jintArray jstatus = (*env)->NewIntArray(env, 1);
+	int code = -1;
+	if (jurl && jstatus) {
+		jbyteArray res = (jbyteArray) (*env)->CallStaticObjectMethod(env, httpClass, httpRequest, jurl, jtype, jpost, jua, jout, jstatus);
+		if ((*env)->ExceptionCheck(env)) {
+			(*env)->ExceptionClear(env);
+		} else {
+			jint st = -1;
+			(*env)->GetIntArrayRegion(env, jstatus, 0, 1, &st);
+			code = st;
+			if (res && body) {
+				jsize n = (*env)->GetArrayLength(env, res);
+				*body = malloc((size_t) n + 1);
+				if (*body) {
+					(*env)->GetByteArrayRegion(env, res, 0, n, (jbyte*) *body);
+					(*body)[n] = 0;
+					if (len) *len = (size_t) n;
+				}
+			}
+		}
+	}
+	(*env)->PopLocalFrame(env, NULL);
+	return code;
+}
+
+/* ------------------------------------------------------------- RetroAchievements sign-in dialog */
+
+static pthread_mutex_t raLock = PTHREAD_MUTEX_INITIALIZER;
+static char raUser[128], raPass[256];
+static int raState; /* 0 nothing, 1 entered, -1 cancelled */
+
+/* Calls a method of the activity, (String) -> void, from the game thread. */
+static bool call_activity(const char* name, const char* arg) {
+	JNIEnv* env = (JNIEnv*) SDL_AndroidGetJNIEnv();
+	jobject activity = (jobject) SDL_AndroidGetActivity();
+	if (!env || !activity) return false;
+	jclass cls = (*env)->GetObjectClass(env, activity);
+	jmethodID m = (*env)->GetMethodID(env, cls, name, "(Ljava/lang/String;)V");
+	bool ok = m != NULL;
+	if (ok) {
+		jstring s = (*env)->NewStringUTF(env, arg ? arg : "");
+		(*env)->CallVoidMethod(env, activity, m, s);
+		(*env)->DeleteLocalRef(env, s);
+	}
+	if ((*env)->ExceptionCheck(env)) {
+		(*env)->ExceptionClear(env);
+		ok = false;
+	}
+	(*env)->DeleteLocalRef(env, cls);
+	(*env)->DeleteLocalRef(env, activity);
+	return ok;
+}
+
+bool android_ra_dialog(const char* user) {
+	pthread_mutex_lock(&raLock);
+	raState = 0;
+	pthread_mutex_unlock(&raLock);
+	return call_activity("raSignInDialog", user);
+}
+
+int android_take_ra_credentials(char* user, size_t userSize, char* pass, size_t passSize) {
+	pthread_mutex_lock(&raLock);
+	int st = raState;
+	if (st == 1) {
+		snprintf(user, userSize, "%s", raUser);
+		snprintf(pass, passSize, "%s", raPass);
+	}
+	memset(raPass, 0, sizeof(raPass));
+	raState = 0;
+	pthread_mutex_unlock(&raLock);
+	return st;
+}
+
+JNIEXPORT void JNICALL Java_io_github_kyannon_gbads_GbaDsActivity_nativeRaCredentials(JNIEnv* env, jclass cls, jstring user,
+                                                                                     jstring pass) {
+	const char* u = user ? (*env)->GetStringUTFChars(env, user, NULL) : NULL;
+	const char* p = pass ? (*env)->GetStringUTFChars(env, pass, NULL) : NULL;
+	pthread_mutex_lock(&raLock);
+	if (u && p) {
+		snprintf(raUser, sizeof(raUser), "%s", u);
+		snprintf(raPass, sizeof(raPass), "%s", p);
+		raState = 1;
+	} else {
+		raState = -1;
+	}
+	pthread_mutex_unlock(&raLock);
+	if (u) (*env)->ReleaseStringUTFChars(env, user, u);
+	if (p) (*env)->ReleaseStringUTFChars(env, pass, p);
+}
+
 /* ------------------------------------------------------------- ROM folder picker */
 
 static pthread_mutex_t pickLock = PTHREAD_MUTEX_INITIALIZER;

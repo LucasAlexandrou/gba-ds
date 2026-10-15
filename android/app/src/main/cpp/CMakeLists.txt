@@ -37,15 +37,22 @@ file(STRINGS "${GBADS_MGBA_BUILD}/CMakeFiles/mgba.dir/flags.make" MGBA_DEFINES_L
 string(REGEX REPLACE "^C_DEFINES = " "" MGBA_DEFINES "${MGBA_DEFINES_LINE}")
 separate_arguments(MGBA_DEFINES)
 
+# --- rcheevos (RetroAchievements, MIT), vendored; the same files as the Makefile's RC_SRC ---
+set(RC "${GBADS_ROOT}/third_party/rcheevos")
+file(GLOB RC_SRC "${RC}/src/*.c" "${RC}/src/rapi/*.c" "${RC}/src/rcheevos/*.c")
+add_library(rcheevos STATIC ${RC_SRC} "${RC}/src/rhash/md5.c")
+set_target_properties(rcheevos PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
+target_include_directories(rcheevos PUBLIC "${RC}/include" PRIVATE "${RC}/src")
+
 # --- GBA DS ---
 set(S "${GBADS_ROOT}/src")
 add_library(main SHARED
 	${S}/main.c ${S}/config.c ${S}/font.c ${S}/ui.c ${S}/library.c ${S}/game.c ${S}/paths.c ${S}/image.c
 	${S}/brand_data.c ${S}/logo.c ${S}/mapframe.c ${S}/cheats.c ${S}/esinteg.c ${S}/textfont.c ${S}/fonts_data.c
-	${S}/emu.c ${S}/mapcap.c ${S}/profiles.c ${S}/logo_masks.c
+	${S}/emu.c ${S}/mapcap.c ${S}/profiles.c ${S}/logo_masks.c ${S}/ra.c
 	${S}/android.c)
 set_target_properties(main PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
 target_compile_options(main PRIVATE ${MGBA_DEFINES} -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers)
-target_compile_definitions(main PRIVATE GBADS_VERSION="${GBADS_VERSION}")
-target_include_directories(main PRIVATE "${GBADS_MGBA_SRC}/include" "${GBADS_MGBA_BUILD}/include")
-target_link_libraries(main PRIVATE SDL2::SDL2 ${MGBA_LIBS} android log EGL m)
+target_compile_definitions(main PRIVATE GBADS_VERSION="${GBADS_VERSION}" GBADS_RA)
+target_include_directories(main PRIVATE "${GBADS_MGBA_SRC}/include" "${GBADS_MGBA_BUILD}/include" "${RC}/src")
+target_link_libraries(main PRIVATE SDL2::SDL2 ${MGBA_LIBS} rcheevos android log EGL m)

@@ -1,5 +1,6 @@
 package io.github.kyannon.gbads;
 
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -12,9 +13,14 @@ import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.system.ErrnoException;
 import android.system.Os;
+import android.text.InputType;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Display;
 import android.view.WindowManager;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 
 import org.libsdl.app.SDLActivity;
 
@@ -166,6 +172,57 @@ public class GbaDsActivity extends SDLActivity {
     private static final int PICK_FOLDER = 4711;
 
     static native void nativeFolderPicked(String path);
+
+    /* ------------------------------------------------------------ RetroAchievements sign-in */
+
+    /** user/password, or nulls when cancelled. */
+    static native void nativeRaCredentials(String user, String password);
+
+    /**
+     * Called by the native side (game thread), from the game list's Settings:
+     * a dialog for the RetroAchievements account. The password goes to the
+     * native side once, which signs in with it and keeps only the token.
+     */
+    public void raSignInDialog(String user) {
+        runOnUiThread(() -> {
+            int pad = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics());
+            LinearLayout box = new LinearLayout(this);
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setPadding(pad, pad / 2, pad, 0);
+            EditText name = new EditText(this);
+            name.setHint("Username");
+            name.setSingleLine(true);
+            name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+            name.setImeOptions(EditorInfo.IME_ACTION_NEXT);
+            if (user != null) name.setText(user);
+            EditText pass = new EditText(this);
+            pass.setHint("Password");
+            pass.setSingleLine(true);
+            pass.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            pass.setImeOptions(EditorInfo.IME_ACTION_DONE);
+            box.addView(name);
+            box.addView(pass);
+            final boolean[] answered = { false };
+            AlertDialog d = new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                    .setTitle("RetroAchievements")
+                    .setMessage("Sign in with your retroachievements.org account. GBA DS keeps a sign-in token, not your password.")
+                    .setView(box)
+                    .setPositiveButton("Sign in", (dialog, which) -> {
+                        answered[0] = true;
+                        nativeRaCredentials(name.getText().toString().trim(), pass.getText().toString());
+                    })
+                    .setNegativeButton("Cancel", (dialog, which) -> {
+                        answered[0] = true;
+                        nativeRaCredentials(null, null);
+                    })
+                    .create();
+            d.setOnDismissListener(dialog -> {
+                if (!answered[0]) nativeRaCredentials(null, null); /* BACK, or a tap outside */
+            });
+            d.show();
+            (name.getText().length() > 0 ? pass : name).requestFocus();
+        });
+    }
 
     /** Called by the native side (game thread): opens Android's folder picker. */
     public void pickRomFolder() {

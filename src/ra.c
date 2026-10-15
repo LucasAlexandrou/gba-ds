@@ -10,11 +10,17 @@
 #include "rc_util.h"
 #include "rhash/md5.h"
 
+#ifdef __ANDROID__
+#include "android.h"
+#endif
+
 #include <SDL.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#ifndef __ANDROID__
 #include <spawn.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,14 +34,16 @@
  * client...) with ids from here on: not real ones, so never listed. */
 #define WARNING_ID 101000001u
 
+#ifndef __ANDROID__
 extern char** environ;
+#endif
 
 static rc_client_t* client;
 static const Config* cfg;
 static char userAgent[160];
 static char cacheDir[1100]; /* <state_dir>/ra: login token, badges */
 
-/* ------------------------------------------------------------ HTTP (curl) */
+/* ------------------------------------------------------------ HTTP (curl; Android: Java's HttpURLConnection) */
 
 /* One request for the worker thread: a server call for rc_client (its
  * response goes back to the main thread), or a file to download. */
@@ -83,6 +91,25 @@ static void push(Job** list, Job* j, bool front) {
 	t->next = j;
 }
 
+#ifdef __ANDROID__
+/* Android has no curl: the request goes through Java (android.c, Http.java),
+ * from this worker thread. */
+static void run_job(Job* j) {
+	if (j->outPath) {
+		if (android_http(j->url, NULL, NULL, userAgent, j->outPath, NULL, NULL) / 100 != 2) {
+			fprintf(stderr, "ra: download failed: %s\n", j->url);
+		}
+		return;
+	}
+	char* body = NULL;
+	size_t len = 0;
+	const char* ctype = j->post ? (j->ctype ? j->ctype : "application/x-www-form-urlencoded") : NULL;
+	int code = android_http(j->url, ctype, j->post, userAgent, NULL, &body, &len);
+	j->status = code > 0 ? code : RC_API_SERVER_RESPONSE_RETRYABLE_CLIENT_ERROR;
+	j->body = body;
+	j->len = body ? len : 0;
+}
+#else
 /* Runs curl with argv; its output goes to *out (malloc'd), stdin gets
  * `in` (may be NULL). Returns curl's exit status (-1: couldn't run it). */
 static int run_curl(char* const* argv, const char* in, char** out, size_t* outLen) {
@@ -209,6 +236,7 @@ static void run_job(Job* j) {
 	j->body = out;
 	j->len = len;
 }
+#endif
 
 static void* worker_main(void* arg) {
 	(void) arg;
@@ -441,7 +469,9 @@ enum { LOGIN_OFF, LOGIN_BUSY, LOGIN_OK, LOGIN_FAILED };
 static int loginState;
 static bool loginRejected; /* the server said no to every credential (don't retry) */
 static int loginStep;
-static char raUser[128], raPass[256], sysToken[256], savedToken[256], lastError[256];
+static bool loginInteractive; /* signing in from the Settings screen: its status shows there, no popups */
+static bool raOff;            /* retroachievements = 0 */
+static char raUser[128], raPass[256], sysToken[256], savedUser[128], savedToken[256], lastError[256];
 
 static void begin_load(void);
 
@@ -490,6 +520,7 @@ static void save_token(const char* user, const char* token) {
 	}
 	fprintf(f, "# RetroAchievements sign-in, kept so the password isn't sent every time\nuser = %s\ntoken = %s\n", user, token);
 	fclose(f);
+	snprintf(savedUser, sizeof(savedUser), "%s", user);
 	snprintf(savedToken, sizeof(savedToken), "%s", token);
 }
 
@@ -500,8 +531,11 @@ static void login_done(int result, const char* error, rc_client_t* c, void* ud) 
 	if (result == RC_OK) {
 		const rc_client_user_t* u = rc_client_get_user_info(client);
 		loginState = LOGIN_OK;
+		loginInteractive = false;
+		lastError[0] = 0;
 		fprintf(stderr, "ra: signed in as %s\n", u && u->display_name ? u->display_name : raUser);
 		if (u) save_token(u->username ? u->username : raUser, u->token);
+		memset(raPass, 0, sizeof(raPass)); /* the token does from here on */
 		if (gameWanted) begin_load();
 		return;
 	}
@@ -536,8 +570,18 @@ static void next_login(void) {
 		}
 	}
 	loginState = LOGIN_FAILED;
+	memset(raPass, 0, sizeof(raPass));
+	if (loginInteractive) {
+		loginInteractive = false; /* the Settings screen shows lastError */
+		return;
+	}
+#ifdef __ANDROID__
+	note("Sign-in failed", cfg->raUser[0] ? "Check ra_username and ra_password in gba-ds.cfg"
+	                                     : "Sign in again in the game list's Settings");
+#else
 	note("Sign-in failed", cfg->raUser[0] ? "Check ra_username and ra_password in gba-ds.cfg"
 	                                     : "Check the account in EmulationStation's RetroAchievements settings");
+#endif
 }
 
 static void start_login(void) {
@@ -660,6 +704,7 @@ static void on_event(const rc_client_event_t* ev, rc_client_t* c) {
 	}
 }
 
+#ifndef __ANDROID__
 /* key=value from ROCKNIX's system.cfg */
 static bool sys_setting(const char* key, char* out, size_t n) {
 	FILE* f = fopen(cfg->raSystemCfg, "r");
@@ -679,15 +724,60 @@ static bool sys_setting(const char* key, char* out, size_t n) {
 	fclose(f);
 	return found;
 }
+#endif
+
+/* <state_dir>/ra/login.cfg: the account last signed in, and its token */
+static void read_saved_login(void) {
+	char path[1200], line[512];
+	savedUser[0] = savedToken[0] = 0;
+	snprintf(path, sizeof(path), "%s/login.cfg", cacheDir);
+	FILE* f = fopen(path, "r");
+	while (f && fgets(line, sizeof(line), f)) {
+		line[strcspn(line, "\r\n")] = 0;
+		if (!strncmp(line, "user = ", 7)) snprintf(savedUser, sizeof(savedUser), "%s", line + 7);
+		if (!strncmp(line, "token = ", 8)) snprintf(savedToken, sizeof(savedToken), "%s", line + 8);
+	}
+	if (f) fclose(f);
+}
+
+static bool client_setup(void) {
+	if (client) return true;
+	char badges[1200];
+	snprintf(badges, sizeof(badges), "%s/badges", cacheDir);
+	mkdirs(badges);
+	client = rc_client_create(read_memory, server_call);
+	if (!client) return false;
+	rc_client_enable_logging(client, getenv("GBADS_DEBUG") ? RC_CLIENT_LOG_LEVEL_VERBOSE : RC_CLIENT_LOG_LEVEL_WARN, log_message);
+	rc_client_set_event_handler(client, on_event);
+	rc_client_set_hardcore_enabled(client, 0); /* casual only, for now */
+	if (cfg->raHost[0]) rc_client_set_host(client, cfg->raHost);
+	char clause[64] = "";
+	rc_client_get_user_agent_clause(client, clause, sizeof(clause));
+#ifdef __ANDROID__
+	snprintf(userAgent, sizeof(userAgent), "GBADS/%s (Android) %s", GBADS_VERSION, clause);
+#else
+	snprintf(userAgent, sizeof(userAgent), "GBADS/%s (Linux) %s", GBADS_VERSION, clause);
+#endif
+	return true;
+}
 
 void ra_init(const Config* c) {
 	cfg = c;
-	if (!strcmp(cfg->raMode, "0") || !strcasecmp(cfg->raMode, "off")) return;
-	char enabled[16] = "";
+	snprintf(cacheDir, sizeof(cacheDir), "%s/ra", cfg->stateDir);
+	if (!strcmp(cfg->raMode, "0") || !strcasecmp(cfg->raMode, "off")) {
+		raOff = true;
+		return;
+	}
+	read_saved_login();
 	if (cfg->raUser[0]) {
 		snprintf(raUser, sizeof(raUser), "%s", cfg->raUser);
 		snprintf(raPass, sizeof(raPass), "%s", cfg->raPassword);
 	} else {
+#ifdef __ANDROID__
+		/* the account signed in in the game list's Settings (ra_sign_in) */
+		snprintf(raUser, sizeof(raUser), "%s", savedUser);
+#else
+		char enabled[16] = "";
 		sys_setting("global.retroachievements", enabled, sizeof(enabled));
 		sys_setting("global.retroachievements.username", raUser, sizeof(raUser));
 		sys_setting("global.retroachievements.password", raPass, sizeof(raPass));
@@ -697,41 +787,62 @@ void ra_init(const Config* c) {
 		if (!strcmp(hc, "1")) fprintf(stderr, "ra: hardcore mode isn't supported yet: playing in casual mode\n");
 		if (strcmp(enabled, "1") && strcmp(cfg->raMode, "1")) {
 			if (raUser[0]) fprintf(stderr, "ra: off (RetroAchievements is switched off in EmulationStation)\n");
+			raUser[0] = 0;
 			return;
 		}
+#endif
 	}
 	if (!raUser[0]) {
 		if (!strcmp(cfg->raMode, "1")) fprintf(stderr, "ra: no account (set ra_username / ra_password)\n");
 		return;
 	}
-	snprintf(cacheDir, sizeof(cacheDir), "%s/ra", cfg->stateDir);
-	char badges[1200];
-	snprintf(badges, sizeof(badges), "%s/badges", cacheDir);
-	mkdirs(badges);
-	{
-		char path[1200], line[512], u[128] = "";
-		snprintf(path, sizeof(path), "%s/login.cfg", cacheDir);
-		FILE* f = fopen(path, "r");
-		while (f && fgets(line, sizeof(line), f)) {
-			line[strcspn(line, "\r\n")] = 0;
-			if (!strncmp(line, "user = ", 7)) snprintf(u, sizeof(u), "%s", line + 7);
-			if (!strncmp(line, "token = ", 8)) snprintf(savedToken, sizeof(savedToken), "%s", line + 8);
-		}
-		if (f) fclose(f);
-		if (strcasecmp(u, raUser)) savedToken[0] = 0; /* another account's */
-	}
-
-	client = rc_client_create(read_memory, server_call);
-	if (!client) return;
-	rc_client_enable_logging(client, getenv("GBADS_DEBUG") ? RC_CLIENT_LOG_LEVEL_VERBOSE : RC_CLIENT_LOG_LEVEL_WARN, log_message);
-	rc_client_set_event_handler(client, on_event);
-	rc_client_set_hardcore_enabled(client, 0); /* casual only, for now */
-	if (cfg->raHost[0]) rc_client_set_host(client, cfg->raHost);
-	char clause[64] = "";
-	rc_client_get_user_agent_clause(client, clause, sizeof(clause));
-	snprintf(userAgent, sizeof(userAgent), "GBADS/%s (Linux) %s", GBADS_VERSION, clause);
+	if (strcasecmp(savedUser, raUser)) savedToken[0] = 0; /* another account's */
+	if (!client_setup()) return;
 	fprintf(stderr, "ra: signing in as %s (casual mode)\n", raUser);
 	start_login();
+}
+
+int ra_account(char* user, size_t userSize, char* msg, size_t msgSize) {
+	snprintf(user, userSize, "%s", raUser);
+	snprintf(msg, msgSize, "%s", lastError);
+	if (raOff) return RA_ACCOUNT_OFF;
+	switch (loginState) {
+	case LOGIN_BUSY: return RA_ACCOUNT_BUSY;
+	case LOGIN_OK: return RA_ACCOUNT_OK;
+	case LOGIN_FAILED: return RA_ACCOUNT_FAILED;
+	default: return RA_ACCOUNT_NONE;
+	}
+}
+
+void ra_sign_in(const char* user, const char* password) {
+	if (raOff || !cfg || loginState == LOGIN_BUSY) return;
+	lastError[0] = 0;
+	if (!client_setup()) {
+		snprintf(lastError, sizeof(lastError), "RetroAchievements couldn't start");
+		loginState = LOGIN_FAILED;
+		return;
+	}
+	if (loginState == LOGIN_OK) rc_client_logout(client);
+	snprintf(raUser, sizeof(raUser), "%s", user);
+	snprintf(raPass, sizeof(raPass), "%s", password);
+	sysToken[0] = savedToken[0] = 0;
+	loginInteractive = true;
+	fprintf(stderr, "ra: signing in as %s (from Settings)\n", raUser);
+	loginStep = 2; /* the password */
+	loginRejected = false;
+	next_login();
+}
+
+void ra_sign_out(void) {
+	if (!cfg || loginState == LOGIN_BUSY) return;
+	if (client && loginState == LOGIN_OK) rc_client_logout(client);
+	fprintf(stderr, "ra: signed out\n");
+	loginState = LOGIN_OFF;
+	raUser[0] = savedUser[0] = savedToken[0] = lastError[0] = 0;
+	memset(raPass, 0, sizeof(raPass));
+	char path[1200];
+	snprintf(path, sizeof(path), "%s/login.cfg", cacheDir);
+	unlink(path);
 }
 
 void ra_shutdown(void) {

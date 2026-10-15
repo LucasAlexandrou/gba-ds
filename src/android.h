@@ -26,6 +26,17 @@ bool android_pick_folder(void);
 /* 1: a folder was picked (its path in out), -1: cancelled, 0: no answer yet. */
 int android_take_picked_folder(char* out, size_t size);
 
+/* RetroAchievements: an HTTP request through Java (Http.java), from any
+ * thread. post NULL: GET. outPath: download to that file (body unused).
+ * Returns the HTTP status, or -1 if there was no answer; *body is
+ * malloc'd and 0-terminated. */
+int android_http(const char* url, const char* contentType, const char* post, const char* userAgent, const char* outPath,
+                 char** body, size_t* len);
+/* The sign-in dialog (username prefilled): false if it couldn't open. Its
+ * answer comes later: 1 entered (user, password), -1 cancelled, 0 none yet. */
+bool android_ra_dialog(const char* user);
+int android_take_ra_credentials(char* user, size_t userSize, char* pass, size_t passSize);
+
 /* Performance hint (Android 13+): on the game thread, once; then each
  * frame's work time (excluding the wait for the next frame). */
 void android_perf_init(int64_t targetNs);

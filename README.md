@@ -114,7 +114,7 @@ GBA DS earns [RetroAchievements](https://retroachievements.org) in **casual (sof
 - Save states keep the achievements' progress beside them (`<state>.ra`), so loading a state doesn't unlock anything by mistake. Cheats are allowed in casual mode.
 - Offline, the game plays as normal; unlocks earned while the connection drops are sent once it's back.
 - `retroachievements = 0` in `gba-ds.cfg` turns it off; `ra_username` and `ra_password` use another account than EmulationStation's. After the first sign-in GBA DS keeps a login token in `states/ra/login.cfg` instead of sending the password each time, and badges are cached in `states/ra/badges/`.
-- Not in the Android version yet.
+- **Android:** sign in in the game list's **Settings** → **RetroAchievements: Sign In**, which asks for your retroachievements.org username and password. GBA DS keeps a sign-in token (in `GBA DS/states/ra/login.cfg`), not the password, and signs in by itself from then on. **RetroAchievements: Sign Out** forgets the account.
 
 ### Cheats
 

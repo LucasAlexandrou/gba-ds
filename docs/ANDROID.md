@@ -52,14 +52,34 @@ SDL.
 6. **Launching from frontends** (optional, later): an intent filter so
    frontends like Daijisho / ES-DE can start GBA DS with a ROM path.
 
-## RetroAchievements (not on Android yet)
+## RetroAchievements
 
-`src/ra.c` (main session, ROCKNIX first) isn't in the Android build: without
-GBADS_RA, `ra.h` turns every call into a no-op, so nothing is needed to keep
-building. To bring it over: compile `src/ra.c` and `third_party/rcheevos`
-(see the Makefile's RC_SRC) with -DGBADS_RA, and replace `run_job()`'s curl
-with HTTP through Java (HttpURLConnection over JNI; Android has no curl
-binary). The account would come from the app's own Settings.
+`src/ra.c` and `third_party/rcheevos` are compiled into libmain with
+GBADS_RA (CMakeLists: rcheevos as its own static library, the Makefile's
+RC_SRC). Differences from ROCKNIX:
+
+- HTTP: Android has no curl, so `run_job()` calls `android_http()`
+  (android.c), which calls `Http.request()` (Java, HttpURLConnection, the
+  system's certificates) from ra.c's worker thread (SDL attaches it to the
+  JVM). The Http class is looked up in libmain's JNI_OnLoad: FindClass on
+  a native thread can't see the app's classes. The manifest has INTERNET.
+- Account: no system.cfg. The game list's Settings has a RetroAchievements
+  row: Sign In opens a dialog (GbaDsActivity.raSignInDialog, username and
+  password, on-screen keyboard); the answer goes to `ra_sign_in()`, which
+  signs in with the password and keeps only the token
+  (`<state_dir>/ra/login.cfg`, as on ROCKNIX). At start-up `ra_init` signs
+  in with that token. Sign Out (`ra_sign_out`) deletes it. ra_username /
+  ra_password in gba-ds.cfg still override. The library loop calls
+  `ra_idle()` so sign-in answers are handled there too.
+- User agent: "GBADS/x (Android)".
+- CLAUDE.md's ra.c line still says Android has no-op stubs (the main
+  session's file): it should say ra.c is built on Android too, with HTTP
+  through `android_http()`.
+- Tested on the desktop with -D__ANDROID__ and stand-ins for android.c (HTTP
+  through curl, a dialog answering with a test account) against
+  tools/ra_mock.py: wrong password, right password, token sign-in on
+  restart, unlock, badge downloads, sign-out; and the ROCKNIX build
+  unchanged. Not yet on the device.
 
 ## Build pipeline
 
@@ -329,3 +349,5 @@ frontend launch intents.
 Player-facing Android changes since the last release, for the main session
 to move into CHANGELOG.md and the release notes (see CLAUDE.md, "More than
 one session"). Empty after each release.
+
+- **RetroAchievements on Android** (casual mode), as on ROCKNIX: progress and unlocks on the second screen, and the Achievements list in the pause menu. Sign in in the game list's **Settings** → **RetroAchievements**; GBA DS keeps a sign-in token, not your password.

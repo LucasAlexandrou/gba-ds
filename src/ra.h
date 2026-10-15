@@ -1,13 +1,14 @@
 /* RetroAchievements, casual (softcore) mode, through rcheevos' rc_client.
  *
  * The account is ROCKNIX's (EmulationStation's RetroAchievements settings,
- * global.retroachievements.* in system.cfg) unless gba-ds.cfg names one.
- * Server requests run the system's curl in a background thread; their
- * results are handed to rc_client on the main thread. Unlocks and the
+ * global.retroachievements.* in system.cfg) unless gba-ds.cfg names one; on
+ * Android, the one signed in in the game list's Settings (ra_sign_in), kept
+ * as a token in <state_dir>/ra/login.cfg. Server requests run in a
+ * background thread (the system's curl; Android: Java's HttpURLConnection);
+ * their results are handed to rc_client on the main thread. Unlocks and the
  * game's progress show as popups on the second screen.
  *
- * Built where GBADS_RA is defined (desktop and ROCKNIX); elsewhere these are
- * no-ops. */
+ * Built where GBADS_RA is defined; elsewhere these are no-ops. */
 #ifndef GBADS_RA_H
 #define GBADS_RA_H
 
@@ -17,6 +18,9 @@
 #include <SDL.h>
 
 #include <stdbool.h>
+
+/* ra_account's answer */
+enum { RA_ACCOUNT_NONE, RA_ACCOUNT_BUSY, RA_ACCOUNT_OK, RA_ACCOUNT_FAILED, RA_ACCOUNT_OFF };
 
 #ifdef GBADS_RA
 /* At start-up: reads the account and starts signing in. */
@@ -46,6 +50,13 @@ void ra_list_scroll(int screen, int dy);
 int ra_list_step(int screen); /* one achievement's height */
 int ra_list_scroll_pos(void);
 void ra_list_set_scroll(int screen, int y);
+/* The Settings screen's sign-in (Android): the account's state, its user
+ * name and the last error; signing in with a password (in the background:
+ * watch ra_account, and call ra_idle meanwhile); signing out (forgets the
+ * token). Both do nothing while a sign-in is under way. */
+int ra_account(char* user, size_t userSize, char* msg, size_t msgSize);
+void ra_sign_in(const char* user, const char* password);
+void ra_sign_out(void);
 #else
 static inline void ra_init(const Config* cfg) { (void) cfg; }
 static inline void ra_shutdown(void) {}
@@ -65,6 +76,13 @@ static inline void ra_list_scroll(int screen, int dy) { (void) screen, (void) dy
 static inline int ra_list_step(int screen) { (void) screen; return 1; }
 static inline int ra_list_scroll_pos(void) { return 0; }
 static inline void ra_list_set_scroll(int screen, int y) { (void) screen, (void) y; }
+static inline int ra_account(char* user, size_t userSize, char* msg, size_t msgSize) {
+	if (userSize) user[0] = 0;
+	if (msgSize) msg[0] = 0;
+	return RA_ACCOUNT_OFF;
+}
+static inline void ra_sign_in(const char* user, const char* password) { (void) user, (void) password; }
+static inline void ra_sign_out(void) {}
 #endif
 
 #endif
