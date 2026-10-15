@@ -42,6 +42,7 @@ typedef struct Config {
 	char touchScreen[16]; /* first | second: which screen has the touch panel */
 	char touchMap[16];    /* window | screen: how touch coordinates map */
 	bool autoResume;      /* save state on exit, load it on launch */
+	bool nameTags;        /* library keeps (USA), (En,Fr) etc. in game names */
 	bool showAll;         /* library lists games without a map profile too */
 	char rom[512];        /* launch straight into this game (skips the library) */
 

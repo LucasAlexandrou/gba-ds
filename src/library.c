@@ -142,28 +142,28 @@ static bool dir_seen(const char* d) {
 	return false;
 }
 
-/* Drops language lists like "(En,Fr,De,Es,It)" from a file name (the region
- * flag already tells copies apart); region tags like "(USA)" stay. */
-static void strip_language_tags(char* name) {
-	for (char* o = strchr(name, '('); o; o = strchr(o, '(')) {
-		char* p = o + 1;
-		bool langs = true;
-		for (;;) {
-			if (!isalpha((unsigned char) p[0]) || !isalpha((unsigned char) p[1])) { langs = false; break; }
-			p += 2;
-			if (*p == '-' && isalpha((unsigned char) p[1]) && isalpha((unsigned char) p[2])) p += 3; /* En-GB */
-			if (*p == ',' || *p == '+') { ++p; continue; }
-			break;
-		}
-		if (!langs || *p != ')') { ++o; continue; }
-		char* end = p + 1;
-		char* start = o;
-		while (start > name && start[-1] == ' ') --start;
-		memmove(start, end, strlen(end) + 1);
-		o = start;
+/* Drops the tags from a file name, "(USA)", "(En,Fr,De)", "[!]" and the
+ * like (name_tags = 1 keeps them): the flag tells regional copies apart.
+ * A name that is nothing but tags is left as it is. */
+static void strip_tags(char* name) {
+	char out[sizeof(((GameEntry*) 0)->name)];
+	size_t n = 0;
+	int depth = 0;
+	for (const char* p = name; *p && n + 1 < sizeof(out); ++p) {
+		if (*p == '(' || *p == '[') ++depth;
+		else if ((*p == ')' || *p == ']') && depth) --depth;
+		else if (!depth) out[n++] = *p;
 	}
-	size_t n = strlen(name);
-	while (n && name[n - 1] == ' ') name[--n] = 0;
+	out[n] = 0;
+	/* collapse the spaces the tags leave behind */
+	char* o = out;
+	for (char* q = out; *q; ++q) {
+		if (*q == ' ' && (o == out || o[-1] == ' ')) continue;
+		*o++ = *q;
+	}
+	while (o > out && (o[-1] == ' ' || o[-1] == '-')) --o;
+	*o = 0;
+	if (out[0]) strcpy(name, out);
 }
 
 static void scan_dir(Config* cfg, const char* d, int depth) {
@@ -204,9 +204,9 @@ static void scan_dir(Config* cfg, const char* d, int depth) {
 		for (char* c = g.name; *c; ++c) {
 			if (*c == '_') *c = ' ';
 		}
-		strip_language_tags(g.name);
 		const MapProfile* prof = profile_find(g.code);
 		if (prof && prof->listName) snprintf(g.name, sizeof(g.name), "%s", prof->listName);
+		if (!cfg->nameTags) strip_tags(g.name);
 		games = realloc(games, sizeof(*games) * (nGames + 1));
 		games[nGames++] = g;
 	}

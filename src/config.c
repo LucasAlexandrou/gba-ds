@@ -29,6 +29,7 @@ void config_defaults(Config* c) {
 	c->ffSpeed = 3;
 	c->autoResume = true;
 	c->showAll = false;
+	c->nameTags = false;
 	c->homeButton = -1;
 	c->lcdStrength = 35;
 	strcpy(c->borderColor, "000000");
@@ -94,6 +95,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	STR("touch_map", touchMap)
 	BOOL("auto_resume", autoResume)
 	BOOL("show_all", showAll)
+	BOOL("name_tags", nameTags)
 	STR("load_state", loadState)
 	INT("quit_after", quitAfter)
 	STR("es_config_dir", esConfigDir)

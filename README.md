@@ -52,6 +52,7 @@ Works on stock [ROCKNIX](https://rocknix.org) and on ROCKNIXDS. On stock ROCKNIX
 The app opens on a game list: two columns of tiles on the touchscreen, each showing the game's own logo. Tap a tile to play, or move with the D-pad (L/R jump a screenful) and press A.
 - The list is rebuilt from the ROM folder every time it opens, so games you add or remove show up with nothing to re-run.
 - Only games with map support are listed. Set `show_all = 1` to list every GBA ROM; games without map support play normally on one screen.
+- Game names leave out tags like `(USA)` and `(En,Fr,De)`; a flag marks regional copies when you have more than one. Set `name_tags = 1` to keep the tags.
 - The top screen shows the game's logo, or where it will resume once you've played it.
 - The first time the list opens, each game's logo and map border art are pulled out of the ROMs in the background (about a minute on the RG DS Plus); tiles say "Loading thumbnail..." until their logo is ready. If you pick a game before that's done, a "Preparing games" screen waits for it, so the game doesn't start with crackling audio. This only happens once; the results are kept in `gba-ds/states/`.
 
