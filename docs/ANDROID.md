@@ -427,6 +427,18 @@ frontend launch intents.
   worker thread; close waits for it. Desktop: -DGBADS_ASYNC_SAVE turns it
   on (tested: same .sav as without). Also early in that session, a few
   100-600 ms draws of one screen (frames 670-1090), cause unknown.
+- Aria of Sorrow log (owner, 2026-10-15), first ~90 s with the map screen
+  static (logo / no map yet: bottom redrawn 5 of 300 frames), then the map
+  animating (bottom redrawn ~76 of 300): slow frames went from about one
+  every 3-5 s to 1-7 every second, mostly with both screens redrawn in the
+  same frame (drawing 10-14 ms). Map capture busy was about the same in
+  both parts (0-20% vs 2-33%), so the hidden core isn't the cause; drawing
+  both displays in one frame is. ui_present now draws the game's view
+  first and, if the frame is already past 70% of its time
+  (ui_present_budget; GBADS_DRAW_BUDGET=ms overrides, for testing), puts the
+  other view's redraw off to the next frame, at most 3 frames in a row
+  (logged: "N redraw(s) of the other screen put off a frame"). Desktop
+  check with a 0 ms budget: the map still steps (73 of 300 redraws vs 75).
 - Opening the pause menu costs one ~300 ms frame (its text images); not
   looked at yet.
 - Slow frames: game.c logs, each second there are any, the worst frame's

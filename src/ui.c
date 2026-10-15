@@ -784,6 +784,22 @@ double ui_last_present_ms(int view) {
 #ifdef __ANDROID__
 static int syncWant = -1, syncApplied = -2;
 #endif
+#ifdef __ANDROID__
+static int budgetFirst = -1, deferred;
+static Uint64 budgetStart;
+static double budgetMs;
+static int deferCount; /* for the log */
+#endif
+void ui_present_budget(int first, Uint64 frameStart, double ms) {
+#ifdef __ANDROID__
+	budgetFirst = first;
+	budgetStart = frameStart;
+	budgetMs = ms;
+#else
+	(void) first, (void) frameStart, (void) ms;
+#endif
+}
+
 void ui_sync_view(int view) {
 #ifdef __ANDROID__
 	syncWant = view;
@@ -820,8 +836,21 @@ void ui_present(void) {
 		        syncWant < 0 ? "no screen" : syncWant == screens[0].view ? "the top screen" : "the bottom screen");
 		syncApplied = syncWant;
 	}
-	for (int i = 0; i < nViews; ++i) {
+	int order[2] = { 0, 1 };
+	if (budgetFirst == 1 && nViews == 2) order[0] = 1, order[1] = 0;
+	for (int k = 0; k < nViews; ++k) {
+		int i = order[k];
 		Uint64 vt0 = SDL_GetPerformanceCounter();
+		lastPresentMs[i] = 0;
+		if (k > 0 && budgetFirst >= 0 && views[i].retained && !pendingShot[0] && deferred < 3 &&
+		    (double) (vt0 - budgetStart) * 1000.0 / (double) SDL_GetPerformanceFrequency() > budgetMs &&
+		    ops_sig(&ret[i]) != ret[i].lastSig) {
+			/* over budget: this view's change waits a frame (lastSig unchanged, so it's redrawn next time) */
+			++deferred;
+			++deferCount;
+			continue;
+		}
+		if (k > 0) deferred = 0;
 		if (!views[i].retained) {
 			SDL_RenderPresent(views[i].ren);
 			lastRedraws |= 1 << i;
@@ -844,6 +873,8 @@ void ui_present(void) {
 			rv->draws = 0;
 		}
 		if (handover) fprintf(stderr, "software second screen: handing over %.2f ms per frame\n", handover * ms / frames);
+		if (deferCount) fprintf(stderr, "%d redraw(s) of the other screen put off a frame (frame over budget)\n", deferCount);
+		deferCount = 0;
 		android_second_log_timing(frames);
 		handover = 0;
 		frames = 0;

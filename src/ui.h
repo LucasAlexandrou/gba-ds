@@ -90,6 +90,13 @@ double ui_last_present_ms(int view);
  * a little late); -1 for none. Elsewhere: nothing. */
 void ui_sync_view(int view);
 
+/* Android: the next ui_present draws `first` (the game's view) first, and
+ * puts off redrawing the other view to the next frame (at most a few in a
+ * row) if the frame, started at frameStart (performance counter), has
+ * already used budgetMs: an animation step a frame late isn't seen, a late
+ * game frame is. first < 0: no ordering. Elsewhere: nothing. */
+void ui_present_budget(int first, Uint64 frameStart, double budgetMs);
+
 SDL_Renderer* ui_ren(int screen);
 /* Draws a texture (one per view, indexed by view) letterboxed into a screen area. */
 void ui_image(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, const SDL_Rect* areaLocal);

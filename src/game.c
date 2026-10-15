@@ -1825,6 +1825,12 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		gameTexAll = false;
 		ui_sync_view(cfg->vsync ? screens[game_screen()].view : -1); /* Android; testing (docs/ANDROID.md) */
+		{
+			/* the other screen's redraw waits a frame if this one is past 70% of its time */
+			static double budget = -1;
+			if (budget < 0) budget = getenv("GBADS_DRAW_BUDGET") ? atof(getenv("GBADS_DRAW_BUDGET")) : frameSec * 1000.0 * 0.7;
+			ui_present_budget(ff ? -1 : screens[game_screen()].view, workT0, budget);
+		}
 		ui_clear();
 		draw_game();
 		if (shotPending) {
