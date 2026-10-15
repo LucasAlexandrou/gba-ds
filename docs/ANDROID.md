@@ -356,6 +356,15 @@ frontend launch intents.
   provider's real path (`_data`, or /storage/... inside the URI) before
   copying. Every launch logs the whole intent ("launched with action=...")
   so a failing frontend shows what it sent.
+- Owner's test: the explicit template `-n io.github.kyannon.gbads/.LauncherActivity
+  -a android.intent.action.VIEW -d {file.uri}` works; the default one gave
+  a black screen and no gba-ds.log (so it never reached the game). Likely
+  cause: the launcher read every extra, and a Parcelable extra of a class
+  only GammaOS has throws on reading (BadParcelableException), uncaught.
+  Now each extra is read on its own inside try/catch, the ROM is resolved
+  (and copied if it must be) on a worker thread, and `GBA DS/launch.log`
+  records every launch request, the game found, and any Java crash
+  (default uncaught-exception handler), so failures are visible without adb.
 - Achievement popups: ra_draw fitted its text every frame (tf_width per
   letter cut, GPOS kerning: ~0.3 ms per frame on a desktop CPU, several
   times that on the A55). ui.c now caches text widths (WIDTH_CACHE), which

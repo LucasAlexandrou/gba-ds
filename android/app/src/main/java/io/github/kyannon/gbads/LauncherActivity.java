@@ -19,6 +19,7 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -37,11 +38,55 @@ import java.io.OutputStream;
 public class LauncherActivity extends Activity {
     private static final String TAG = "GBADS";
     private boolean askedForFiles;
+    private boolean starting; /* the game is being started (onResume can come twice) */
+    private static boolean crashLogInstalled;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         if (state != null) askedForFiles = state.getBoolean("askedForFiles");
+        installCrashLog(getApplicationContext());
+    }
+
+    /* ------------------------------------------------------------ launch.log
+     * What frontends sent and what came of it, in the GBA DS folder, so a
+     * launch that fails before the game starts (when gba-ds.log isn't
+     * written) can be looked at without adb. */
+
+    static File dataDir(Context c) {
+        if (Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) {
+            File shared = new File(Environment.getExternalStorageDirectory(), "GBA DS");
+            if (shared.isDirectory() || shared.mkdirs()) return shared;
+        }
+        File app = c.getExternalFilesDir(null);
+        return app != null ? app : c.getFilesDir();
+    }
+
+    static synchronized void launchLog(Context c, String line) {
+        Log.i(TAG, line);
+        try {
+            File f = new File(dataDir(c), "launch.log");
+            if (f.length() > 64 * 1024) f.delete(); /* keep it short */
+            try (FileOutputStream os = new FileOutputStream(f, true)) {
+                String stamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(new java.util.Date());
+                os.write((stamp + "  " + line + "\n").getBytes("UTF-8"));
+            }
+        } catch (IOException | RuntimeException e) {
+            Log.w(TAG, "launch.log: " + e);
+        }
+    }
+
+    /** Java crashes (in the launcher or the game's Java side) go to launch.log too. */
+    private static synchronized void installCrashLog(Context app) {
+        if (crashLogInstalled) return;
+        crashLogInstalled = true;
+        final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, e) -> {
+            java.io.StringWriter sw = new java.io.StringWriter();
+            e.printStackTrace(new java.io.PrintWriter(sw));
+            launchLog(app, "crashed (" + thread.getName() + "): " + sw);
+            if (previous != null) previous.uncaughtException(thread, e);
+        });
     }
 
     @Override
@@ -77,10 +122,28 @@ public class LauncherActivity extends Activity {
     }
 
     private void startGame() {
+        if (starting) return;
+        starting = true;
+        final Intent in = getIntent();
+        final Context app = getApplicationContext();
+        /* off the UI thread: a game from another app's provider may have to be
+         * copied, which takes a while for a big ROM */
+        new Thread(() -> {
+            String rom = null;
+            try {
+                rom = romFromIntent(app, in);
+            } catch (Throwable t) {
+                launchLog(app, "couldn't get the game from the launch request: " + t);
+            }
+            final String found = rom;
+            runOnUiThread(() -> launchGame(found));
+        }, "gbads-launch").start();
+    }
+
+    private void launchGame(String rom) {
         Intent game = new Intent(this, GbaDsActivity.class);
-        String rom = romFromIntent(this, getIntent());
         if (rom != null) {
-            Log.i(TAG, "game from the intent: " + rom);
+            launchLog(this, "game from the launch request: " + rom);
             game.putExtra("rom", rom);
         }
         /* A task of its own (see taskAffinity in the manifest): started inside
@@ -95,7 +158,11 @@ public class LauncherActivity extends Activity {
             startActivity(game, options.toBundle());
         } catch (SecurityException | IllegalArgumentException e) {
             Log.w(TAG, "could not pick the display: " + e);
-            startActivity(game);
+            try {
+                startActivity(game);
+            } catch (RuntimeException e2) {
+                launchLog(this, "couldn't start the game: " + e2);
+            }
         }
         finish();
     }
@@ -107,23 +174,48 @@ public class LauncherActivity extends Activity {
             "bootPath", "BootPath", "uri", "URI", "romUri", "filePath", "file_path", "rom_path", "gamePath", "game" };
 
     /** Everything a launch request carries, for the log (frontends differ; this shows what one sent). */
-    private static void logIntent(Intent in) {
+    private static void logIntent(Context c, Intent in) {
         StringBuilder b = new StringBuilder("launched with action=").append(in.getAction())
                 .append(" data=").append(in.getData()).append(" type=").append(in.getType())
                 .append(" flags=0x").append(Integer.toHexString(in.getFlags()));
+        if (in.getComponent() != null) b.append(" component=").append(in.getComponent().flattenToShortString());
         if (in.getCategories() != null) b.append(" categories=").append(in.getCategories());
-        if (in.getExtras() != null) {
-            for (String k : in.getExtras().keySet()) b.append(" extra ").append(k).append('=').append(in.getExtras().get(k));
+        try {
+            Bundle ex = in.getExtras();
+            if (ex != null) {
+                for (String k : ex.keySet()) {
+                    Object v;
+                    try {
+                        v = ex.get(k);
+                    } catch (RuntimeException e) {
+                        v = "(unreadable: " + e.getClass().getSimpleName() + ")";
+                    }
+                    b.append(" extra ").append(k).append('=').append(v);
+                }
+            }
+        } catch (RuntimeException e) {
+            /* extras of a type only the sender knows: reading them throws */
+            b.append(" extras unreadable (").append(e).append(')');
         }
         if (in.getClipData() != null && in.getClipData().getItemCount() > 0) b.append(" clip=").append(in.getClipData().getItemAt(0).getUri());
-        Log.i(TAG, b.toString());
+        launchLog(c, b.toString());
+    }
+
+    /** One extra, or null if it's missing or can't be read. */
+    private static Object extra(Intent in, String k) {
+        try {
+            Bundle ex = in.getExtras();
+            return ex != null ? ex.get(k) : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     static String romFromIntent(Context c, Intent in) {
         if (in == null) return null;
-        logIntent(in);
+        logIntent(c, in);
         for (String k : ROM_EXTRAS) {
-            Object v = in.getExtras() != null ? in.getExtras().get(k) : null;
+            Object v = extra(in, k);
             if (v instanceof Uri) return fromUri(c, (Uri) v);
             if (v instanceof String && !((String) v).isEmpty()) {
                 String str = (String) v;
