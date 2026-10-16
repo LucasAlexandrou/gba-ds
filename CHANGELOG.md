@@ -1,5 +1,7 @@
 # Changelog
 
+## v1.1.4 (not yet released)
+
 ## v1.1.3 (2026-10-15)
 
 - **LCD grid** now covers Mario Kart's second screen too, with the same cell size as the game screen.
