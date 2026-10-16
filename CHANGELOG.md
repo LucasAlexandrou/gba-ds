@@ -2,6 +2,8 @@
 
 ## v1.1.4 (not yet released)
 
+- **No Second Screen: Show Logo / Keep Blank** (pause menu → Display): when the game has nothing for the second screen (title screens, menus, before the first map), show the game's logo there or leave it black. Also `show_logo` in gba-ds.cfg.
+- **The logo on the second screen now looks like a second GBA screen:** the same size as the game beside it, following the second screen's Scale setting, and with the LCD grid when it's on.
 ## v1.1.3 (2026-10-15)
 
 - **LCD grid** now covers Mario Kart's second screen too, with the same cell size as the game screen.

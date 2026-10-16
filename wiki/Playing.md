@@ -39,6 +39,7 @@ Tap the touchscreen, or press **HOME** (Android: **SELECT + START** together, or
 - **Scale**: Pixel Perfect (sharp, whole-number scale with a small border), Full Width (fills the width, keeps the shape, stays sharp), Zoom (fills the height, cutting off the left and right edges) or Stretch (fills the whole screen).
 - **LCD Grid**: a pixel grid like a GBA screen's, on both screens. `lcd_strength` sets how dark.
 - **Overlays**: primary / secondary / both / none. See [[Map screen surrounds and overlays]].
+- **No Second Screen: Show Logo / Keep Blank**: what the second screen shows when the game has nothing for it (title screens, menus, before the first map): the game's logo, or nothing.
 - **Map Animations**: off shows a still map, without the blinking markers.
 - **Map Refresh**: how often the map updates, every 3, 1.5 (default), 1 or 0.5 seconds. Shorter is more up to date but works the CPU harder.
 - **Show FPS**: frames per second and % of full speed, above the game.
@@ -102,9 +103,9 @@ GBA DS earns [RetroAchievements](https://retroachievements.org) in **casual (sof
 
 ## Logos
 
-Until the second screen has something to show (title screen, intro, menus), it shows the game's logo. No logo files are shipped: the first time a game appears in the list, GBA DS boots it silently in the background, runs it to its title screen and renders just the layer that holds the logo, at the game's own resolution with transparency. It's saved as `states/logos/<CODE>.png` and drawn at sharp whole-number scale.
+Until the second screen has something to show (title screen, intro, menus), it shows the game's logo. No logo files are shipped: the first time a game appears in the list, GBA DS boots it silently in the background, runs it to its title screen and renders just the layer that holds the logo, at the game's own resolution with transparency. It's saved as `states/logos/<CODE>.png`. The logo is drawn like a second GBA screen: centred in a GBA-sized picture, with the second screen's scaling and the LCD grid, so it matches the game beside it. **No Second Screen: Keep Blank** (pause menu → Display) leaves the second screen black instead.
 
-To use your own art instead, put `<CODE>.png` (or `.bmp`) in `gba-ds/logos/` (Android: `GBA DS/logos/`). `<CODE>` is the game's four-letter code, listed in [[Supported games]].
+To use your own art instead, put `<CODE>.png` (or `.bmp`) in `gba-ds/logos/` (Android: `GBA DS/logos/`). Art up to 240×160 is treated like the extracted logos; bigger images are fitted, smoothly, to where the GBA picture would be (without the grid). `<CODE>` is the game's four-letter code, listed in [[Supported games]].
 
 ## Where files go
 

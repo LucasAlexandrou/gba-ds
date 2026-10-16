@@ -157,6 +157,9 @@ static GamePaths gp;
 static SDL_Texture* gameTex[2];
 static SDL_Texture* mapTex[2];
 static SDL_Texture* logoTex[2];
+/* the logo centred in a GBA-sized picture, so it's scaled (and gridded)
+ * like the game; NULL for a user's high-resolution logo */
+static SDL_Texture* logoCanvasTex[2];
 /* user overlay PNGs: [0] game screen ("primary"), [1] map screen ("secondary") */
 static SDL_Texture* overlayTex[2][2];
 static int overlayW[2], overlayH[2];
@@ -243,10 +246,10 @@ static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_CHEATS, M_ACH, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT, M_FRAMEBUF };
+enum MenuItem { M_RESUME, M_CHEATS, M_ACH, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT, M_FRAMEBUF, M_LOGO };
 static const char* menuLabels[] = {
 	/* title case: drawn in Futura from the built-in images (tools/make_brand.py) */
-	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_FRAMEBUF] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_MAPRATE] = "", [M_RESTART] = "Restart Game",
+	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_FRAMEBUF] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_LOGO] = "", [M_MAPRATE] = "", [M_RESTART] = "Restart Game",
 	[M_LOAD] = "Load State", [M_CHEATS] = "Cheats", [M_ACH] = "Achievements", [M_SHOT] = "Take Screenshot", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
 };
 static int menuItems[12], nMenuItems;
@@ -594,6 +597,7 @@ static void draw_menu(void) {
 		if (menuItems[i] == M_FPS) label = cfg->showFps ? "Show FPS: On" : "Show FPS: Off";
 		if (menuItems[i] == M_FRAMEBUF) label = cfg->frameBuffer ? "Frame Buffer: On" : "Frame Buffer: Off";
 		if (menuItems[i] == M_MAPANIM) label = cfg->mapAnim ? "Map Animations: On" : "Map Animations: Off";
+		if (menuItems[i] == M_LOGO) label = cfg->showLogo ? "No Second Screen: Show Logo" : "No Second Screen: Keep Blank";
 		if (menuItems[i] == M_OVERLAY) {
 			static const char* const ovl[4] = { "Overlays: None", "Overlays: Primary", "Overlays: Secondary", "Overlays: Both" };
 			label = ovl[cfg->overlays & OVL_BOTH];
@@ -1328,10 +1332,10 @@ static void save_prefs(void) {
 	FILE* f = fopen(prefs, "w");
 	if (f) {
 		fprintf(f, "# written by gba-ds's pause menu; overrides gba-ds.cfg\n");
-		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\nmap_animations = %d\nmap_interval = %d\nframe_buffer = %d\n",
+		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\nmap_animations = %d\nmap_interval = %d\nframe_buffer = %d\nshow_logo = %d\n",
 		        cfg->swap ? 1 : 0, cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0,
 		        (const char* const[]) { "none", "primary", "secondary", "both" }[cfg->overlays & OVL_BOTH],
-		        cfg->mapAnim ? 1 : 0, cfg->mapInterval, cfg->frameBuffer ? 1 : 0);
+		        cfg->mapAnim ? 1 : 0, cfg->mapInterval, cfg->frameBuffer ? 1 : 0, cfg->showLogo ? 1 : 0);
 		fclose(f);
 	}
 }
@@ -1420,6 +1424,42 @@ static void draw_osd(void) {
 	ui_font_text(s, TF_BOLD, fx, cy, cap, osd, C_TEXT, -1);
 }
 
+/* The game's logo as a GBA screen would show it: centred on black in a
+ * 240x160 picture, drawn with the second screen's scaling and the LCD grid.
+ * Logos extracted from the ROM are at GBA resolution; a user's own logo
+ * that's bigger stays a high-resolution image (logoCanvasTex NULL). */
+static void make_logo_canvas(void) {
+	ui_free_image(logoCanvasTex);
+	bool pixelArt = false;
+	SDL_Surface* lg = ui_logo_surface(cfg, emu.gameCode, &pixelArt);
+	if (!lg) return;
+	if (lg->w > GBA_W || lg->h > GBA_H) {
+		SDL_FreeSurface(lg);
+		return;
+	}
+	static uint32_t px[GBA_W * GBA_H];
+	memset(px, 0, sizeof(px));
+	int ox = (GBA_W - lg->w) / 2, oy = (GBA_H - lg->h) / 2;
+	SDL_LockSurface(lg);
+	for (int y = 0; y < lg->h; ++y) {
+		const uint8_t* row = (const uint8_t*) lg->pixels + y * lg->pitch;
+		for (int x = 0; x < lg->w; ++x) {
+			const uint8_t* p = row + x * 4; /* RGBA32: bytes R, G, B, A */
+			unsigned a = p[3];
+			unsigned r = p[0] * a / 255, gc = p[1] * a / 255, b = p[2] * a / 255;
+			px[(oy + y) * GBA_W + ox + x] = 0xFF000000u | b << 16 | gc << 8 | r; /* ABGR8888 */
+		}
+	}
+	SDL_UnlockSurface(lg);
+	SDL_FreeSurface(lg);
+	for (int i = 0; i < nViews; ++i) {
+		logoCanvasTex[i] = SDL_CreateTexture(views[i].ren, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, GBA_W, GBA_H);
+		if (!logoCanvasTex[i]) continue;
+		SDL_SetTextureBlendMode(logoCanvasTex[i], SDL_BLENDMODE_NONE);
+		ui_update_texture(logoCanvasTex[i], px, GBA_W * 4);
+	}
+}
+
 static void draw_game(void) {
 	bool mapOn = (mc || logoOnly) && cfg->map; /* logo-only games: the logo stands in for the map */
 	for (int s = 0; s < nScreens; ++s) {
@@ -1449,9 +1489,15 @@ static void draw_game(void) {
 		} else if (mapShownIdx >= 0) {
 			ui_fill(s, (SDL_Rect) { 0, 0, r.w, r.h }, borderColor);
 			ui_image_pixels(s, mapTex, mapW, mapH, cfg->mapScale, cfg->lcdGrid ? (hudProf ? 2 : 1) : 0); /* the HUD picture is at 2x: a cell per GBA pixel */
+		} else if (!cfg->showLogo) {
+			/* nothing to show: the screen stays blank */
+		} else if (logoCanvasTex[0] || logoCanvasTex[1]) {
+			/* no map yet (title screen, intro...): the game's logo, as if the
+			 * game drew it on a second GBA screen */
+			ui_image_pixels(s, logoCanvasTex, GBA_W, GBA_H, cfg->mapScale, cfg->lcdGrid ? 1 : 0);
 		} else if (logoTex[0] || logoTex[1]) {
-			/* no map yet (title screen, intro...): the game's logo on black */
-			SDL_Rect area = { r.w / 12, r.h / 6, r.w - r.w / 6, r.h - r.h / 3 };
+			/* a user's high-resolution logo: fitted to where the picture goes */
+			SDL_Rect area = ui_image_rect(s, GBA_W, GBA_H, cfg->mapScale);
 			ui_image(s, logoTex, logoW, logoH, logoPixel ? "integer" : "fit", &area);
 		}
 		if (mapShownIdx >= 0 && (cfg->overlays & OVL_SECONDARY)) { /* the map only, never the logo */
@@ -1570,6 +1616,10 @@ static bool activate(int item, enum GameExit* exitTo) {
 	case M_FRAMEBUF:
 		cfg->frameBuffer = !cfg->frameBuffer;
 		snprintf(menuNote, sizeof(menuNote), "%s", cfg->frameBuffer ? "Smoother, one frame more input delay" : "Least input delay");
+		save_prefs();
+		break;
+	case M_LOGO:
+		cfg->showLogo = !cfg->showLogo;
 		save_prefs();
 		break;
 	case M_MAPANIM:
@@ -1709,7 +1759,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	borderColor = (SDL_Color) { (bc >> 16) & 0xFF, (bc >> 8) & 0xFF, bc & 0xFF, 255 };
 	overlayMode[0][0] = overlayMode[1][0] = 0;
 	uint32_t logoGen = logo_generation();
-	ui_load_logo(cfg, rom, emu.gameCode, logoTex, &logoW, &logoH, &logoPixel);
+	if (ui_load_logo(cfg, rom, emu.gameCode, logoTex, &logoW, &logoH, &logoPixel)) make_logo_canvas();
 	mapframe_init(&mf, mc ? profile_find(emu.gameCode) : NULL, mapW, mapH);
 	canvasTexW = canvasTexH = 0;
 	snprintf(framePath, sizeof(framePath), "%s/frames", cfg->stateDir);
@@ -1733,6 +1783,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[1][pageLen[1]++] = M_SCALE;
 	pages[1][pageLen[1]++] = M_LCD;
 	pages[1][pageLen[1]++] = M_OVERLAY;
+	pages[1][pageLen[1]++] = M_LOGO;
 	pages[1][pageLen[1]++] = M_MAPANIM;
 	pages[1][pageLen[1]++] = M_MAPRATE;
 	pages[1][pageLen[1]++] = M_FPS;
@@ -1812,7 +1863,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		if (!logoTex[0] && !logoTex[1] && logo_generation() != logoGen) {
 			logoGen = logo_generation();
-			ui_load_logo(cfg, NULL, emu.gameCode, logoTex, &logoW, &logoH, &logoPixel);
+			if (ui_load_logo(cfg, NULL, emu.gameCode, logoTex, &logoW, &logoH, &logoPixel)) make_logo_canvas();
 		}
 		if (!ui_events()) {
 			exitTo = GAME_QUIT_APP;
@@ -2350,6 +2401,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		gameTex[i] = mapTex[i] = NULL;
 	}
 	ui_free_image(logoTex);
+	ui_free_image(logoCanvasTex);
 	ui_free_image(overlayTex[0]);
 	ui_free_image(overlayTex[1]);
 	overlayMode[0][0] = overlayMode[1][0] = 0;
