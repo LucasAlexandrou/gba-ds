@@ -473,6 +473,12 @@ frontend launch intents.
   thread taking the core) and drawing (could also be the GPU driver or a
   surface's buffers making us wait), and the game thread asks for nice
   -10 (falls back to -8, -4; logged).
+- nice -10 result (AoS, 2026-10-15, granted): slow frames 95 in 110 s
+  (0.86/s) at nice -4 in the same log -> 26 in 88 s (0.30/s), about the
+  no-map rate before. The rest wait a few ms in emulation and drawing
+  alike. Separately, about once a session one frame waits 150-600 ms
+  inside drawing the game's screen (second display's swap): a compositor
+  or driver stall, not ours to fix so far.
 - Opening the pause menu costs one ~300 ms frame (its text images); not
   looked at yet.
 - Slow frames: game.c logs, each second there are any, the worst frame's
