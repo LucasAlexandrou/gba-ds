@@ -2,8 +2,8 @@
 
 ## v1.1.5 (not yet released)
 
-- **GBA DS is now free software under the GNU General Public License, version 3 or later.** The licence is in the repository and, from this release, in `gba-ds/licenses/` (ROCKNIX) and inside the APK.
-- **Battery level in the pause menu:** the device's battery percentage at the top right of the top screen while the game is paused.
+- **GBA DS is now free software under the GNU General Public License, version 3.** The licence is in the repository and, from this release, in `gba-ds/licenses/` (ROCKNIX) and inside the APK.
+- **Clock and battery level in the pause menu:** while the game is paused, the time (24-hour, HH:MM) at the top left of the top screen and the battery percentage at the top right.
 - **Pause menu: a Performance page**, between Display and Extras, with Map Animations, Map Refresh, Frame Buffer and Show FPS. The tabs are now sized to fit their names.
 ## v1.1.4 (2026-10-16)
 

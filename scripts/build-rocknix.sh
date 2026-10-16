@@ -75,7 +75,7 @@ cp LICENSE "$PKG/licenses/GBA-DS-LICENSE.txt"
 cp "$DEPS/mgba/LICENSE" "$PKG/licenses/mGBA-LICENSE.txt"
 cp assets/fonts/Jost-OFL.txt "$PKG/licenses/Jost-OFL.txt"
 cp third_party/rcheevos/LICENSE "$PKG/licenses/rcheevos-LICENSE.txt"
-printf "GBA DS %s is free software under the GNU General Public License, version 3 or later (GBA-DS-LICENSE.txt).\nIt statically links libmgba (c) Jeffrey Pfau, MPL-2.0.\nmGBA source: https://github.com/mgba-emu/mgba (commit %s)\nIts text is set in Jost (c) The Jost Project Authors, SIL Open Font License 1.1 (Jost-OFL.txt).\nRetroAchievements support: rcheevos (c) RetroAchievements, MIT (rcheevos-LICENSE.txt), %s.\nGBA DS source: https://github.com/kyannon/gba-ds\n" "$VERSION" "$MGBA_COMMIT" "$(tail -1 third_party/rcheevos/VERSION)" > "$PKG/licenses/README.txt"
+printf "GBA DS %s is free software under the GNU General Public License, version 3 only (GBA-DS-LICENSE.txt).\nIt statically links libmgba (c) Jeffrey Pfau, MPL-2.0.\nmGBA source: https://github.com/mgba-emu/mgba (commit %s)\nIts text is set in Jost (c) The Jost Project Authors, SIL Open Font License 1.1 (Jost-OFL.txt).\nRetroAchievements support: rcheevos (c) RetroAchievements, MIT (rcheevos-LICENSE.txt), %s.\nGBA DS source: https://github.com/kyannon/gba-ds\n" "$VERSION" "$MGBA_COMMIT" "$(tail -1 third_party/rcheevos/VERSION)" > "$PKG/licenses/README.txt"
 cp "dist/GBA DS.sh" "$ROOT/build/pkg/"
 # EmulationStation artwork for the Ports entry
 mkdir -p "$ROOT/build/pkg/images"

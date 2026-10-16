@@ -25,7 +25,7 @@ Leaving a game saves its state automatically, and launching it again picks up ex
 
 ## The pause menu
 
-Tap the touchscreen, or press **HOME** (Android: **SELECT + START** together, or **BACK**). Both screens dim, the game and its sound pause, and the menu appears on the touchscreen. It has four pages; switch with **L1 / R1** or by tapping the tabs. The device's battery level is shown at the top right of the top screen while the menu is open. The menu works by touch or with the D-pad and A; B, Start or HOME closes it.
+Tap the touchscreen, or press **HOME** (Android: **SELECT + START** together, or **BACK**). Both screens dim, the game and its sound pause, and the menu appears on the touchscreen. It has four pages; switch with **L1 / R1** or by tapping the tabs. While the menu is open, the top screen shows the time (24-hour, from the device's clock) at the top left and the battery level at the top right. The menu works by touch or with the D-pad and A; B, Start or HOME closes it.
 
 **Game**
 - **Resume**

@@ -542,18 +542,33 @@ static int battery_percent(void) {
 	return pct;
 }
 
-/* While paused: the battery level at the top right of the top screen. */
-static void draw_battery(void) {
-	int pct = battery_percent();
-	if (pct < 0) return;
-	char buf[16];
-	snprintf(buf, sizeof(buf), "%d%%", pct);
-	int s = 0; /* the top (first) screen, whatever is on it */
+/* Status text on the top (first) screen while paused, with a drop shadow:
+ * align -1 at the top left, 1 at the top right. */
+static void draw_status(const char* text, int align) {
+	int s = 0; /* the top screen, whatever is on it */
 	float px = ui_px(s);
 	int cap = px * 5;
-	int x = screens[s].rect.w - px * 5, cy = px * 7;
-	ui_font_text(s, TF_BOLD, x + SDL_max(1, (int) (px / 2)), cy + SDL_max(1, (int) (px / 2)), cap, buf, (SDL_Color) { 0, 0, 0, 255 }, 1);
-	ui_font_text(s, TF_BOLD, x, cy, cap, buf, C_TEXT, 1);
+	int x = align < 0 ? (int) (px * 5) : screens[s].rect.w - (int) (px * 5), cy = px * 7;
+	int sh = SDL_max(1, (int) (px / 2));
+	ui_font_text(s, TF_BOLD, x + sh, cy + sh, cap, text, (SDL_Color) { 0, 0, 0, 255 }, align);
+	ui_font_text(s, TF_BOLD, x, cy, cap, text, C_TEXT, align);
+}
+
+/* While paused: the time (24-hour HH:MM) at the top left of the top screen
+ * and the battery level at the top right. */
+static void draw_battery(void) {
+	char buf[16];
+	time_t now = time(NULL);
+	struct tm tm;
+	if (localtime_r(&now, &tm)) {
+		snprintf(buf, sizeof(buf), "%02d:%02d", tm.tm_hour, tm.tm_min);
+		draw_status(buf, -1);
+	}
+	int pct = battery_percent();
+	if (pct >= 0) {
+		snprintf(buf, sizeof(buf), "%d%%", pct);
+		draw_status(buf, 1);
+	}
 }
 
 static void set_page(int page) {
