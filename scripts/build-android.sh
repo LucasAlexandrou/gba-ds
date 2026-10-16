@@ -48,11 +48,12 @@ cmake --build "$MGBA_BUILD" -j"$(nproc)" --target mgba zlibstatic
 VERSION=$(cat VERSION)
 LIC=android/app/src/main/assets/licenses
 rm -rf "$LIC" && mkdir -p "$LIC"
+cp LICENSE "$LIC/GBA-DS-LICENSE.txt"
 cp "$DEPS/mgba/LICENSE" "$LIC/mGBA-LICENSE.txt"
 cp "$DEPS/SDL2/LICENSE.txt" "$LIC/SDL2-LICENSE.txt"
 cp assets/fonts/Jost-OFL.txt "$LIC/Jost-OFL.txt"
 cp third_party/rcheevos/LICENSE "$LIC/rcheevos-LICENSE.txt"
-printf "GBA DS %s statically links libmgba (c) Jeffrey Pfau, MPL-2.0.\nmGBA source: https://github.com/mgba-emu/mgba (commit %s)\nSDL2 (c) Sam Lantinga, zlib licence: https://github.com/libsdl-org/SDL (%s)\nIts text is set in Jost (c) The Jost Project Authors, SIL Open Font License 1.1 (Jost-OFL.txt).\nRetroAchievements support: rcheevos (c) RetroAchievements, MIT (rcheevos-LICENSE.txt), %s.\nGBA DS source: https://github.com/kyannon/gba-ds\n" \
+printf "GBA DS %s is free software under the GNU General Public License, version 3 or later (GBA-DS-LICENSE.txt).\nIt statically links libmgba (c) Jeffrey Pfau, MPL-2.0.\nmGBA source: https://github.com/mgba-emu/mgba (commit %s)\nSDL2 (c) Sam Lantinga, zlib licence: https://github.com/libsdl-org/SDL (%s)\nIts text is set in Jost (c) The Jost Project Authors, SIL Open Font License 1.1 (Jost-OFL.txt).\nRetroAchievements support: rcheevos (c) RetroAchievements, MIT (rcheevos-LICENSE.txt), %s.\nGBA DS source: https://github.com/kyannon/gba-ds\n" \
 	"$VERSION" "$(git -C "$DEPS/mgba" rev-parse --short HEAD)" "$SDL_BRANCH" "$(tail -1 third_party/rcheevos/VERSION)" > "$LIC/README.txt"
 
 gradle -p android --no-daemon assembleRelease \
