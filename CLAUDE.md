@@ -4,7 +4,10 @@ GBA DS is a GBA emulator (libmgba) for dual-screen handhelds, built for the
 **Anbernic RG DS Plus on ROCKNIX** (two 1024x768 screens, the bottom one a
 touchscreen; the RG DS has two 640x480 ones). The game runs on one screen; the other shows the game's own
 map (captured from a hidden second copy of the game) or the game's logo.
-The README covers user-facing behaviour; CHANGELOG.md the history.
+User docs live in `wiki/` (published to the GitHub wiki by
+`.github/workflows/wiki.yml` when `main` moves, i.e. at release time; edit
+the pages there for user-visible changes, never the wiki directly); the
+README is the overview and build guide; CHANGELOG.md the history.
 
 The owner (kyannon) tests every build on real hardware and reports back
 with photos and screenshots; nothing ships untested on the device.
