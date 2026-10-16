@@ -26,6 +26,18 @@ typedef struct {
 	uint32_t alt;
 } MemProbe;
 
+/* A piece of a split-off HUD moved on the way to the screen: what's inside
+ * the box (inclusive, HUD pixels), measured each frame, is placed by its
+ * left edge / centre / right edge at x ('L' 'C' 'R'; 0 stays) and its top /
+ * middle / bottom at y ('T' 'M' 'B'; 0 stays), on the second screen or, with
+ * toGame, back onto the game picture. */
+typedef struct {
+	int x0, y0, x1, y1;
+	char how; int x;
+	char vhow; int y;
+	bool toGame;
+} HudMove;
+
 typedef struct MapProfile {
 	const char* codes[4]; /* 4-char game codes this profile handles */
 	const char* title;
@@ -153,11 +165,10 @@ typedef struct MapProfile {
 		struct {
 			MemProbe when[2];
 			SpriteRule objs[4];
-			/* pieces of that HUD moved sideways on the second screen: what's
-			 * inside the box (inclusive), measured each frame, gets its left
-			 * edge at `to` ('L') or is centred on `to` ('C') */
-			struct { int x0, y0, x1, y1, to; char how; } moves[4];
+			HudMove moves[4];
 		} scene;
+		/* moves while racing (with the `layout` probes) */
+		HudMove moves[4];
 	} hud;
 
 	/* Title-screen logo, pulled out of the running game: boot, wait, optionally

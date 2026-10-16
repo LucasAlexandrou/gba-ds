@@ -786,41 +786,47 @@ static void hud_compose(void) {
 	} else {
 		for (int i = 0; i < HUD_CW * HUD_CH; ++i) hudCanvas[i] = 0xFF1A1010;
 	}
-	/* the scene's moved pieces: how far each goes this frame */
-	int moveDx[4] = { 0 };
+	/* moved pieces (the scene's, or racing's): how far each goes this frame */
+	const HudMove* moves = hudScene ? h->scene.moves : racing ? h->moves : NULL;
+	int moveDx[4] = { 0 }, moveDy[4] = { 0 };
 	bool moving[4] = { false };
-	if (hudScene) {
-		for (int m = 0; m < 4; ++m) {
-			const typeof(h->scene.moves[0])* mv = &h->scene.moves[m];
-			if (!mv->how) continue;
-			int lo = GBA_W, hi = -1;
-			for (int y = SDL_max(mv->y0, 0); y <= SDL_min(mv->y1, GBA_H - 1); ++y) {
-				for (int x = SDL_max(mv->x0, 0); x <= SDL_min(mv->x1, GBA_W - 1); ++x) {
-					if ((hudPx[y * GBA_W + x] & 0xFFFFFF) == clear) continue;
-					lo = SDL_min(lo, x), hi = SDL_max(hi, x);
-				}
+	for (int m = 0; moves && m < 4; ++m) {
+		const HudMove* mv = &moves[m];
+		if (!mv->how && !mv->vhow) continue;
+		int lo = GBA_W, hi = -1, top = GBA_H, bot = -1;
+		for (int y = SDL_max(mv->y0, 0); y <= SDL_min(mv->y1, GBA_H - 1); ++y) {
+			for (int x = SDL_max(mv->x0, 0); x <= SDL_min(mv->x1, GBA_W - 1); ++x) {
+				if ((hudPx[y * GBA_W + x] & 0xFFFFFF) == clear) continue;
+				lo = SDL_min(lo, x), hi = SDL_max(hi, x), top = SDL_min(top, y), bot = SDL_max(bot, y);
 			}
-			if (hi < 0) continue;
-			moving[m] = true;
-			moveDx[m] = mv->how == 'C' ? mv->to - (lo + hi) / 2 : mv->to - lo;
 		}
+		if (hi < 0) continue;
+		moving[m] = true;
+		moveDx[m] = mv->how == 'C' ? mv->x - (lo + hi) / 2 : mv->how == 'R' ? mv->x - hi : mv->how == 'L' ? mv->x - lo : 0;
+		moveDy[m] = mv->vhow == 'M' ? mv->y - (top + bot) / 2 : mv->vhow == 'B' ? mv->y - bot : mv->vhow == 'T' ? mv->y - top : 0;
 	}
 	for (int y = 0; y < GBA_H; ++y) {
 		for (int x = 0; x < GBA_W; ++x) {
 			uint32_t c = hudPx[y * GBA_W + x];
 			if ((c & 0xFFFFFF) == clear) continue;
-			int nx = x;
+			int nx = x, ny = y;
+			bool toGame = false;
 			for (int m = 0; m < 4; ++m) {
-				const typeof(h->scene.moves[0])* mv = &h->scene.moves[m];
+				const HudMove* mv = &moves[m];
 				if (moving[m] && x >= mv->x0 && x <= mv->x1 && y >= mv->y0 && y <= mv->y1) {
-					nx = x + moveDx[m];
+					nx = x + moveDx[m], ny = y + moveDy[m];
+					toGame = mv->toGame;
 					break;
 				}
 			}
-			if (nx < 0 || nx >= GBA_W) continue;
+			if (nx < 0 || nx >= GBA_W || ny < 0 || ny >= GBA_H) continue;
+			if (toGame) {
+				emu.fb[ny * GBA_W + nx] = c; /* back onto the game picture */
+				continue;
+			}
 			if (sign && x >= h->sign.x0 && x <= h->sign.x1 && y >= h->sign.y0 && y <= h->sign.y1) continue;
 			if (bigMap && x >= bx0 && x <= bx1 && y >= by0 && y <= by1) continue;
-			uint32_t* o = &hudCanvas[y * 2 * HUD_CW + nx * 2];
+			uint32_t* o = &hudCanvas[ny * 2 * HUD_CW + nx * 2];
 			o[0] = o[1] = o[HUD_CW] = o[HUD_CW + 1] = c;
 		}
 	}

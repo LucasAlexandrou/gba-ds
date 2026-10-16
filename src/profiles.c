@@ -280,8 +280,14 @@ static const MapProfile profiles[] = {
 				/* the trophy stays on the game screen, so close up its gap:
 				 * CONGRATULATIONS! centred, the portrait to the left edge,
 				 * the place ("1st", BG0 139-167 x 40-62) centred */
-				.moves = { { 0, 0, 239, 33, 120, 'C' }, { 88, 34, 132, 70, 6, 'L' }, { 134, 36, 180, 66, 120, 'C' } },
+				.moves = { { 0, 0, 239, 33, 'C', 120 }, { 88, 34, 132, 70, 'L', 6 }, { 134, 36, 180, 66, 'C', 120 } },
 			},
+			/* racing: the item box (107-133 x 4-27, with the item in it) to
+			 * the game screen's top left and the place (8-44 x 128-151) to its
+			 * top right; the four faces (5-26 x 21-114) centred down the
+			 * second screen */
+			.moves = { { 104, 0, 136, 28, 'L', 4, 'T', 4, true }, { 0, 120, 60, 159, 'R', 235, 'T', 4, true },
+			           { 0, 18, 30, 118, 0, 0, 'M', 80 } },
 		},
 	},
 };
