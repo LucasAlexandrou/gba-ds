@@ -10,6 +10,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -987,6 +988,53 @@ static SDL_Texture* pipe_grid(int v, int w, int h, int k, int strength) {
 	return e->tex;
 }
 
+/* Total gap length in [0, t): cells of size p whose last g * p is gap. */
+static double gap_upto(double t, double p, double g) {
+	double n = floor(t / p), r = t - n * p, edge = (1 - g) * p;
+	return n * g * p + (r > edge ? r - edge : 0);
+}
+
+/* The LCD grid for small cells (under 3 screen pixels, e.g. 2x on a 640x480
+ * screen), made at the screen's own resolution: gw x gh cells over a
+ * dw x dh picture, the gap between cells a quarter of a cell wide (as at 4x),
+ * and each screen pixel darkened by how much of it the gap covers. Same
+ * overall darkness and texture as the 4x grid, without the blur and uneven
+ * lines of drawing a 3x grid and scaling it down. Built once. */
+static SDL_Texture* pipe_grid_fine(int v, int dw, int dh, int gw, int gh, int strength) {
+	strength = strength < 0 ? 0 : strength > 100 ? 100 : strength;
+	bool hit;
+	PipeEntry* e = pipe_lookup(pipeGrids[v], dw, dh, -(gw << 12 | gh), strength, &hit);
+	if (hit) return e->tex;
+	SDL_Surface* s = SDL_CreateRGBSurfaceWithFormat(0, dw, dh, 32, SDL_PIXELFORMAT_ARGB8888);
+	if (!s) return NULL;
+	const double g = 0.25;
+	double px = (double) dw / gw, py = (double) dh / gh;
+	float* cx = malloc(sizeof(float) * (size_t) dw);
+	if (!cx) {
+		SDL_FreeSurface(s);
+		return NULL;
+	}
+	for (int x = 0; x < dw; ++x) cx[x] = (float) (gap_upto(x + 1, px, g) - gap_upto(x, px, g));
+	double k = strength / 100.0;
+	for (int y = 0; y < dh; ++y) {
+		double cy = gap_upto(y + 1, py, g) - gap_upto(y, py, g);
+		Uint32* row = (Uint32*) ((Uint8*) s->pixels + y * s->pitch);
+		for (int x = 0; x < dw; ++x) {
+			double cover = cx[x] + cy - cx[x] * cy; /* share of the pixel in either line */
+			Uint8 c = (Uint8) (255 * (1 - k * cover) + 0.5);
+			row[x] = 0xFF000000u | (c << 16) | (c << 8) | c;
+		}
+	}
+	free(cx);
+	e->tex = SDL_CreateTextureFromSurface(views[v].ren, s);
+	SDL_FreeSurface(s);
+	if (e->tex) {
+		SDL_SetTextureBlendMode(e->tex, SDL_BLENDMODE_MOD);
+		SDL_SetTextureScaleMode(e->tex, SDL_ScaleModeNearest);
+	}
+	return e->tex;
+}
+
 static void draw_pixels(SDL_Renderer* ren, int v, SDL_Texture* src, int w, int h, const SDL_Rect* dstp, int lcd);
 
 void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, int lcd) {
@@ -1039,7 +1087,14 @@ static void draw_pixels(SDL_Renderer* ren, int v, SDL_Texture* src, int w, int h
 		if (grid) SDL_RenderCopy(ren, grid, NULL, &dst);
 		return;
 	}
-	if (lcd && k * c < 3) k = (3 + c - 1) / c; /* a grid needs a few pixels per cell */
+	if (lcd && (dst.w < gw * 3 || dst.h < gh * 3)) {
+		/* small cells (a 640x480 screen): the picture as without the grid,
+		 * then a grid made at the screen's resolution on top */
+		draw_pixels(ren, v, src, w, h, &dst, 0);
+		SDL_Texture* grid = pipe_grid_fine(v, dst.w, dst.h, gw, gh, cfg->lcdStrength);
+		if (grid) SDL_RenderCopy(ren, grid, NULL, &dst);
+		return;
+	}
 	SDL_Texture* target = SDL_RenderTargetSupported(ren) ? pipe_target(v, w * k, h * k) : NULL;
 	if (!target) {
 		/* no render targets: draw directly, grid on top */
