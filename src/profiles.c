@@ -234,6 +234,16 @@ static const MapProfile profiles[] = {
 		.hud = { { 2, 2 }, { 2, 24 }, { 4, 35 } },
 	},
 	},
+	{
+		.codes = { "AMKE", "AMKP", "AMKJ" },
+		.title = "Mario Kart: Super Circuit",
+		/* no map yet: listed, logo on the second screen */
+		.logoOnly = true,
+		/* the title screen settles by frame ~900 (Japan's is a little
+		 * later); BG0 holds the logo alone, with the copyright line at the
+		 * bottom (rows 147-157), so keep rows above 100 */
+		.logo = { .wait = 1000, .layer = 0, .maxY = 100 },
+	},
 };
 
 /* ---------------------------------------------------------------- regions
