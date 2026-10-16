@@ -255,10 +255,15 @@ static const MapProfile profiles[] = {
 			.keep = { { 0x04000000, 0xFFFF, 0x1F41, 2 } },
 			.bgMask = 1,
 			.objs = { { -512, -256, 511, 255, 0, 1023, 0 } }, /* priority 0 */
-			/* the results table fills BG0 map cells (row 11 col 4, row 12
-			 * col 8) that stay empty while racing and in the lap-time table
-			 * after the finish (all three versions) */
-			.layout = { { 0x06003AC8, 0xFFFF, 0, 2 }, { 0x06003B10, 0xFFFF, 0, 2 } },
+			/* Racing (all three versions): the LAP label in BG0's top bar
+			 * (map cells row 0 col 4 = 0xC044, row 1 col 5 = 0xC048), and two
+			 * cells the results table fills (row 11 col 4, row 12 col 8)
+			 * empty. The label alone tells racing apart from the lap-time
+			 * table and the results; the table slides in from the right, so
+			 * the empty cells alone said "racing" for a few dozen frames of
+			 * it (and the map, item box and faces moves scrambled it). */
+			.layout = { { 0x06003808, 0xFFFF, 0xC044, 2 }, { 0x0600384A, 0xFFFF, 0xC048, 2 },
+			            { 0x06003AC8, 0xFFFF, 0, 2 }, { 0x06003B10, 0xFFFF, 0, 2 } },
 			/* the turn signs under the item box (108-130 x 40-62); the course
 			 * map (181-228 x 99-154 on Peach Circuit) */
 			.sign = { 104, 30, 135, 66 },

@@ -742,7 +742,12 @@ static int rule_count(const SpriteRule* r, int max) {
 static void hud_compose(void) {
 	const typeof(hudProf->hud)* h = &hudProf->hud;
 	uint32_t clear = emu_hud_clear();
-	bool racing = !hudScene && memprobes_match(h->layout, 2, &emu);
+	bool racing = !hudScene && memprobes_match(h->layout, 4, &emu);
+	{
+		static int lastRacing = -1;
+		if (debug && racing != lastRacing) fprintf(stderr, "frame %llu: HUD layout %s\n", (unsigned long long) frameCount, racing ? "racing" : "plain");
+		lastRacing = racing;
+	}
 	/* the map's box: grown over the race's first frames, then kept */
 	if (racing && h->map.x1 && hudFrames <= 8) {
 		for (int y = h->map.y0; y <= h->map.y1; ++y) {

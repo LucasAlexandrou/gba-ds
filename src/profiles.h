@@ -151,7 +151,7 @@ typedef struct MapProfile {
 		 * Kart's turn signs, not the lap-time table); the HUD in `map` is
 		 * measured as each race starts and drawn 2x (1.5x if that doesn't fit
 		 * comfortably) in the middle of the second screen. */
-		MemProbe layout[2];
+		MemProbe layout[4];
 		struct { int x0, y0, x1, y1; } sign, map;
 		/* BG layers grabbed as each race starts, rows above backdropRows,
 		 * scaled to fill the second screen and dimmed, behind the HUD (0:
