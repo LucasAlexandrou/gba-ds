@@ -432,12 +432,19 @@ static void hide_release(Emu* e) {
  * it's on, the game's renderer leaves those out. Each renderer keeps its
  * own per-line state (affine counters, sprite lists), so the track's
  * per-line effects are unaffected. */
+#define HUD_CLEAR_555 0x7C1F /* magenta: no HUD pixel (games don't use it) */
+
 typedef struct {
 	struct GBAVideoSoftwareRenderer hud;
 	struct GBAVideoRenderer* main;
 	bool installed, active;
 	unsigned bgMask;
 	int objPrio;
+	/* one frame of other layers instead (emu_hud_grab) */
+	uint32_t* grabBuf;
+	unsigned grabMask;
+	bool grabbing, grabbed;
+	uint32_t* hudBuf;
 	uint16_t (*writeVideoRegister)(struct GBAVideoRenderer*, uint32_t, uint16_t);
 	void (*writeVRAM)(struct GBAVideoRenderer*, uint32_t);
 	void (*writePalette)(struct GBAVideoRenderer*, uint32_t, uint16_t);
@@ -461,19 +468,38 @@ static void split_vram(struct GBAVideoRenderer* r, uint32_t a) {
 }
 static void split_palette(struct GBAVideoRenderer* r, uint32_t a, uint16_t v) {
 	split.writePalette(r, a, v);
-	split.hud.d.writePalette(&split.hud.d, a, a == 0 ? 0 : v); /* backdrop: black */
+	split.hud.d.writePalette(&split.hud.d, a, a == 0 ? HUD_CLEAR_555 : v); /* backdrop: the 'nothing here' colour */
 }
 static void split_oam(struct GBAVideoRenderer* r, uint32_t i) {
 	split.writeOAM(r, i);
 	split.hud.d.writeOAM(&split.hud.d, i);
 }
+static void split_layers(unsigned bgMask, bool obj) {
+	for (int i = 0; i < 4; ++i) split.hud.d.disableBG[i] = !((bgMask >> i) & 1);
+	split.hud.d.disableOBJ = !obj;
+}
 static void split_draw(struct GBAVideoRenderer* r, int y) {
-	if (split.active) filtered_draw_scanline(&split.hud.d, y);
+	if (split.active) {
+		if (y == 0 && split.grabBuf) {
+			/* this frame: the grab layers into grabBuf, no sprites */
+			split.grabbing = true;
+			split.hud.outputBuffer = (mColor*) split.grabBuf;
+			split_layers(split.grabMask, false);
+		}
+		filtered_draw_scanline(&split.hud.d, y);
+	}
 	split.drawScanline(r, y);
 }
 static void split_finish(struct GBAVideoRenderer* r) {
 	split.finishFrame(r);
 	split.hud.d.finishFrame(&split.hud.d);
+	if (split.grabbing) {
+		split.grabbing = false;
+		split.grabBuf = NULL;
+		split.grabbed = true;
+		split.hud.outputBuffer = (mColor*) split.hudBuf;
+		split_layers(split.bgMask, split.objPrio >= 0);
+	}
 }
 static void split_reset(struct GBAVideoRenderer* r) {
 	split.reset(r);
@@ -487,7 +513,7 @@ static void split_resync(Emu* e) {
 	struct GBAVideoRenderer* h = &split.hud.d;
 	h->reset(h);
 	for (uint32_t a = 0; a <= 0x56; a += 2) h->writeVideoRegister(h, a, gba->memory.io[a >> 1]);
-	for (uint32_t a = 0; a < 0x400; a += 2) h->writePalette(h, a, a == 0 ? 0 : gba->video.palette[a >> 1]);
+	for (uint32_t a = 0; a < 0x400; a += 2) h->writePalette(h, a, a == 0 ? HUD_CLEAR_555 : gba->video.palette[a >> 1]);
 	for (uint32_t i = 0; i < 512; ++i) h->writeOAM(h, i);
 	split.hud.oamDirty = true;
 }
@@ -512,6 +538,7 @@ bool emu_hud_split(Emu* e, bool on, unsigned bgMask, int objPrio, uint32_t* hud)
 		memset(&split, 0, sizeof(split));
 		GBAVideoSoftwareRendererCreate(&split.hud);
 		split.hud.outputBuffer = (mColor*) hud;
+		split.hudBuf = hud;
 		split.hud.outputBufferStride = GBA_W;
 		struct GBAVideoRenderer* h = &split.hud.d;
 		h->palette = gba->video.palette;
@@ -543,8 +570,7 @@ bool emu_hud_split(Emu* e, bool on, unsigned bgMask, int objPrio, uint32_t* hud)
 	split.objPrio = objPrio;
 	/* the HUD: those layers and sprites only */
 	struct GBAVideoRenderer* h = &split.hud.d;
-	for (int i = 0; i < 4; ++i) h->disableBG[i] = !((bgMask >> i) & 1);
-	h->disableOBJ = objPrio < 0;
+	if (!split.grabbing) split_layers(bgMask, objPrio >= 0);
 	pthread_mutex_lock(&hideLock);
 	HideSlot* hs = slot_for(h);
 	if (hs) {
@@ -563,6 +589,25 @@ bool emu_hud_split(Emu* e, bool on, unsigned bgMask, int objPrio, uint32_t* hud)
 		split.active = on;
 	}
 	return true;
+}
+
+uint32_t emu_hud_clear(void) {
+	/* exactly what the HUD renderer writes for its backdrop */
+	return split.installed ? (uint32_t) split.hud.normalPalette[0] & 0xFFFFFF : 0xFF00FF;
+}
+
+void emu_hud_grab(Emu* e, unsigned bgMask, uint32_t* buf) {
+	(void) e;
+	if (!split.installed || !split.active) return;
+	split.grabMask = bgMask;
+	split.grabBuf = buf;
+	split.grabbed = false;
+}
+
+bool emu_hud_grabbed(void) {
+	bool g = split.grabbed;
+	split.grabbed = false;
+	return g;
 }
 
 /* ---------------------------------------------------------------- cheats */

@@ -255,6 +255,19 @@ static const MapProfile profiles[] = {
 			.keep = { { 0x04000000, 0xFFFF, 0x1F41, 2 } },
 			.bgMask = 1,
 			.objPrio = 0,
+			/* the results table fills BG0 map cells (row 11 col 4, row 12
+			 * col 8) that stay empty while racing and in the lap-time table
+			 * after the finish (all three versions) */
+			.layout = { { 0x06003AC8, 0xFFFF, 0, 2 }, { 0x06003B10, 0xFFFF, 0, 2 } },
+			/* the turn signs under the item box (108-130 x 40-62); the course
+			 * map (181-228 x 99-154 on Peach Circuit) */
+			.sign = { 104, 30, 135, 66 },
+			.map = { 140, 70, 239, 159 },
+			/* the sky (BG3), the scenery along the horizon (BG1) and the
+			 * buildings over it (BG2: the screen is mode 0 above the horizon,
+			 * mode 1 for the track below it, from row 76) */
+			.backdrop = 0xE,
+			.backdropRows = 76,
 		},
 	},
 };

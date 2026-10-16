@@ -180,6 +180,15 @@ static const MapProfile* snapProf; /* logo-only game with screens copied to the 
 static const MapProfile* hudProf;
 static uint32_t hudPx[GBA_W * GBA_H];
 static bool hudOn; /* the frame being emulated is split */
+/* the second screen's picture: the HUD at 2x over the backdrop, its map
+ * larger; the backdrop, made from the grabbed layers as each race starts */
+#define HUD_CW (GBA_W * 2)
+#define HUD_CH (GBA_H * 2)
+static uint32_t hudCanvas[HUD_CW * HUD_CH], hudBack[HUD_CW * HUD_CH], hudGrab[GBA_W * GBA_H];
+static bool hudBackValid;
+static int hudFrames; /* split frames since the race (re)started */
+static int mapX0, mapY0, mapX1, mapY1; /* the map's box on the HUD, measured over the first frames */
+static bool mapFound;
 static int snapShow, snapRevert;   /* consecutive frames matching show / a revert screen */
 
 static uint64_t mapAnimStart, frameCount;
@@ -647,6 +656,119 @@ static void snapshot_hiding_sprites(uint32_t* out) {
 
 /* Logo-only games: copy a recognised screen (THPS2 goal sheet) to the second
  * screen; back to the logo at the menus. */
+/* The grabbed sky and scenery (the rows above the horizon), scaled up to
+ * cover the canvas (centred), and dimmed well back. */
+static void hud_make_backdrop(void) {
+	int h = SDL_clamp(hudProf->hud.backdropRows ? hudProf->hud.backdropRows : GBA_H, 1, GBA_H);
+	hudBackValid = true;
+	if (debug) {
+		char path[1200];
+		snprintf(path, sizeof(path), "%s/hud-backdrop.bmp", cfg->stateDir);
+		SDL_Surface* bs = SDL_CreateRGBSurfaceWithFormatFrom(hudGrab, GBA_W, GBA_H, 32, GBA_W * 4, SDL_PIXELFORMAT_XBGR8888);
+		if (bs) SDL_SaveBMP(bs, path), SDL_FreeSurface(bs);
+		fprintf(stderr, "frame %llu: backdrop from %d rows (%s)\n", (unsigned long long) frameCount, h, path);
+	}
+	if (!hudBackValid) return;
+	float sc = SDL_max((float) HUD_CW / GBA_W, (float) HUD_CH / h);
+	float ox = (GBA_W - HUD_CW / sc) / 2, oy = (h - HUD_CH / sc) / 2;
+	for (int y = 0; y < HUD_CH; ++y) {
+		float fy = oy + (y + 0.5f) / sc - 0.5f;
+		int y0 = SDL_clamp((int) fy, 0, h - 1), y1 = SDL_min(y0 + 1, h - 1);
+		float wy = SDL_clamp(fy - y0, 0.0f, 1.0f);
+		for (int x = 0; x < HUD_CW; ++x) {
+			float fx = ox + (x + 0.5f) / sc - 0.5f;
+			int x0 = SDL_clamp((int) fx, 0, GBA_W - 1), x1 = SDL_min(x0 + 1, GBA_W - 1);
+			float wx = SDL_clamp(fx - x0, 0.0f, 1.0f);
+			uint32_t a = hudGrab[y0 * GBA_W + x0], b = hudGrab[y0 * GBA_W + x1];
+			uint32_t c = hudGrab[y1 * GBA_W + x0], d = hudGrab[y1 * GBA_W + x1];
+			uint32_t out = 0xFF000000;
+			for (int sh = 0; sh < 24; sh += 8) {
+				float top = ((a >> sh) & 0xFF) * (1 - wx) + ((b >> sh) & 0xFF) * wx;
+				float bot = ((c >> sh) & 0xFF) * (1 - wx) + ((d >> sh) & 0xFF) * wx;
+				float v = (top * (1 - wy) + bot * wy) * 0.32f; /* dimmed */
+				out |= (uint32_t) v << sh;
+			}
+			hudBack[y * HUD_CW + x] = out;
+		}
+	}
+}
+
+/* The second screen from this frame's HUD (hudPx). While racing, the turn
+ * sign goes back onto the game picture and the map is drawn larger. */
+static void hud_compose(void) {
+	const typeof(hudProf->hud)* h = &hudProf->hud;
+	uint32_t clear = emu_hud_clear();
+	bool racing = memprobes_match(h->layout, 2, &emu);
+	/* the map's box: grown over the race's first frames, then kept */
+	if (racing && h->map.x1 && hudFrames <= 8) {
+		for (int y = h->map.y0; y <= h->map.y1; ++y) {
+			for (int x = h->map.x0; x <= h->map.x1; ++x) {
+				if ((hudPx[y * GBA_W + x] & 0xFFFFFF) == clear) continue;
+				if (!mapFound) mapX0 = mapX1 = x, mapY0 = mapY1 = y, mapFound = true;
+				mapX0 = SDL_min(mapX0, x), mapX1 = SDL_max(mapX1, x);
+				mapY0 = SDL_min(mapY0, y), mapY1 = SDL_max(mapY1, y);
+			}
+		}
+	}
+	bool bigMap = racing && mapFound;
+	int bx0 = SDL_max(mapX0 - 2, h->map.x0), by0 = SDL_max(mapY0 - 2, h->map.y0);
+	int bx1 = SDL_min(mapX1 + 2, h->map.x1), by1 = SDL_min(mapY1 + 2, h->map.y1);
+	/* the sign: only when nothing else of the HUD is on its rows nearby */
+	bool sign = false;
+	if (racing && h->sign.x1) {
+		bool inside = false, beside = false;
+		for (int y = h->sign.y0; y <= h->sign.y1 && !beside; ++y) {
+			for (int x = SDL_max(0, h->sign.x0 - 40); x <= SDL_min(GBA_W - 1, h->sign.x1 + 40); ++x) {
+				if ((hudPx[y * GBA_W + x] & 0xFFFFFF) == clear) continue;
+				if (x >= h->sign.x0 && x <= h->sign.x1) inside = true;
+				else beside = true;
+			}
+		}
+		sign = inside && !beside;
+	}
+	if (sign) {
+		for (int y = h->sign.y0; y <= h->sign.y1; ++y) {
+			for (int x = h->sign.x0; x <= h->sign.x1; ++x) {
+				uint32_t c = hudPx[y * GBA_W + x];
+				if ((c & 0xFFFFFF) != clear) emu.fb[y * GBA_W + x] = c;
+			}
+		}
+	}
+	if (hudBackValid) {
+		memcpy(hudCanvas, hudBack, sizeof(hudCanvas));
+	} else {
+		for (int i = 0; i < HUD_CW * HUD_CH; ++i) hudCanvas[i] = 0xFF1A1010;
+	}
+	for (int y = 0; y < GBA_H; ++y) {
+		for (int x = 0; x < GBA_W; ++x) {
+			uint32_t c = hudPx[y * GBA_W + x];
+			if ((c & 0xFFFFFF) == clear) continue;
+			if (sign && x >= h->sign.x0 && x <= h->sign.x1 && y >= h->sign.y0 && y <= h->sign.y1) continue;
+			if (bigMap && x >= bx0 && x <= bx1 && y >= by0 && y <= by1) continue;
+			uint32_t* o = &hudCanvas[y * 2 * HUD_CW + x * 2];
+			o[0] = o[1] = o[HUD_CW] = o[HUD_CW + 1] = c;
+		}
+	}
+	if (bigMap) {
+		/* 2x if it fits comfortably right of the faces and below the top
+		 * row (about 200 x 128 HUD pixels), else 1.5x; centred there */
+		int w = bx1 - bx0 + 1, hh = by1 - by0 + 1;
+		int q = (w * 2 <= 180 && hh * 2 <= 120) ? 4 : 3; /* canvas pixels per HUD pixel */
+		int cx = 139 * 2, cy = 94 * 2;
+		int tx = SDL_clamp(cx - w * q / 2, 0, HUD_CW - w * q), ty = SDL_clamp(cy - hh * q / 2, 0, HUD_CH - hh * q);
+		for (int y = by0; y <= by1; ++y) {
+			for (int x = bx0; x <= bx1; ++x) {
+				uint32_t c = hudPx[y * GBA_W + x];
+				if ((c & 0xFFFFFF) == clear) continue;
+				for (int j = 0; j < q; ++j) {
+					uint32_t* o = &hudCanvas[(ty + (y - by0) * q + j) * HUD_CW + tx + (x - bx0) * q];
+					for (int i = 0; i < q; ++i) o[i] = c;
+				}
+			}
+		}
+	}
+}
+
 /* After each frame: show the HUD it drew, and decide whether the next
  * one is split. A frame is shown only if it was split and still looks like
  * racing (the first pause-menu frame is split too, and is dropped). */
@@ -654,14 +776,19 @@ static void update_hud(void) {
 	const typeof(hudProf->hud)* h = &hudProf->hud;
 	bool race = memprobes_match(h->on, 4, &emu);
 	if (hudOn && race) {
-		for (int i = 0; i < nViews; ++i) ui_update_texture(mapTex[i], hudPx, GBA_W * 4);
+		if (emu_hud_grabbed()) hud_make_backdrop(); /* (that frame drew no HUD: the last one is reused) */
+		hud_compose();
+		for (int i = 0; i < nViews; ++i) ui_update_texture(mapTex[i], hudCanvas, HUD_CW * 4);
 		if (mapShownIdx < 0 && debug) fprintf(stderr, "frame %llu: HUD on the second screen\n", (unsigned long long) frameCount);
 		mapShownIdx = 0;
 	}
 	if (race != hudOn) {
 		emu_hud_split(&emu, race, h->bgMask, h->objPrio, hudPx);
 		hudOn = race;
+		hudFrames = 0;
+		mapFound = false;
 	}
+	if (hudOn && ++hudFrames == 2 && h->backdrop) emu_hud_grab(&emu, h->backdrop, hudGrab);
 	if (!race && mapShownIdx >= 0 && !memprobes_match(h->keep, 4, &emu)) {
 		mapShownIdx = -1; /* menus: the logo */
 		if (debug) fprintf(stderr, "frame %llu: HUD gone, logo\n", (unsigned long long) frameCount);
@@ -1230,7 +1357,7 @@ static void draw_game(void) {
 			/* map + generated surround */
 		} else if (mapShownIdx >= 0) {
 			ui_fill(s, (SDL_Rect) { 0, 0, r.w, r.h }, borderColor);
-			ui_image_pixels(s, mapTex, mapW, mapH, cfg->mapScale, cfg->lcdGrid);
+			ui_image_pixels(s, mapTex, mapW, mapH, cfg->mapScale, cfg->lcdGrid && !hudProf); /* (the HUD picture is at 2x) */
 		} else if (logoTex[0] || logoTex[1]) {
 			/* no map yet (title screen, intro...): the game's logo on black */
 			SDL_Rect area = { r.w / 12, r.h / 6, r.w - r.w / 6, r.h - r.h / 3 };
@@ -1461,6 +1588,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		/* the HUD moves only when there's another screen to put it on */
 		hudProf = logoOnly && lp->hud.on[0].addr && nScreens > 1 ? lp : NULL;
 		hudOn = false;
+		hudBackValid = false;
+		if (hudProf) mapW = HUD_CW, mapH = HUD_CH; /* the second screen's picture */
 		snapShow = snapRevert = 0;
 		if (mc) mapcap_set_still(mc, !cfg->mapAnim);
 		if (logoOnly) fprintf(stderr, "logo only: %s\n", lp->title);

@@ -88,6 +88,14 @@ void emu_layers(Emu* e, unsigned mask);
  * picture and drawn alone, on black, into hud (GBA_W x GBA_H, kept by the
  * caller while the core is open). Renders nothing extra while off. */
 bool emu_hud_split(Emu* e, bool on, unsigned bgMask, int objPrio, uint32_t* hud);
+/* The HUD picture's 'no pixel here' colour (the parts of the screen the
+ * HUD doesn't cover), low 24 bits: compare with (pixel & 0xFFFFFF). */
+uint32_t emu_hud_clear(void);
+/* While split: render the next frame's BG layers in bgMask (no sprites)
+ * into buf instead of the HUD (the HUD buffer keeps the last frame).
+ * emu_hud_grabbed says, once, that it's done. */
+void emu_hud_grab(Emu* e, unsigned bgMask, uint32_t* buf);
+bool emu_hud_grabbed(void);
 
 /* Cheats. emu_cheats_clear removes them all; emu_cheats_add adds one set
  * (applied every frame) from codes in RetroArch's .cht form: hex words

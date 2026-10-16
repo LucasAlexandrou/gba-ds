@@ -133,6 +133,19 @@ typedef struct MapProfile {
 		MemProbe keep[4];
 		unsigned bgMask;
 		int objPrio;
+		/* While every `layout` probe matches (racing, not the results):
+		 * HUD pixels in `sign` stay on the game screen when the HUD has
+		 * nothing else on those rows within 40 pixels either side (Mario
+		 * Kart's turn signs, not the lap-time table); the HUD in `map` is
+		 * measured as each race starts and drawn 2x (1.5x if that doesn't fit
+		 * comfortably) in the middle of the second screen. */
+		MemProbe layout[2];
+		struct { int x0, y0, x1, y1; } sign, map;
+		/* BG layers grabbed as each race starts, rows above backdropRows,
+		 * scaled to fill the second screen and dimmed, behind the HUD (0:
+		 * plain dark) */
+		unsigned backdrop;
+		int backdropRows;
 	} hud;
 
 	/* Title-screen logo, pulled out of the running game: boot, wait, optionally
