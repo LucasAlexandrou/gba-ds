@@ -25,13 +25,12 @@ Leaving a game saves its state automatically, and launching it again picks up ex
 
 ## The pause menu
 
-Tap the touchscreen, or press **HOME** (Android: **SELECT + START** together, or **BACK**). Both screens dim, the game and its sound pause, and the menu appears on the touchscreen. It has three pages; switch with **L1 / R1** or by tapping the tabs. The menu works by touch or with the D-pad and A; B, Start or HOME closes it.
+Tap the touchscreen, or press **HOME** (Android: **SELECT + START** together, or **BACK**). Both screens dim, the game and its sound pause, and the menu appears on the touchscreen. It has four pages; switch with **L1 / R1** or by tapping the tabs. The device's battery level is shown at the top right of the top screen while the menu is open. The menu works by touch or with the D-pad and A; B, Start or HOME closes it.
 
 **Game**
 - **Resume**
 - **Restart Game**: tap twice; unsaved progress is lost.
 - **Save State** / **Load State**: one slot per game (Load is greyed out until you've saved). HOME + R1 / L1 do the same during play.
-- **Frame Buffer**: off by default. On, the next frame is prepared while the current one is on screen, which smooths out the odd stutter at the cost of one frame (about 17 ms) of input delay.
 - **Close Game** (back to the game list) and **Close GBA DS**: both save a resume point first.
 
 **Display** (remembered for next time)
@@ -40,8 +39,11 @@ Tap the touchscreen, or press **HOME** (Android: **SELECT + START** together, or
 - **LCD Grid**: a pixel grid like a GBA screen's, on both screens. `lcd_strength` sets how dark.
 - **Overlays**: primary / secondary / both / none. See [[Map screen surrounds and overlays]].
 - **No Second Screen: Show Logo / Keep Blank**: what the second screen shows when the game has nothing for it (title screens, menus, before the first map): the game's logo, or nothing.
+
+**Performance** (remembered for next time)
 - **Map Animations**: off shows a still map, without the blinking markers.
 - **Map Refresh**: how often the map updates, every 3, 1.5 (default), 1 or 0.5 seconds. Shorter is more up to date but works the CPU harder.
+- **Frame Buffer**: off by default. On, the next frame is prepared while the current one is on screen, which smooths out the odd stutter at the cost of one frame (about 17 ms) of input delay.
 - **Show FPS**: frames per second and % of full speed, above the game.
 
 **Extras**

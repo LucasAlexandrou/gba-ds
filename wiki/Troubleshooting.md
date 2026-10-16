@@ -21,9 +21,9 @@ When reporting a bug, attach `gba-ds.log` from a run where it happened, and say 
 ## Sound crackles
 
 - Raise `audio_latency` (default 64 ms) to 96 or 128.
-- Set **Map Refresh** in the pause menu to every 3 seconds. Each map refresh runs a second copy of the game for a moment; on a slower device very short intervals crackle.
+- Set **Map Refresh** (pause menu → Performance) to every 3 seconds. Each map refresh runs a second copy of the game for a moment; on a slower device very short intervals crackle.
 - On the first run, wait for the game list's thumbnails to finish ("Loading thumbnail...", about a minute) before playing.
-- **Frame Buffer** (pause menu → Game) smooths out occasional slow frames, at the cost of one frame of input delay.
+- **Frame Buffer** (pause menu → Performance) smooths out occasional slow frames, at the cost of one frame of input delay.
 
 The log's every-5-seconds report says whether the sound ran out (underruns) and why.
 

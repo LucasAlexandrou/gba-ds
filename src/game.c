@@ -8,6 +8,7 @@
 #include "ui.h"
 #include "ra.h"
 #include "logo.h"
+#include <dirent.h>
 #include "mapframe.h"
 #include "profiles.h"
 #include "cheats.h"
@@ -254,7 +255,7 @@ static const char* menuLabels[] = {
 };
 static int menuItems[12], nMenuItems;
 /* two pages, switched with L1/R1 or the tabs */
-#define N_PAGES 3
+#define N_PAGES 4
 static int pages[N_PAGES][12], pageLen[N_PAGES], curPage;
 /* Buttons still held when the menu closes (or after a HOME combo) are kept
  * from the game until released, so e.g. the A that picked "Save state"
@@ -264,7 +265,7 @@ static bool suppress[B_COUNT];
 static void suppress_held(void) {
 	for (int b = 0; b < B_COUNT; ++b) suppress[b] = btnNow[b];
 }
-static const char* pageNames[N_PAGES] = { "Game", "Display", "Extras" };
+static const char* pageNames[N_PAGES] = { "Game", "Display", "Performance", "Extras" };
 static bool restartArmed;
 static bool menuOpen;
 static int menuSel;
@@ -480,12 +481,79 @@ static SDL_Rect top_box(int scr, int t, int n) {
 	SDL_Rect r = screens[scr].rect;
 	float px = ui_px(scr);
 	int w = menu_width(scr);
-	int tw = (w - px * 3 * (n - 1)) / n;
-	return (SDL_Rect) { (r.w - w) / 2 + t * (tw + px * 3), px * 7, tw, px * 14 };
+	int gap = px * 3, avail = w - gap * (n - 1);
+	if (n == N_PAGES) {
+		/* the page tabs: each as wide as its name needs, sharing the width */
+		int cap = px * 11 / 2, need[N_PAGES], sum = 0;
+		for (int i = 0; i < n; ++i) sum += need[i] = ui_font_width(TF_BOLD, cap, pageNames[i]) + (int) (px * 6);
+		int x = (r.w - w) / 2, used = 0;
+		for (int i = 0; i < t; ++i) used += need[i];
+		int x0 = x + used * avail / sum + t * gap, x1 = x + (used + need[t]) * avail / sum + t * gap;
+		return (SDL_Rect) { x0, px * 7, x1 - x0, px * 14 };
+	}
+	int tw = avail / n;
+	return (SDL_Rect) { (r.w - w) / 2 + t * (tw + gap), px * 7, tw, px * 14 };
 }
 
 static SDL_Rect tab_rect(int scr, int t) {
 	return top_box(scr, t, 2);
+}
+
+/* The device's battery, 0-100, or -1 if unknown: the battery in
+ * /sys/class/power_supply (ROCKNIX), else SDL's (Android). Read at most
+ * every 5 seconds. */
+static int battery_percent(void) {
+	static int pct = -1;
+	static Uint32 last;
+	static bool read;
+	Uint32 now = SDL_GetTicks();
+	if (read && now - last < 5000) return pct;
+	read = true;
+	last = now;
+	pct = -1;
+#ifndef __ANDROID__
+	DIR* d = opendir("/sys/class/power_supply");
+	if (d) {
+		struct dirent* de;
+		while (pct < 0 && (de = readdir(d))) {
+			if (de->d_name[0] == '.') continue;
+			char path[512], type[32] = "";
+			snprintf(path, sizeof(path), "/sys/class/power_supply/%s/type", de->d_name);
+			FILE* f = fopen(path, "r");
+			if (!f) continue;
+			if (!fgets(type, sizeof(type), f)) type[0] = 0;
+			fclose(f);
+			if (strncmp(type, "Battery", 7)) continue;
+			snprintf(path, sizeof(path), "/sys/class/power_supply/%s/capacity", de->d_name);
+			f = fopen(path, "r");
+			if (!f) continue;
+			int v;
+			if (fscanf(f, "%d", &v) == 1 && v >= 0 && v <= 100) pct = v;
+			fclose(f);
+		}
+		closedir(d);
+	}
+#endif
+	if (pct < 0) {
+		int p = -1;
+		SDL_PowerState st = SDL_GetPowerInfo(NULL, &p);
+		if (st != SDL_POWERSTATE_UNKNOWN && st != SDL_POWERSTATE_NO_BATTERY && p >= 0) pct = p;
+	}
+	return pct;
+}
+
+/* While paused: the battery level at the top right of the top screen. */
+static void draw_battery(void) {
+	int pct = battery_percent();
+	if (pct < 0) return;
+	char buf[16];
+	snprintf(buf, sizeof(buf), "%d%%", pct);
+	int s = 0; /* the top (first) screen, whatever is on it */
+	float px = ui_px(s);
+	int cap = px * 5;
+	int x = screens[s].rect.w - px * 5, cy = px * 7;
+	ui_font_text(s, TF_BOLD, x + SDL_max(1, (int) (px / 2)), cy + SDL_max(1, (int) (px / 2)), cap, buf, (SDL_Color) { 0, 0, 0, 255 }, 1);
+	ui_font_text(s, TF_BOLD, x, cy, cap, buf, C_TEXT, 1);
 }
 
 static void set_page(int page) {
@@ -543,6 +611,7 @@ static void draw_menu(void) {
 		ui_load_brand(BRAND_BTN_R1, shoulderTex[1], &shoulderW, &shoulderH);
 	}
 	for (int s = 0; s < nScreens; ++s) ui_dim(s, 170);
+	draw_battery();
 	int scr = ui_touch_screen();
 	float px = ui_px(scr);
 	int cap = px * 11 / 2;   /* Futura capital height */
@@ -1775,10 +1844,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[0][pageLen[0]++] = M_RESTART;
 	pages[0][pageLen[0]++] = M_SAVE;
 	pages[0][pageLen[0]++] = M_LOAD;
-	pages[0][pageLen[0]++] = M_FRAMEBUF;
-	pages[2][pageLen[2]++] = M_CHEATS;
-	if (ra_enabled()) pages[2][pageLen[2]++] = M_ACH;
-	pages[2][pageLen[2]++] = M_SHOT;
+	pages[3][pageLen[3]++] = M_CHEATS;
+	if (ra_enabled()) pages[3][pageLen[3]++] = M_ACH;
+	pages[3][pageLen[3]++] = M_SHOT;
 	if (fromLibrary) pages[0][pageLen[0]++] = M_LIBRARY;
 	pages[0][pageLen[0]++] = M_EXIT;
 	pages[1][pageLen[1]++] = M_SWAP;
@@ -1786,9 +1854,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[1][pageLen[1]++] = M_LCD;
 	pages[1][pageLen[1]++] = M_OVERLAY;
 	pages[1][pageLen[1]++] = M_LOGO;
-	pages[1][pageLen[1]++] = M_MAPANIM;
-	pages[1][pageLen[1]++] = M_MAPRATE;
-	pages[1][pageLen[1]++] = M_FPS;
+	pages[2][pageLen[2]++] = M_MAPANIM;
+	pages[2][pageLen[2]++] = M_MAPRATE;
+	pages[2][pageLen[2]++] = M_FRAMEBUF;
+	pages[2][pageLen[2]++] = M_FPS;
 	set_page(0);
 
 	if (cfg->loadState[0]) {

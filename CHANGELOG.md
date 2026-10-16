@@ -2,6 +2,8 @@
 
 ## v1.1.5 (not yet released)
 
+- **Battery level in the pause menu:** the device's battery percentage at the top right of the top screen while the game is paused.
+- **Pause menu: a Performance page**, between Display and Extras, with Map Animations, Map Refresh, Frame Buffer and Show FPS. The tabs are now sized to fit their names.
 ## v1.1.4 (2026-10-16)
 
 - **Menus on 640×480 screens (RG DS)** are now drawn at the same proportions as on the RG DS Plus: the pause menu, game list, Settings, cheats and achievements were drawn at half size, which looked too small. The RG DS Plus looks the same as before.
