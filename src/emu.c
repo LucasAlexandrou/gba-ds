@@ -138,6 +138,9 @@ static struct VFile* async_save_open(const char* path) {
 }
 #endif
 
+static void split_resync(Emu* e);
+static void split_release(Emu* e);
+
 bool emu_open(Emu* e, const char* romPath, const char* savePath, bool audio) {
 	memset(e, 0, sizeof(*e));
 	mLogSetDefaultLogger(&quietLogger);
@@ -192,6 +195,7 @@ static void hide_release(Emu* e);
 
 void emu_close(Emu* e) {
 	if (e->core) {
+		split_release(e);
 		hide_release(e);
 		mCoreConfigDeinit(&e->core->config);
 		e->core->deinit(e->core);
@@ -214,6 +218,7 @@ void emu_frame(Emu* e, uint32_t keys) {
 
 void emu_reset(Emu* e) {
 	e->core->reset(e->core);
+	split_resync(e);
 }
 
 size_t emu_state_size(Emu* e) {
@@ -225,7 +230,9 @@ bool emu_state_save(Emu* e, void* buf) {
 }
 
 bool emu_state_load(Emu* e, const void* buf) {
-	return e->core->loadState(e->core, buf);
+	bool ok = e->core->loadState(e->core, buf);
+	split_resync(e);
+	return ok;
 }
 
 bool emu_state_save_file(Emu* e, const char* path) {
@@ -245,6 +252,7 @@ bool emu_state_load_file(Emu* e, const char* path) {
 	}
 	bool ok = mCoreLoadStateNamed(e->core, vf, SAVESTATE_RTC);
 	vf->close(vf);
+	split_resync(e);
 	return ok;
 }
 
@@ -414,6 +422,147 @@ static void hide_release(Emu* e) {
 	HideSlot* s = slot_for(gba->video.renderer);
 	if (s) memset(s, 0, sizeof(*s));
 	pthread_mutex_unlock(&hideLock);
+}
+
+/* ---------------------------------------------------------------- HUD split
+ *
+ * A second software renderer that gets every register, palette and sprite
+ * write the game's own renderer gets, and draws only the HUD (some BG
+ * layers and sprites of one priority) into its own buffer, on black. While
+ * it's on, the game's renderer leaves those out. Each renderer keeps its
+ * own per-line state (affine counters, sprite lists), so the track's
+ * per-line effects are unaffected. */
+typedef struct {
+	struct GBAVideoSoftwareRenderer hud;
+	struct GBAVideoRenderer* main;
+	bool installed, active;
+	unsigned bgMask;
+	int objPrio;
+	uint16_t (*writeVideoRegister)(struct GBAVideoRenderer*, uint32_t, uint16_t);
+	void (*writeVRAM)(struct GBAVideoRenderer*, uint32_t);
+	void (*writePalette)(struct GBAVideoRenderer*, uint32_t, uint16_t);
+	void (*writeOAM)(struct GBAVideoRenderer*, uint32_t);
+	void (*drawScanline)(struct GBAVideoRenderer*, int);
+	void (*finishFrame)(struct GBAVideoRenderer*);
+	void (*reset)(struct GBAVideoRenderer*);
+} Split;
+static Split split;
+
+static void filtered_draw_scanline(struct GBAVideoRenderer* renderer, int y);
+
+static uint16_t split_reg(struct GBAVideoRenderer* r, uint32_t a, uint16_t v) {
+	uint16_t out = split.writeVideoRegister(r, a, v);
+	split.hud.d.writeVideoRegister(&split.hud.d, a, v);
+	return out;
+}
+static void split_vram(struct GBAVideoRenderer* r, uint32_t a) {
+	split.writeVRAM(r, a);
+	split.hud.d.writeVRAM(&split.hud.d, a);
+}
+static void split_palette(struct GBAVideoRenderer* r, uint32_t a, uint16_t v) {
+	split.writePalette(r, a, v);
+	split.hud.d.writePalette(&split.hud.d, a, a == 0 ? 0 : v); /* backdrop: black */
+}
+static void split_oam(struct GBAVideoRenderer* r, uint32_t i) {
+	split.writeOAM(r, i);
+	split.hud.d.writeOAM(&split.hud.d, i);
+}
+static void split_draw(struct GBAVideoRenderer* r, int y) {
+	if (split.active) filtered_draw_scanline(&split.hud.d, y);
+	split.drawScanline(r, y);
+}
+static void split_finish(struct GBAVideoRenderer* r) {
+	split.finishFrame(r);
+	split.hud.d.finishFrame(&split.hud.d);
+}
+static void split_reset(struct GBAVideoRenderer* r) {
+	split.reset(r);
+	split.hud.d.reset(&split.hud.d);
+}
+
+/* the HUD renderer takes on the video state as it is now */
+static void split_resync(Emu* e) {
+	struct GBA* gba = e->core->board;
+	if (!split.installed || gba->video.renderer != split.main) return; /* another core (logo, map capture) */
+	struct GBAVideoRenderer* h = &split.hud.d;
+	h->reset(h);
+	for (uint32_t a = 0; a <= 0x56; a += 2) h->writeVideoRegister(h, a, gba->memory.io[a >> 1]);
+	for (uint32_t a = 0; a < 0x400; a += 2) h->writePalette(h, a, a == 0 ? 0 : gba->video.palette[a >> 1]);
+	for (uint32_t i = 0; i < 512; ++i) h->writeOAM(h, i);
+	split.hud.oamDirty = true;
+}
+
+static void split_release(Emu* e) {
+	struct GBA* gba = e->core->board;
+	if (!split.installed || gba->video.renderer != split.main) return; /* another core (logo, map capture) */
+	pthread_mutex_lock(&hideLock);
+	HideSlot* s = slot_for(&split.hud.d);
+	if (s) memset(s, 0, sizeof(*s));
+	pthread_mutex_unlock(&hideLock);
+	split.hud.d.deinit(&split.hud.d);
+	memset(&split, 0, sizeof(split));
+}
+
+bool emu_hud_split(Emu* e, bool on, unsigned bgMask, int objPrio, uint32_t* hud) {
+	struct GBA* gba = e->core->board;
+	struct GBAVideoRenderer* r = gba->video.renderer;
+	if (!r) return false;
+	if (!split.installed) {
+		if (!on) return true;
+		memset(&split, 0, sizeof(split));
+		GBAVideoSoftwareRendererCreate(&split.hud);
+		split.hud.outputBuffer = (mColor*) hud;
+		split.hud.outputBufferStride = GBA_W;
+		struct GBAVideoRenderer* h = &split.hud.d;
+		h->palette = gba->video.palette;
+		h->vram = gba->video.vram;
+		h->oam = &gba->video.oam;
+		h->cache = NULL;
+		h->init(h);
+		split.main = r;
+		split.writeVideoRegister = r->writeVideoRegister, r->writeVideoRegister = split_reg;
+		split.writeVRAM = r->writeVRAM, r->writeVRAM = split_vram;
+		split.writePalette = r->writePalette, r->writePalette = split_palette;
+		split.writeOAM = r->writeOAM, r->writeOAM = split_oam;
+		split.drawScanline = r->drawScanline, r->drawScanline = split_draw;
+		split.finishFrame = r->finishFrame, r->finishFrame = split_finish;
+		split.reset = r->reset, r->reset = split_reset;
+		/* the HUD renderer's own sprite filter: everything but objPrio */
+		pthread_mutex_lock(&hideLock);
+		HideSlot* s = slot_for(NULL);
+		if (s) {
+			s->renderer = h;
+			s->orig = h->drawScanline;
+			s->n = 0;
+		}
+		pthread_mutex_unlock(&hideLock);
+		split.installed = true;
+		split_resync(e);
+	}
+	split.bgMask = bgMask;
+	split.objPrio = objPrio;
+	/* the HUD: those layers and sprites only */
+	struct GBAVideoRenderer* h = &split.hud.d;
+	for (int i = 0; i < 4; ++i) h->disableBG[i] = !((bgMask >> i) & 1);
+	h->disableOBJ = objPrio < 0;
+	pthread_mutex_lock(&hideLock);
+	HideSlot* hs = slot_for(h);
+	if (hs) {
+		hs->n = 0;
+		for (int p = 0; p < 4; ++p) {
+			if (p != objPrio) hs->rules[hs->n++] = (SpriteRule) { -512, -256, 511, 255, 0, 1023, p };
+		}
+	}
+	pthread_mutex_unlock(&hideLock);
+	split.hud.oamDirty = true;
+	/* the game: without them */
+	if (on != split.active) {
+		for (int i = 0; i < 4; ++i) r->disableBG[i] = on && ((bgMask >> i) & 1);
+		SpriteRule mainHide = { -512, -256, 511, 255, 0, 1023, objPrio };
+		emu_hide_sprites(e, on && objPrio >= 0 ? &mainHide : NULL, on && objPrio >= 0 ? 1 : 0);
+		split.active = on;
+	}
+	return true;
 }
 
 /* ---------------------------------------------------------------- cheats */

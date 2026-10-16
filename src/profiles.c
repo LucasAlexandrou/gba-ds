@@ -243,6 +243,19 @@ static const MapProfile profiles[] = {
 		 * later); BG0 holds the logo alone, with the copyright line at the
 		 * bottom (rows 147-157), so keep rows above 100 */
 		.logo = { .wait = 1000, .layer = 0, .maxY = 100 },
+		/* The race HUD (coins, lap, item box, time, the top-4 faces, place,
+		 * the course map) is BG0, and the racers' dots on the map are the
+		 * only priority-0 sprites (karts and Lakitu are priority 1). Racing:
+		 * mode 1 with all four BGs and sprites (0x1F41), BG0's map in screen
+		 * block 7 (0x0700). The pause menu is drawn on BG0 too, from block 6:
+		 * it stays on the game screen and the last HUD stays up. Menus and
+		 * the course fly-over use other settings. */
+		.hud = {
+			.on = { { 0x04000000, 0xFFFF, 0x1F41, 2 }, { 0x04000008, 0xFFFF, 0x0700, 2 } },
+			.keep = { { 0x04000000, 0xFFFF, 0x1F41, 2 } },
+			.bgMask = 1,
+			.objPrio = 0,
+		},
 	},
 };
 

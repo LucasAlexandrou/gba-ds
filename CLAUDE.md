@@ -117,12 +117,15 @@ Android session at the same time. To keep them from colliding:
 - `main.c` start-up; `config.c` settings (`gba-ds.cfg`, `prefs.cfg`, `--key=value`).
 - `emu.c` the libmgba wrapper: frames, states, audio, cheats, per-renderer
   sprite hiding (SpriteRule), layer toggles, ROM headers (also inside
-  .zip / .7z).
+  .zip / .7z), and the HUD split (`emu_hud_split`: a second software
+  renderer fed the same register / palette / OAM writes draws only some
+  layers and sprites into its own buffer; Mario Kart's race HUD). The
+  harness has `split BGMASK PRIO` / `split off` and `hudshot NAME`.
 - `profiles.c/.h` everything game-specific (MapProfile): how to open the
   map, screen and memory probes, crops, captureHide/underHide sprite rules,
   logo extraction, regional variants (`variants[]` + patch functions), and
   for logo-only games (Tony Hawk's Pro Skater 2) the `snap` screen copy and
-  `controls` four-face layout. Adding a game mostly means a profile.
+  `controls` four-face layout, (Mario Kart) the `hud` split and when it's on. Adding a game mostly means a profile.
 - `mapcap.c` map capture on a hidden second core in a background thread.
 - `mapframe.c` generated map surrounds; `logo.c` logo / frame extraction.
 - `game.c` a play session: input, the second screen (map, logo, THPS2

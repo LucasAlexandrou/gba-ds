@@ -62,6 +62,8 @@ static void run(uint32_t keys, int n) {
 	}
 }
 
+static uint32_t* hudBuf; /* split's picture */
+
 static void shot(const char* name) {
 	char path[512];
 	snprintf(path, sizeof(path), "%s/%s.png", outdir, name);
@@ -108,6 +110,17 @@ int main(int argc, char** argv) {
 			}
 		} else if (!strcmp(cmd, "shot")) {
 			shot(a1);
+		} else if (!strcmp(cmd, "split")) {
+			/* split BGMASK PRIO (on) / split off: the HUD split (emu_hud_split) */
+			static uint32_t hud[GBA_W * GBA_H];
+			if (!strcmp(a1, "off")) emu_hud_split(&emu, false, 0, -1, hud);
+			else emu_hud_split(&emu, true, strtoul(a1, NULL, 0), atoi(a2), hud);
+			hudBuf = hud;
+		} else if (!strcmp(cmd, "hudshot")) {
+			/* the HUD split's picture */
+			char path[512];
+			snprintf(path, sizeof(path), "%s/%s.png", outdir, a1);
+			if (hudBuf) write_png(path, hudBuf, GBA_W, GBA_H, GBA_W);
 		} else if (!strcmp(cmd, "seq")) {
 			int n = atoi(a2), step = atoi(a3);
 			for (int i = 0; i < n; ++i) {

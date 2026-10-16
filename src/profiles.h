@@ -122,6 +122,19 @@ typedef struct MapProfile {
 	 * triggers an early capture. Only addr/size are used. */
 	MemProbe room[4];
 
+	/* Logo-only games whose HUD moves to the second screen (Mario Kart):
+	 * while every `on` probe matches (I/O registers or RAM, after each
+	 * frame), the BG layers in bgMask and the sprites of priority objPrio are
+	 * drawn there, on black, instead of on the game screen (emu_hud_split).
+	 * While every `keep` probe matches (the pause menu), the last HUD picture
+	 * stays up; anywhere else the logo comes back. Two screens only. */
+	struct {
+		MemProbe on[4];
+		MemProbe keep[4];
+		unsigned bgMask;
+		int objPrio;
+	} hud;
+
 	/* Title-screen logo, pulled out of the running game: boot, wait, optionally
 	 * press Start (to skip an intro), wait again, then keep one BG layer
 	 * (0-3) above row maxY. blackIsClear: the layer has an opaque black fill. */

@@ -21,13 +21,15 @@ The idea here is "what if the Game Boy Advance had a second screen" -- part of w
 | Metroid Fusion | Start | working |
 | The Legend of Zelda: A Link to the Past | L | working |
 | Tony Hawk's Pro Skater 2 (incl. SK8, Japan) | — | working: the goal sheet for the current run on the second screen; optional four-button layout |
-| Mario Kart: Super Circuit (incl. Mario Kart Advance, Japan) | — | in progress: listed, with the logo on the second screen |
+| Mario Kart: Super Circuit (incl. Mario Kart Advance, Japan) | — | in progress: the race HUD on the second screen |
 
 The European and Japanese releases are supported as well as the USA ones: map, logo and border. (The European Metroids' label erasing was checked in English and German.) Any other GBA game also runs; it just gets no map screen.
 
 **Metroid mini-map:** with the full map always up, the small 3×3 mini-map in the top-right corner of the Metroid games is hidden. It's left out when the picture is drawn, so the game itself is unchanged; set `map = 0` and it comes back along with the normal one-screen view.
 
 **Metroid map screens:** the second screen shows the pause screen's map in its frame, tidied up: the button labels and area name are erased, the scroll arrows and play-time clock are left out, Fusion's "A OBJECTIVE" prompt and its row of ticked item icons are left out, and Zero Mission's corner minimap gives way to the map underneath, with its "SELECT / CHANGE AREAS" prompt covered by a piece of the bezel. `map_crop = 0` shows the pause screen exactly as the game draws it.
+
+**Mario Kart: Super Circuit:** during a race the whole HUD (coins, lap, item box, time, the top-four faces, your place and the course map with the racers' dots) moves to the second screen, so the game screen shows only the track and the karts. The game's pause menu stays on the game screen with the last HUD below it; in the menus, the second screen shows the logo. With one screen (`layout = single`) the HUD stays where the game draws it.
 
 **A Link to the Past:** the cartridge also holds Four Swords, which needs linked GBAs, so the game list shows only A Link to the Past and maps are only captured while it's being played. L brings up the world map outdoors (GBA DS shows the zoomed-out whole-world view, which doesn't scroll with Link) and the dungeon map once you have it; where L does nothing (houses, caves, dungeons without their map), the last map stays up, dimmed. After Save and Quit, the second screen goes back to the logo.
 

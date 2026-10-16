@@ -176,6 +176,10 @@ static bool stillValid;
 static bool mapInactive;
 static bool logoOnly; /* the game has a profile but no map: logo on the second screen */
 static const MapProfile* snapProf; /* logo-only game with screens copied to the second screen */
+/* Mario Kart: the race HUD on the second screen (profile .hud) */
+static const MapProfile* hudProf;
+static uint32_t hudPx[GBA_W * GBA_H];
+static bool hudOn; /* the frame being emulated is split */
 static int snapShow, snapRevert;   /* consecutive frames matching show / a revert screen */
 
 static uint64_t mapAnimStart, frameCount;
@@ -643,6 +647,27 @@ static void snapshot_hiding_sprites(uint32_t* out) {
 
 /* Logo-only games: copy a recognised screen (THPS2 goal sheet) to the second
  * screen; back to the logo at the menus. */
+/* After each frame: show the HUD it drew, and decide whether the next
+ * one is split. A frame is shown only if it was split and still looks like
+ * racing (the first pause-menu frame is split too, and is dropped). */
+static void update_hud(void) {
+	const typeof(hudProf->hud)* h = &hudProf->hud;
+	bool race = memprobes_match(h->on, 4, &emu);
+	if (hudOn && race) {
+		for (int i = 0; i < nViews; ++i) ui_update_texture(mapTex[i], hudPx, GBA_W * 4);
+		if (mapShownIdx < 0 && debug) fprintf(stderr, "frame %llu: HUD on the second screen\n", (unsigned long long) frameCount);
+		mapShownIdx = 0;
+	}
+	if (race != hudOn) {
+		emu_hud_split(&emu, race, h->bgMask, h->objPrio, hudPx);
+		hudOn = race;
+	}
+	if (!race && mapShownIdx >= 0 && !memprobes_match(h->keep, 4, &emu)) {
+		mapShownIdx = -1; /* menus: the logo */
+		if (debug) fprintf(stderr, "frame %llu: HUD gone, logo\n", (unsigned long long) frameCount);
+	}
+}
+
 static void update_snapshot(void) {
 	const typeof(snapProf->snap)* sn = &snapProf->snap;
 	int tol = sn->tol ? sn->tol : 12;
@@ -1418,6 +1443,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	menuOpen = false;
 	logoOnly = false;
 	snapProf = NULL;
+	hudProf = NULL;
+	hudOn = false;
 	{
 		const MapProfile* cp = profile_find(emu.gameCode);
 		ctlProf = cp && cp->controls.fourFace ? cp : NULL;
@@ -1431,6 +1458,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		const MapProfile* lp = profile_find(emu.gameCode);
 		logoOnly = lp && lp->logoOnly;
 		snapProf = logoOnly && lp->snap.showMin ? lp : NULL;
+		/* the HUD moves only when there's another screen to put it on */
+		hudProf = logoOnly && lp->hud.on[0].addr && nScreens > 1 ? lp : NULL;
+		hudOn = false;
 		snapShow = snapRevert = 0;
 		if (mc) mapcap_set_still(mc, !cfg->mapAnim);
 		if (logoOnly) fprintf(stderr, "logo only: %s\n", lp->title);
@@ -1965,6 +1995,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 
 		if (snapProf) update_snapshot();
+		if (hudProf) update_hud();
 		if (ctlProf) {
 			/* switch after a few frames in the new state, not on one odd frame */
 			static int ctlStreak;

@@ -2,7 +2,7 @@
 
 ## v1.1.3 (not yet released)
 
-- **Mario Kart: Super Circuit** (USA, Europe; Mario Kart Advance in Japan) is listed, with its logo on the second screen. More to come for it.
+- **Mario Kart: Super Circuit** (USA, Europe; Mario Kart Advance in Japan): during a race the whole HUD (coins, lap, item box, time, the top-four faces, your place and the course map) moves to the second screen, leaving the game screen to the track and the karts. In the menus, the second screen shows the game's logo.
 
 ## v1.1.2 (2026-10-15)
 

@@ -83,6 +83,11 @@ void emu_hide_sprites(Emu* e, const SpriteRule* rules, int n);
 /* Which layers are drawn: bits 0-3 BG0-3, bit 4 sprites (0x1F = all). Takes
  * effect when the display registers are next written (e.g. a state load). */
 void emu_layers(Emu* e, unsigned mask);
+/* HUD split (Mario Kart): while on, the BG layers in bgMask (bit 0 = BG0)
+ * and the sprites of priority objPrio (-1: none) are left out of the game
+ * picture and drawn alone, on black, into hud (GBA_W x GBA_H, kept by the
+ * caller while the core is open). Renders nothing extra while off. */
+bool emu_hud_split(Emu* e, bool on, unsigned bgMask, int objPrio, uint32_t* hud);
 
 /* Cheats. emu_cheats_clear removes them all; emu_cheats_add adds one set
  * (applied every frame) from codes in RetroArch's .cht form: hex words
