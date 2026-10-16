@@ -86,7 +86,20 @@ To add second-screen support for another game, see [Adding second-screen compati
 
 ## AI Disclosure
 
-Claude is doing the lion's share of coding here. I am testing each iteration on real hardware before moving it into a release.
+GBA DS is written almost entirely by AI. The code is written by Claude, Anthropic's AI model, working in Claude Code sessions, and so are the documentation, the changelog and the commit messages. I decide what gets built and how it should behave, and I test it.
+
+**How a change gets made**
+
+1. **I ask for something,** like a new game, a bug fix or a change to how something looks or feels. I usually include save states, screenshots or photos of the device showing what I mean.
+2. **Claude writes the change** and checks it on a desktop build before I see it. GBA DS can run without a screen and play scripted button presses from a save state, so Claude takes screenshots of both screens and looks at them before sending me anything. For new games it also uses a test harness that steps the emulator frame by frame and reads the game's memory.
+3. **I test every build on real hardware.** That's an Anbernic RG DS Plus, on ROCKNIX and on Android (GammaOS). Nothing goes into a release until I've played it on the device and confirmed it works and that what already worked still does. When something's wrong, I send photos or screenshots back and we go around again. Some changes take several rounds before they're right.
+4. **Releases are my call.** I decide when a version is ready and create each GitHub release myself. The ROCKNIX zip is built from a fresh copy of the release code. The Android APK is built and signed by GitHub Actions, not on anyone's computer.
+
+**What you can see in the history:** since October 16, 2026, each commit shows "kyannon authored and Claude committed", with a Verified badge. "Authored" means I asked for and approved the change; "committed" means Claude wrote it. Earlier commits show me alone, but they were made the same way.
+
+**What isn't AI-generated:** the game logos, map borders and second-screen art are extracted from your own ROMs while the app runs, not drawn by AI or shipped with the app. Emulation itself is [mGBA](https://mgba.io)'s, a long-established, human-written emulator, which GBA DS builds on.
+
+**What this means for you:** I can't promise there are no bugs, but every feature in a release has been used on the device it was made for. A feature that can't be tested on my hardware is labeled *experimental* (for example, starting games from some Android frontends). If something doesn't work for you, please [open an issue](https://github.com/kyannon/gba-ds/issues); it gets tested on hardware the same way.
 
 ## Licence
 
