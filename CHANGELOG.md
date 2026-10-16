@@ -1,5 +1,7 @@
 # Changelog
 
+## v1.1.3 (not yet released)
+
 ## v1.1.2 (2026-10-15)
 
 - **Frame Buffer** (pause menu → Game; both platforms, off by default): the next frame is prepared while the current one is shown, which smooths out the odd stutter at the cost of one frame (about 17 ms) of input delay. Remembered for next time.
