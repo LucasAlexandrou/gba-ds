@@ -1,9 +1,10 @@
 # Changelog
 
-## v1.1.3 (not yet released)
+## v1.1.3 (2026-10-15)
 
 - **LCD grid** now covers Mario Kart's second screen too, with the same cell size as the game screen.
 - **Mario Kart: Super Circuit** (USA, Europe; Mario Kart Advance in Japan): during a race the whole HUD (coins, lap, item box, time, the top-four faces, your place and the course map) moves to the second screen, leaving the game screen to the track and the karts, with the item box in its top-left corner and your place in its top-right (the "turn ahead" signs stay there too). The top-four faces are centred down the second screen. The course map is drawn twice as big, over a dimmed picture of the course's sky and scenery; the lap times and results after the finish show there too, and after a cup the podium's CONGRATULATIONS!, cup name, your portrait and cup table, over the game's logo (CONGRATULATIONS! and your place centred, your portrait on the left, since the trophy stays on the game screen). In the menus, the second screen shows the game's logo.
+- **Documentation moved to the [wiki](https://github.com/kyannon/gba-ds/wiki)**, expanded: a full settings reference, troubleshooting, Android frontend set-up (GammaOS, Daijisho, ES-DE), the ROCKNIX Ports icon, and a guide to adding second-screen support for a game.
 
 ## v1.1.2 (2026-10-15)
 
