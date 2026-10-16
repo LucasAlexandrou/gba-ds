@@ -16,8 +16,16 @@ with photos and screenshots; nothing ships untested on the device.
   release time, fast-forwarded to the release commit. The owner creates
   GitHub releases and tags by hand (sessions get HTTP 403 on releases and
   can't push tags).
-- **Commits:** author `kyannon <341221214+kyannon@users.noreply.github.com>`,
-  with the Co-Authored-By / Claude-Session trailers the session asks for.
+- **Commits:** kyannon is the author and Claude the (signed) committer, so
+  GitHub shows "kyannon authored and Claude committed" with a Verified
+  badge. Commit with the session's own git identity (Claude
+  <noreply@anthropic.com>, which signs) and give the author on each commit:
+  `git commit --author="kyannon <341221214+kyannon@users.noreply.github.com>"`.
+  Don't set `user.name` / `user.email` to kyannon (in the clone's config or
+  with `git -c`): that makes kyannon the committer too, and the signature no
+  longer matches. Add the Co-Authored-By / Claude-Session trailers the
+  session asks for. Commits before Oct 16, 2026 were made as kyannon alone
+  and stay that way (never rewrite pushed history).
 - **VERSION** holds `X.Y.Z-dev` (or `X.Y-dev`) on `dev`; CHANGELOG.md has a
   `## vX.Y.Z (not yet released)` section on top. Add a line there for every
   user-visible change, written for players (not implementation notes).
