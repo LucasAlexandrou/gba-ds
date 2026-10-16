@@ -3,7 +3,7 @@
 ## v1.1.3 (not yet released)
 
 - **LCD grid** now covers Mario Kart's second screen too, with the same cell size as the game screen.
-- **Mario Kart: Super Circuit** (USA, Europe; Mario Kart Advance in Japan): during a race the whole HUD (coins, lap, item box, time, the top-four faces, your place and the course map) moves to the second screen, leaving the game screen to the track and the karts (the "turn ahead" signs stay there). The course map is drawn twice as big, over a dimmed picture of the course's sky and scenery; the lap times and results after the finish show there too, and after a cup the podium's CONGRATULATIONS!, cup name, your portrait and cup table, over the game's logo. In the menus, the second screen shows the game's logo.
+- **Mario Kart: Super Circuit** (USA, Europe; Mario Kart Advance in Japan): during a race the whole HUD (coins, lap, item box, time, the top-four faces, your place and the course map) moves to the second screen, leaving the game screen to the track and the karts (the "turn ahead" signs stay there). The course map is drawn twice as big, over a dimmed picture of the course's sky and scenery; the lap times and results after the finish show there too, and after a cup the podium's CONGRATULATIONS!, cup name, your portrait and cup table, over the game's logo (lined up on the left, with your place centred, since the trophy stays on the game screen). In the menus, the second screen shows the game's logo.
 
 ## v1.1.2 (2026-10-15)
 

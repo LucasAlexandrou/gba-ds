@@ -277,6 +277,10 @@ static const MapProfile profiles[] = {
 			.scene = {
 				.when = { { 0x0400000A, 0x0003, 0x0003, 2 }, { 0x04000050, 0xFFFF, 0x2F40, 2 } },
 				.objs = { { -512, -256, 511, 255, 768, 959, -1 }, { -512, -256, 511, 255, 288, 319, -1 } },
+				/* the trophy stays on the game screen, so close up its gap:
+				 * CONGRATULATIONS! and the portrait to the left edge, the
+				 * place ("1st", BG0 139-167 x 40-62) centred */
+				.moves = { { 0, 0, 239, 33, 6, 'L' }, { 88, 34, 132, 70, 6, 'L' }, { 134, 36, 180, 66, 120, 'C' } },
 			},
 		},
 	},

@@ -153,6 +153,10 @@ typedef struct MapProfile {
 		struct {
 			MemProbe when[2];
 			SpriteRule objs[4];
+			/* pieces of that HUD moved sideways on the second screen: what's
+			 * inside the box (inclusive), measured each frame, gets its left
+			 * edge at `to` ('L') or is centred on `to` ('C') */
+			struct { int x0, y0, x1, y1, to; char how; } moves[4];
 		} scene;
 	} hud;
 
