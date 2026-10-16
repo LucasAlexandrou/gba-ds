@@ -1,5 +1,7 @@
 # Changelog
 
+## v1.1.5 (not yet released)
+
 ## v1.1.4 (2026-10-16)
 
 - **Menus on 640×480 screens (RG DS)** are now drawn at the same proportions as on the RG DS Plus: the pause menu, game list, Settings, cheats and achievements were drawn at half size, which looked too small. The RG DS Plus looks the same as before.
