@@ -501,8 +501,3 @@ frontend launch intents.
 Player-facing Android changes since the last release, for the main session
 to move into CHANGELOG.md and the release notes (see CLAUDE.md, "More than
 one session"). Empty after each release.
-
-- **GammaOS's own launcher** can start games with GBA DS: Game Systems → Game Boy Advance, Launch Type **Custom Package**, Package `io.github.kyannon.gbads`, and the Intent Template given in the README.
-- **Frame buffer** in the pause menu's Game page (off by default; both platforms): the next frame is emulated while the current one is shown, for players who'd rather have the smoothest picture than the least input delay (one frame, about 17 ms).
-- Smoother play: achievement popups no longer slow the game down, and text everywhere costs less to draw, and no more freeze when the game saves.
-- **RetroAchievements on Android** (casual mode), as on ROCKNIX: progress and unlocks on the second screen, and the Achievements list in the pause menu. Sign in in the game list's **Settings** → **RetroAchievements**; GBA DS keeps a sign-in token, not your password.

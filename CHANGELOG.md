@@ -2,6 +2,11 @@
 
 ## v1.1.2 (not yet released)
 
+- **Frame Buffer** (pause menu → Game; both platforms, off by default): the next frame is prepared while the current one is shown, which smooths out the odd stutter at the cost of one frame (about 17 ms) of input delay. Remembered for next time.
+- **RetroAchievements on Android** (casual mode), as on ROCKNIX: progress and unlocks on the second screen, and the Achievements list in the pause menu. Sign in from the game list's **Settings** → **RetroAchievements**; GBA DS keeps a sign-in token, not your password.
+- **Android: start games from GammaOS's own launcher.** In Game Systems → Game Boy Advance, set Launch Type to **Custom Package**, Package to `io.github.kyannon.gbads`, and the Intent Template given in the README.
+- **Smoother play.** Achievement popups no longer slow the game down, and text everywhere costs less to draw. On Android, the game no longer freezes for a moment when it saves, and frame times are steadier.
+
 ## v1.1.1 (2026-10-15)
 
 - **RetroAchievements** (casual mode) on ROCKNIX, with the account signed in in EmulationStation. Starting a game shows its achievement progress on the second screen, and unlocks pop up there with the badge and points, out of the game's way. Save states keep the achievements' progress with them. **Achievements** in the pause menu lists the game's achievements with badges, points and progress. `retroachievements = 0` in gba-ds.cfg turns it off. Hardcore mode isn't available yet.
