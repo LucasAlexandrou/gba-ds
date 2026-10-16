@@ -1,5 +1,7 @@
 # Changelog
 
+## v1.1.6 (not yet released)
+
 ## v1.1.5 (2026-10-16)
 
 - **GBA DS is now free software under the GNU General Public License, version 3.** The licence is in the repository and, from this release, in `gba-ds/licenses/` (ROCKNIX) and inside the APK.
