@@ -1018,11 +1018,11 @@ void ra_list_open(void) {
 	}
 }
 
-static int row_h(int px, const ListRow* r) {
+static int row_h(float px, const ListRow* r) {
 	return r->heading ? px * 13 : px * 23;
 }
 
-static int list_total(int px) {
+static int list_total(float px) {
 	int t = 0;
 	for (int i = 0; i < nRows; ++i) t += row_h(px, &rows[i]);
 	return t;
@@ -1047,7 +1047,7 @@ void ra_list_set_scroll(int scr, int y) {
 }
 
 void ra_list_draw(int s, SDL_Rect a) {
-	int px = ui_px(s);
+	float px = ui_px(s);
 	SDL_Rect sr = screens[s].rect;
 	if (!client || !gameLoaded || !achList) {
 		const char* msg = !client ? "RetroAchievements is off" : listStatus[0] ? listStatus : "Loading the achievements...";

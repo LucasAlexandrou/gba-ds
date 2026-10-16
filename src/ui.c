@@ -1146,8 +1146,8 @@ void ui_dim(int screen, Uint8 alpha) {
 	ui_fill(screen, (SDL_Rect) { 0, 0, screens[screen].rect.w, screens[screen].rect.h }, (SDL_Color) { 0, 0, 0, alpha });
 }
 
-int ui_px(int screen) {
-	return SDL_max(2, screens[screen].rect.h / 192);
+float ui_px(int screen) {
+	return SDL_max(2.0f, screens[screen].rect.h / 192.0f);
 }
 
 int ui_text_width(const char* s, int px) {

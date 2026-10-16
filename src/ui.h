@@ -130,7 +130,7 @@ void ui_text(int screen, int x, int y, int px, const char* s, SDL_Color c);
 int ui_text_width(const char* s, int px);
 void ui_text_center(int screen, int cx, int y, int px, const char* s, SDL_Color c);
 /* Pixel size for text so that it is legible on this screen. */
-int ui_px(int screen);
+float ui_px(int screen); /* the layout unit: screen height / 192 (4 at 768), at least 2 */
 
 /* Loads a BMP into one texture per view. Returns false if missing. */
 bool ui_load_image(const char* path, SDL_Texture* out[2], int* w, int* h, bool smooth);

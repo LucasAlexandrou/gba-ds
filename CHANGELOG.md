@@ -2,6 +2,7 @@
 
 ## v1.1.4 (not yet released)
 
+- **Menus on 640×480 screens (RG DS)** are now drawn at the same proportions as on the RG DS Plus: the pause menu, game list, Settings, cheats and achievements were drawn at half size, which looked too small. The RG DS Plus looks the same as before.
 - **LCD grid on 640×480 screens (RG DS):** sharp and even. The grid is now drawn at the screen's own resolution when the GBA pixels are only 2 or 3 screen pixels wide, instead of being drawn larger and scaled down, which blurred the picture and made the lines uneven. The RG DS Plus looks the same as before.
 - **No Second Screen: Show Logo / Keep Blank** (pause menu → Display): when the game has nothing for the second screen (title screens, menus, before the first map), show the game's logo there or leave it black. Also `show_logo` in gba-ds.cfg.
 - **The logo on the second screen now looks like a second GBA screen:** the same size as the game beside it, following the second screen's Scale setting, and with the LCD grid when it's on.

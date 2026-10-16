@@ -336,7 +336,7 @@ static void load_thumbs(Config* cfg, int idx) {
 
 static void draw_preview(Config* cfg, int scr, int sel) {
 	SDL_Rect r = screens[scr].rect;
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	ui_fill(scr, (SDL_Rect) { 0, 0, r.w, r.h }, (SDL_Color) { 0, 0, 0, 255 }); /* black, like the logos */
 	load_brand();
 
@@ -402,7 +402,7 @@ static bool listMode = true;
 static ListGeom list_geom(int scr) {
 	ListGeom g;
 	SDL_Rect r = screens[scr].rect;
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	g.headerH = px * 20;
 	g.listH = r.h - g.headerH;
 	g.m = px * 4;
@@ -440,7 +440,7 @@ static void free_tiles(void) {
 
 static SDL_Rect settings_button(int scr) {
 	SDL_Rect r = screens[scr].rect;
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	int h = px * 14, w = px * 44;
 	return (SDL_Rect) { r.w - w - px * 4, (px * 20 - h) / 2, w, h };
 }
@@ -448,7 +448,7 @@ static SDL_Rect settings_button(int scr) {
 /* square button left of Settings: switches between list and grid */
 static SDL_Rect view_button(int scr) {
 	SDL_Rect sb = settings_button(scr);
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	return (SDL_Rect) { sb.x - px * 3 - sb.h, sb.y, sb.h, sb.h };
 }
 
@@ -456,7 +456,7 @@ static SDL_Rect view_button(int scr) {
  * grid: switch to the list). */
 static void draw_view_button(int scr) {
 	SDL_Rect b = view_button(scr);
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	ui_fill_round(scr, b, C_ROW, px * 3);
 	int cx = b.x + b.w / 2, cy = b.y + b.h / 2;
 	if (listMode) {
@@ -498,7 +498,7 @@ static void toggle_view(Config* cfg) {
 
 static void draw_list(Config* cfg, int scr, int sel, int scroll) {
 	SDL_Rect r = screens[scr].rect;
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	ListGeom g = list_geom(scr);
 	ui_fill(scr, (SDL_Rect) { 0, 0, r.w, r.h }, C_BG);
 	if (nGames == 0) {
@@ -600,13 +600,14 @@ static char settingsMsg[128];
 
 typedef struct {
 	SDL_Rect panel, row[SETTINGS_ROWS], back;
-	int textY[SETTINGS_ROWS], px;
+	int textY[SETTINGS_ROWS];
+	float px;
 } SettingsGeom;
 
 static SettingsGeom settings_geom(int scr) {
 	SettingsGeom g;
 	SDL_Rect r = screens[scr].rect;
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	g.px = px;
 	int m = px * 6, rowH = px * 18;
 	g.panel = (SDL_Rect) { m, m, r.w - m * 2, r.h - m * 2 };
@@ -619,13 +620,13 @@ static SettingsGeom settings_geom(int scr) {
 }
 
 /* Body text in Jost, word-wrapped; returns the y below it. */
-static int draw_wrapped(int scr, int x, int y, int width, int px, const char* text, SDL_Color c) {
+static int draw_wrapped(int scr, int x, int y, int width, float px, const char* text, SDL_Color c) {
 	return ui_font_wrap(scr, TF_BODY, x, y, width, px * 4, text, c);
 }
 
 /* The panel, its buttons (labels[i] on row i; sel == SETTINGS_ROWS is Back). */
 static void draw_settings_frame(int scr, const SettingsGeom* g, int sel, const char* const* labels) {
-	int px = g->px;
+	float px = g->px;
 	ui_dim(scr, 200);
 	ui_fill_round(scr, g->panel, C_HEADER, px * 4);
 	ui_label(scr, g->panel.x + g->panel.w / 2, g->panel.y + px * 12, px * 6, "Settings", C_TEXT);
@@ -645,7 +646,7 @@ static bool pickPending, raDialogPending;
 
 static void draw_settings(const Config* cfg, int scr, int sel) {
 	SettingsGeom g = settings_geom(scr);
-	int px = g.px;
+	float px = g.px;
 	char user[128], err[256];
 	int ra = ra_account(user, sizeof(user), err, sizeof(err));
 	const char* raLabel = ra == RA_ACCOUNT_OK     ? "RetroAchievements: Sign Out" :
@@ -734,7 +735,7 @@ static bool settings_poll(Config* cfg) {
 #else
 static void draw_settings(const Config* cfg, int scr, int sel) {
 	SettingsGeom g = settings_geom(scr);
-	int px = g.px;
+	float px = g.px;
 	const char* labels[SETTINGS_ROWS] = { es_integration_on(cfg) ? "GBA DS in EmulationStation: On"
 	                                                             : "GBA DS in EmulationStation: Off" };
 	draw_settings_frame(scr, &g, sel, labels);
@@ -761,7 +762,7 @@ static bool settings_poll(Config* cfg) {
 /* "Preparing games" over a dimmed screen, with a progress bar. */
 static void draw_wait(int scr, int done, int total) {
 	SDL_Rect r = screens[scr].rect;
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	ui_dim(scr, 235);
 	int cy = r.h / 2;
 	ui_label(scr, r.w / 2, cy - px * 14, px * 6, "Preparing games...", C_TEXT);

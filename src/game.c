@@ -317,7 +317,8 @@ static void build_cheat_rows(void) {
 }
 
 typedef struct {
-	int px, tpx, top, rowH, gap, x, w, listH, footY;
+	float px;
+	int tpx, top, rowH, gap, x, w, listH, footY;
 } CheatGeom;
 
 static CheatGeom cheat_geom(int scr) {
@@ -403,7 +404,8 @@ static void fit_text(char* out, size_t size, int font, int capPx, const char* s,
 static void draw_cheats(int scr) {
 	CheatGeom g = cheat_geom(scr);
 	SDL_Rect r = screens[scr].rect;
-	int px = g.px, rad = px * 3, cap = px * 11 / 2;
+	float px = g.px;
+	int rad = px * 3, cap = px * 11 / 2;
 	/* top: Back box (where the Game tab is) and the title */
 	SDL_Rect b = tab_rect(scr, 0), t = tab_rect(scr, 1);
 	ui_fill_round(scr, b, C_BTN, rad);
@@ -458,13 +460,13 @@ static void draw_cheats(int scr) {
 }
 
 static int menu_width(int scr) {
-	int px = ui_px(scr);
-	return SDL_min(screens[scr].rect.w - px * 16, ui_text_width("XXXXXXXXXXXXXXXXX", px) /* menu width: 17 characters */ + px * 48);
+	float px = ui_px(scr);
+	return SDL_min(screens[scr].rect.w - px * 16, px * (17 * 6 - 1) /* menu width: 17 characters of the old pixel font */ + px * 48);
 }
 
 static SDL_Rect item_rect(int scr, int i) {
 	SDL_Rect r = screens[scr].rect;
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	int h = px * 14, gap = px * 3;
 	int w = menu_width(scr);
 	int top = px * 28; /* below the page tabs; same on both pages */
@@ -476,7 +478,7 @@ static SDL_Rect item_rect(int scr, int i) {
  * Back and the title on the cheats / achievements screens (n = 2) */
 static SDL_Rect top_box(int scr, int t, int n) {
 	SDL_Rect r = screens[scr].rect;
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	int w = menu_width(scr);
 	int tw = (w - px * 3 * (n - 1)) / n;
 	return (SDL_Rect) { (r.w - w) / 2 + t * (tw + px * 3), px * 7, tw, px * 14 };
@@ -542,7 +544,7 @@ static void draw_menu(void) {
 	}
 	for (int s = 0; s < nScreens; ++s) ui_dim(s, 170);
 	int scr = ui_touch_screen();
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	int cap = px * 11 / 2;   /* Futura capital height */
 	int rad = px * 3;        /* box corner radius */
 	if (achOpen) {
@@ -1000,7 +1002,7 @@ typedef struct {
 static CtlGeom ctl_geom(int s) {
 	CtlGeom g;
 	SDL_Rect r = screens[s].rect;
-	int u = ui_px(s);
+	float u = ui_px(s);
 	int t = r.h * 23 / 200, gap = u * 3;
 	g.cap = t / 5;
 	int lw = ui_label_width(s, g.cap, "Controls");
@@ -1029,7 +1031,7 @@ static void ctl_button(int s, int id, const SDL_Rect* t, int cx, int cy, int w) 
 
 static void ctl_draw(int s) {
 	CtlGeom g = ctl_geom(s);
-	int u = ui_px(s);
+	float u = ui_px(s);
 	int active = ctl_four() ? CTL_FOUR : CTL_GBA;
 	ui_fill_round(s, g.all, (SDL_Color) { 0, 0, 0, 150 }, u * 4);
 	ui_label(s, g.labelX, g.labelY, g.cap, "Controls", C_TEXT);
@@ -1519,7 +1521,7 @@ static void close_ach(void) {
 /* the list's area: below the Back / title boxes */
 static SDL_Rect ach_area(int scr) {
 	SDL_Rect r = screens[scr].rect;
-	int px = ui_px(scr);
+	float px = ui_px(scr);
 	return (SDL_Rect) { px * 6, px * 25, r.w - px * 12, r.h - px * 27 };
 }
 
@@ -1903,7 +1905,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				continue;
 			}
 			if (cheatsOpen) {
-				int px = ui_px(p.screen);
+				float px = ui_px(p.screen);
 				if (p.kind == 1) {
 					if (tab_at(p.screen, p.x, p.y, 2) == 0) {
 						cheatsOpen = false; /* Back */
