@@ -189,6 +189,9 @@ static bool hudBackValid;
 static int hudFrames; /* split frames since the race (re)started */
 static int mapX0, mapY0, mapX1, mapY1; /* the map's box on the HUD, measured over the first frames */
 static bool mapFound;
+static bool hudScene; /* the profile's other scene (Mario Kart's podium): logo backdrop, its own sprites */
+static uint32_t hudLogoBack[HUD_CW * HUD_CH];
+static bool hudLogoDone;
 static int snapShow, snapRevert;   /* consecutive frames matching show / a revert screen */
 
 static uint64_t mapAnimStart, frameCount;
@@ -693,12 +696,53 @@ static void hud_make_backdrop(void) {
 	}
 }
 
+/* The scene's backdrop: the game's logo on dark blue, as large as fits
+ * (whole pixels for the extracted one), dimmed like the race backdrop. */
+static void hud_make_logo_back(void) {
+	hudLogoDone = true;
+	for (int i = 0; i < HUD_CW * HUD_CH; ++i) hudLogoBack[i] = 0xFF1A1010;
+	bool pixelArt;
+	SDL_Surface* lg = ui_logo_surface(cfg, emu.gameCode, &pixelArt);
+	if (!lg) return;
+	int mw = HUD_CW - 40, mh = HUD_CH - 40;
+	int w = lg->w, h = lg->h;
+	if (pixelArt) {
+		int k = SDL_max(1, SDL_min(mw / lg->w, mh / lg->h));
+		w = lg->w * k, h = lg->h * k;
+	} else {
+		float sc = SDL_min((float) mw / lg->w, (float) mh / lg->h);
+		w = SDL_max(1, (int) (lg->w * sc)), h = SDL_max(1, (int) (lg->h * sc));
+	}
+	int x0 = (HUD_CW - w) / 2, y0 = (HUD_CH - h) / 2;
+	for (int y = 0; y < h; ++y) {
+		const uint8_t* row = (const uint8_t*) lg->pixels + (size_t) (y * lg->h / h) * lg->pitch;
+		for (int x = 0; x < w; ++x) {
+			const uint8_t* p = row + (size_t) (x * lg->w / w) * 4;
+			uint32_t* o = &hudLogoBack[(y0 + y) * HUD_CW + x0 + x];
+			uint32_t out = 0xFF000000;
+			for (int c = 0; c < 3; ++c) {
+				int bg = (*o >> (c * 8)) & 0xFF;
+				int v = bg + (int) ((p[c] * 0.32f - bg) * p[3] / 255.0f);
+				out |= (uint32_t) SDL_clamp(v, 0, 255) << (c * 8);
+			}
+			*o = out;
+		}
+	}
+	SDL_FreeSurface(lg);
+}
+
+static int rule_count(const SpriteRule* r, int max) {
+	int n = 0;
+	while (n < max && (r[n].x1 || r[n].tileMax)) ++n;
+	return n;
+}
+
 /* The second screen from this frame's HUD (hudPx). While racing, the turn
  * sign goes back onto the game picture and the map is drawn larger. */
 static void hud_compose(void) {
 	const typeof(hudProf->hud)* h = &hudProf->hud;
 	uint32_t clear = emu_hud_clear();
-	bool racing = memprobes_match(h->layout, 2, &emu);
+	bool racing = !hudScene && memprobes_match(h->layout, 2, &emu);
 	/* the map's box: grown over the race's first frames, then kept */
 	if (racing && h->map.x1 && hudFrames <= 8) {
 		for (int y = h->map.y0; y <= h->map.y1; ++y) {
@@ -734,7 +778,10 @@ static void hud_compose(void) {
 			}
 		}
 	}
-	if (hudBackValid) {
+	if (hudScene) {
+		if (!hudLogoDone) hud_make_logo_back();
+		memcpy(hudCanvas, hudLogoBack, sizeof(hudCanvas));
+	} else if (hudBackValid) {
 		memcpy(hudCanvas, hudBack, sizeof(hudCanvas));
 	} else {
 		for (int i = 0; i < HUD_CW * HUD_CH; ++i) hudCanvas[i] = 0xFF1A1010;
@@ -782,13 +829,18 @@ static void update_hud(void) {
 		if (mapShownIdx < 0 && debug) fprintf(stderr, "frame %llu: HUD on the second screen\n", (unsigned long long) frameCount);
 		mapShownIdx = 0;
 	}
-	if (race != hudOn) {
-		emu_hud_split(&emu, race, h->bgMask, h->objPrio, hudPx);
+	bool scene = race && h->scene.when[0].addr && memprobes_match(h->scene.when, 2, &emu);
+	if (race != hudOn || scene != hudScene) {
+		const SpriteRule* objs = scene ? h->scene.objs : h->objs;
+		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, 4), hudPx);
+		if (debug && race && scene != hudScene) fprintf(stderr, "frame %llu: HUD scene %s\n", (unsigned long long) frameCount, scene ? "on" : "off");
 		hudOn = race;
+		hudScene = scene;
 		hudFrames = 0;
 		mapFound = false;
 	}
-	if (hudOn && ++hudFrames == 2 && h->backdrop) emu_hud_grab(&emu, h->backdrop, hudGrab);
+	/* the course's backdrop, as each race starts (not for the scene) */
+	if (hudOn && ++hudFrames == 2 && h->backdrop && !hudScene) emu_hud_grab(&emu, h->backdrop, hudGrab);
 	if (!race && mapShownIdx >= 0 && !memprobes_match(h->keep, 4, &emu)) {
 		mapShownIdx = -1; /* menus: the logo */
 		if (debug) fprintf(stderr, "frame %llu: HUD gone, logo\n", (unsigned long long) frameCount);
@@ -1588,6 +1640,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		/* the HUD moves only when there's another screen to put it on */
 		hudProf = logoOnly && lp->hud.on[0].addr && nScreens > 1 ? lp : NULL;
 		hudOn = false;
+		hudScene = false;
+		hudLogoDone = false;
 		hudBackValid = false;
 		if (hudProf) mapW = HUD_CW, mapH = HUD_CH; /* the second screen's picture */
 		snapShow = snapRevert = 0;

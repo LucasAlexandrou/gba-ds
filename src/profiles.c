@@ -254,7 +254,7 @@ static const MapProfile profiles[] = {
 			.on = { { 0x04000000, 0xFFFF, 0x1F41, 2 }, { 0x04000008, 0xFFFF, 0x0700, 2 } },
 			.keep = { { 0x04000000, 0xFFFF, 0x1F41, 2 } },
 			.bgMask = 1,
-			.objPrio = 0,
+			.objs = { { -512, -256, 511, 255, 0, 1023, 0 } }, /* priority 0 */
 			/* the results table fills BG0 map cells (row 11 col 4, row 12
 			 * col 8) that stay empty while racing and in the lap-time table
 			 * after the finish (all three versions) */
@@ -268,6 +268,16 @@ static const MapProfile profiles[] = {
 			 * mode 1 for the track below it, from row 76) */
 			.backdrop = 0xE,
 			.backdropRows = 76,
+			/* The podium after a cup: the same registers as racing but BG1
+			 * at priority 3 and other blending (0x2F40). BG0 holds the cup
+			 * table; CONGRATULATIONS! (tiles 768-959), MUSHROOM CUP etc.
+			 * (304-319) and the player's portrait (288-303) are priority-1
+			 * sprites like the karts on the podium (512-703), so they're
+			 * picked by tile. */
+			.scene = {
+				.when = { { 0x0400000A, 0x0003, 0x0003, 2 }, { 0x04000050, 0xFFFF, 0x2F40, 2 } },
+				.objs = { { -512, -256, 511, 255, 768, 959, -1 }, { -512, -256, 511, 255, 288, 319, -1 } },
+			},
 		},
 	},
 };

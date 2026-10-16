@@ -113,8 +113,12 @@ int main(int argc, char** argv) {
 		} else if (!strcmp(cmd, "split")) {
 			/* split BGMASK PRIO (on) / split off: the HUD split (emu_hud_split) */
 			static uint32_t hud[GBA_W * GBA_H];
-			if (!strcmp(a1, "off")) emu_hud_split(&emu, false, 0, -1, hud);
-			else emu_hud_split(&emu, true, strtoul(a1, NULL, 0), atoi(a2), hud);
+			if (!strcmp(a1, "off")) emu_hud_split(&emu, false, 0, NULL, 0, hud);
+			else {
+				/* sprites of priority PRIO */
+				SpriteRule r = { -512, -256, 511, 255, 0, 1023, atoi(a2) };
+				emu_hud_split(&emu, true, strtoul(a1, NULL, 0), &r, 1, hud);
+			}
 			hudBuf = hud;
 		} else if (!strcmp(cmd, "hudshot")) {
 			/* the HUD split's picture */

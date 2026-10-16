@@ -346,6 +346,7 @@ typedef struct {
 	void (*orig)(struct GBAVideoRenderer* renderer, int y);
 	SpriteRule rules[8];
 	int n;
+	bool keepOnly; /* hide every sprite that matches none of the rules instead */
 } HideSlot;
 static HideSlot hideSlots[8];
 static pthread_mutex_t hideLock = PTHREAD_MUTEX_INITIALIZER;
@@ -367,10 +368,10 @@ static bool hidden(const HideSlot* s, const struct GBAObj* obj) {
 		const SpriteRule* r = &s->rules[i];
 		if (x >= r->x0 && x <= r->x1 && y >= r->y0 && y <= r->y1 && tile >= r->tileMin && tile <= r->tileMax &&
 		    (r->prio < 0 || prio == r->prio)) {
-			return true;
+			return !s->keepOnly;
 		}
 	}
-	return false;
+	return s->keepOnly;
 }
 
 /* Runs before the software renderer's own scanline code: when the sprite table
@@ -380,7 +381,7 @@ static void filtered_draw_scanline(struct GBAVideoRenderer* renderer, int y) {
 	struct GBAVideoSoftwareRenderer* sw = (struct GBAVideoSoftwareRenderer*) renderer;
 	HideSlot* s = slot_for(renderer);
 	if (!s) return;
-	if (s->n && sw->oamDirty) {
+	if ((s->n || s->keepOnly) && sw->oamDirty) {
 		int n = GBAVideoRendererCleanOAM(sw->d.oam->obj, sw->sprites, sw->objOffsetY);
 		int kept = 0;
 		for (int i = 0; i < n; ++i) {
@@ -439,7 +440,8 @@ typedef struct {
 	struct GBAVideoRenderer* main;
 	bool installed, active;
 	unsigned bgMask;
-	int objPrio;
+	SpriteRule objs[8];
+	int nObjs;
 	/* one frame of other layers instead (emu_hud_grab) */
 	uint32_t* grabBuf;
 	unsigned grabMask;
@@ -498,7 +500,7 @@ static void split_finish(struct GBAVideoRenderer* r) {
 		split.grabBuf = NULL;
 		split.grabbed = true;
 		split.hud.outputBuffer = (mColor*) split.hudBuf;
-		split_layers(split.bgMask, split.objPrio >= 0);
+		split_layers(split.bgMask, split.nObjs > 0);
 	}
 }
 static void split_reset(struct GBAVideoRenderer* r) {
@@ -529,7 +531,7 @@ static void split_release(Emu* e) {
 	memset(&split, 0, sizeof(split));
 }
 
-bool emu_hud_split(Emu* e, bool on, unsigned bgMask, int objPrio, uint32_t* hud) {
+bool emu_hud_split(Emu* e, bool on, unsigned bgMask, const SpriteRule* objs, int nObjs, uint32_t* hud) {
 	struct GBA* gba = e->core->board;
 	struct GBAVideoRenderer* r = gba->video.renderer;
 	if (!r) return false;
@@ -554,7 +556,7 @@ bool emu_hud_split(Emu* e, bool on, unsigned bgMask, int objPrio, uint32_t* hud)
 		split.drawScanline = r->drawScanline, r->drawScanline = split_draw;
 		split.finishFrame = r->finishFrame, r->finishFrame = split_finish;
 		split.reset = r->reset, r->reset = split_reset;
-		/* the HUD renderer's own sprite filter: everything but objPrio */
+		/* the HUD renderer's own sprite filter: only the HUD's sprites */
 		pthread_mutex_lock(&hideLock);
 		HideSlot* s = slot_for(NULL);
 		if (s) {
@@ -567,27 +569,24 @@ bool emu_hud_split(Emu* e, bool on, unsigned bgMask, int objPrio, uint32_t* hud)
 		split_resync(e);
 	}
 	split.bgMask = bgMask;
-	split.objPrio = objPrio;
+	split.nObjs = nObjs < 8 ? nObjs : 8;
+	if (split.nObjs) memcpy(split.objs, objs, sizeof(*objs) * split.nObjs);
 	/* the HUD: those layers and sprites only */
 	struct GBAVideoRenderer* h = &split.hud.d;
-	if (!split.grabbing) split_layers(bgMask, objPrio >= 0);
+	if (!split.grabbing) split_layers(bgMask, split.nObjs > 0);
 	pthread_mutex_lock(&hideLock);
 	HideSlot* hs = slot_for(h);
 	if (hs) {
-		hs->n = 0;
-		for (int p = 0; p < 4; ++p) {
-			if (p != objPrio) hs->rules[hs->n++] = (SpriteRule) { -512, -256, 511, 255, 0, 1023, p };
-		}
+		hs->n = split.nObjs;
+		memcpy(hs->rules, split.objs, sizeof(split.objs));
+		hs->keepOnly = true;
 	}
 	pthread_mutex_unlock(&hideLock);
 	split.hud.oamDirty = true;
-	/* the game: without them */
-	if (on != split.active) {
-		for (int i = 0; i < 4; ++i) r->disableBG[i] = on && ((bgMask >> i) & 1);
-		SpriteRule mainHide = { -512, -256, 511, 255, 0, 1023, objPrio };
-		emu_hide_sprites(e, on && objPrio >= 0 ? &mainHide : NULL, on && objPrio >= 0 ? 1 : 0);
-		split.active = on;
-	}
+	/* the game: without them (the rules can change while on: another scene) */
+	for (int i = 0; i < 4; ++i) r->disableBG[i] = on && ((bgMask >> i) & 1);
+	emu_hide_sprites(e, on ? split.objs : NULL, on ? split.nObjs : 0);
+	split.active = on;
 	return true;
 }
 

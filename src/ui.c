@@ -1173,6 +1173,23 @@ static bool file_there(const char* p) {
 	return f != NULL;
 }
 
+SDL_Surface* ui_logo_surface(const Config* c, const char* code, bool* pixelArt) {
+	char path[1200];
+	const char* exts[] = { "png", "bmp" };
+	for (int i = 0; i < 2; ++i) {
+		snprintf(path, sizeof(path), "%s/logos/%.4s.%s", c->assetDir, code, exts[i]);
+		if (file_there(path)) {
+			*pixelArt = false;
+			return image_load(path);
+		}
+	}
+	const MapProfile* prof = profile_find(code);
+	if (prof && prof->logo.rev) snprintf(path, sizeof(path), "%s/logos/%.4s-r%d.png", c->stateDir, code, prof->logo.rev);
+	else snprintf(path, sizeof(path), "%s/logos/%.4s.png", c->stateDir, code);
+	*pixelArt = true;
+	return image_load(path);
+}
+
 bool ui_load_logo(const Config* c, const char* rom, const char* code, SDL_Texture* tex[2], int* w, int* h,
                   bool* pixelArt) {
 	char path[1200];

@@ -132,7 +132,7 @@ typedef struct MapProfile {
 		MemProbe on[4];
 		MemProbe keep[4];
 		unsigned bgMask;
-		int objPrio;
+		SpriteRule objs[4]; /* the sprites that move with it */
 		/* While every `layout` probe matches (racing, not the results):
 		 * HUD pixels in `sign` stay on the game screen when the HUD has
 		 * nothing else on those rows within 40 pixels either side (Mario
@@ -146,6 +146,14 @@ typedef struct MapProfile {
 		 * plain dark) */
 		unsigned backdrop;
 		int backdropRows;
+		/* Another scene with the same `on` registers (Mario Kart's cup
+		 * podium): while `when` also matches, these sprites move too and the
+		 * backdrop is the game's logo, dimmed, instead of the grabbed
+		 * layers (no sign or map handling). */
+		struct {
+			MemProbe when[2];
+			SpriteRule objs[4];
+		} scene;
 	} hud;
 
 	/* Title-screen logo, pulled out of the running game: boot, wait, optionally

@@ -84,10 +84,11 @@ void emu_hide_sprites(Emu* e, const SpriteRule* rules, int n);
  * effect when the display registers are next written (e.g. a state load). */
 void emu_layers(Emu* e, unsigned mask);
 /* HUD split (Mario Kart): while on, the BG layers in bgMask (bit 0 = BG0)
- * and the sprites of priority objPrio (-1: none) are left out of the game
- * picture and drawn alone, on black, into hud (GBA_W x GBA_H, kept by the
- * caller while the core is open). Renders nothing extra while off. */
-bool emu_hud_split(Emu* e, bool on, unsigned bgMask, int objPrio, uint32_t* hud);
+ * and the sprites matching any of objs are left out of the game picture and
+ * drawn alone into hud (GBA_W x GBA_H, kept by the caller while the core is
+ * open; emu_hud_clear where there's nothing). Can be called again while on
+ * to change what moves. Renders nothing extra while off. */
+bool emu_hud_split(Emu* e, bool on, unsigned bgMask, const SpriteRule* objs, int nObjs, uint32_t* hud);
 /* The HUD picture's 'no pixel here' colour (the parts of the screen the
  * HUD doesn't cover), low 24 bits: compare with (pixel & 0xFFFFFF). */
 uint32_t emu_hud_clear(void);

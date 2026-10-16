@@ -141,6 +141,10 @@ void ui_free_image(SDL_Texture* tex[2]);
  * there, else the one extracted from the ROM (<state_dir>/logos/<CODE>.png),
  * which is queued for extraction in the background if it doesn't exist yet
  * (watch logo_generation() and call again). pixelArt: draw with "integer". */
+/* The game's logo as an RGBA32 surface (caller frees): the user's file if
+ * there is one, else the one extracted from the title screen; NULL if
+ * neither exists yet. */
+SDL_Surface* ui_logo_surface(const Config* c, const char* code, bool* pixelArt);
 bool ui_load_logo(const Config* cfg, const char* rom, const char* code, SDL_Texture* tex[2], int* w, int* h,
                   bool* pixelArt);
 
