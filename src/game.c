@@ -1357,7 +1357,7 @@ static void draw_game(void) {
 			/* map + generated surround */
 		} else if (mapShownIdx >= 0) {
 			ui_fill(s, (SDL_Rect) { 0, 0, r.w, r.h }, borderColor);
-			ui_image_pixels(s, mapTex, mapW, mapH, cfg->mapScale, cfg->lcdGrid && !hudProf); /* (the HUD picture is at 2x) */
+			ui_image_pixels(s, mapTex, mapW, mapH, cfg->mapScale, cfg->lcdGrid ? (hudProf ? 2 : 1) : 0); /* the HUD picture is at 2x: a cell per GBA pixel */
 		} else if (logoTex[0] || logoTex[1]) {
 			/* no map yet (title screen, intro...): the game's logo on black */
 			SDL_Rect area = { r.w / 12, r.h / 6, r.w - r.w / 6, r.h - r.h / 3 };

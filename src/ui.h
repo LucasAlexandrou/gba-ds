@@ -101,8 +101,10 @@ SDL_Renderer* ui_ren(int screen);
 /* Draws a texture (one per view, indexed by view) letterboxed into a screen area. */
 void ui_image(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, const SDL_Rect* areaLocal);
 /* Pixel-art drawing for the game and map: whole-number prescale (sharp at any
- * size), optional LCD grid, then filtered to the final size on the GPU. */
-void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, bool lcd);
+ * size), optional LCD grid, then filtered to the final size on the GPU.
+ * lcd: 0 no grid, 1 a cell per pixel, n a cell per n x n pixels (a picture
+ * made at n times the GBA's resolution, like Mario Kart's HUD screen). */
+void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, int lcd);
 /* Where ui_image_pixels puts a w x h image on a screen (screen-local coords). */
 SDL_Rect ui_image_rect(int screen, int w, int h, const char* mode);
 void ui_fill(int screen, SDL_Rect local, SDL_Color c);

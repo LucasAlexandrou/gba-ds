@@ -987,9 +987,9 @@ static SDL_Texture* pipe_grid(int v, int w, int h, int k, int strength) {
 	return e->tex;
 }
 
-static void draw_pixels(SDL_Renderer* ren, int v, SDL_Texture* src, int w, int h, const SDL_Rect* dstp, bool lcd);
+static void draw_pixels(SDL_Renderer* ren, int v, SDL_Texture* src, int w, int h, const SDL_Rect* dstp, int lcd);
 
-void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, bool lcd) {
+void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, const char* mode, int lcd) {
 	RECORD(screen, OP_PIXELS) {
 		rec_tex(o, texPerView);
 		o->a = w, o->b = h, o->d = lcd;
@@ -1018,33 +1018,35 @@ void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, c
 }
 
 /* ui_image_pixels' drawing, into dst on the current (screen) target. */
-static void draw_pixels(SDL_Renderer* ren, int v, SDL_Texture* src, int w, int h, const SDL_Rect* dstp, bool lcd) {
+static void draw_pixels(SDL_Renderer* ren, int v, SDL_Texture* src, int w, int h, const SDL_Rect* dstp, int lcd) {
 	SDL_Rect dst = *dstp;
 	int k = SDL_max(1, SDL_min(dst.w / w, dst.h / h));
 	bool exact = dst.w == w * k && dst.h == h * k;
+	int c = lcd > 1 ? lcd : 1; /* source pixels per grid cell, each way */
+	int gw = w / c, gh = h / c;
 	if (!lcd && (exact || cfg->smooth)) {
 		SDL_SetTextureScaleMode(src, cfg->smooth ? SDL_ScaleModeLinear : SDL_ScaleModeNearest);
 		SDL_RenderCopy(ren, src, NULL, &dst);
 		return;
 	}
-	if (lcd && exact && k >= 3) {
+	if (lcd && exact && k * c >= 3) {
 		/* Pixel perfect: draw straight to the screen, grid multiplied on top.
 		 * No render-target switch, so tiled GPUs don't have to flush and
 		 * reload the whole framebuffer. */
 		SDL_SetTextureScaleMode(src, SDL_ScaleModeNearest);
 		SDL_RenderCopy(ren, src, NULL, &dst);
-		SDL_Texture* grid = pipe_grid(v, w, h, k, cfg->lcdStrength);
+		SDL_Texture* grid = pipe_grid(v, gw, gh, k * c, cfg->lcdStrength);
 		if (grid) SDL_RenderCopy(ren, grid, NULL, &dst);
 		return;
 	}
-	if (lcd && k < 3) k = 3; /* a grid needs a few pixels per cell */
+	if (lcd && k * c < 3) k = (3 + c - 1) / c; /* a grid needs a few pixels per cell */
 	SDL_Texture* target = SDL_RenderTargetSupported(ren) ? pipe_target(v, w * k, h * k) : NULL;
 	if (!target) {
 		/* no render targets: draw directly, grid on top */
 		SDL_SetTextureScaleMode(src, SDL_ScaleModeNearest);
 		SDL_RenderCopy(ren, src, NULL, &dst);
 		if (lcd) {
-			SDL_Texture* grid = pipe_grid(v, w, h, k, cfg->lcdStrength);
+			SDL_Texture* grid = pipe_grid(v, gw, gh, k * c, cfg->lcdStrength);
 			if (grid) SDL_RenderCopy(ren, grid, NULL, &dst);
 		}
 		return;
@@ -1057,7 +1059,7 @@ static void draw_pixels(SDL_Renderer* ren, int v, SDL_Texture* src, int w, int h
 	SDL_SetTextureScaleMode(src, SDL_ScaleModeNearest);
 	SDL_RenderCopy(ren, src, NULL, NULL);
 	if (lcd) {
-		SDL_Texture* grid = pipe_grid(v, w, h, k, cfg->lcdStrength);
+		SDL_Texture* grid = pipe_grid(v, gw, gh, k * c, cfg->lcdStrength);
 		if (grid) SDL_RenderCopy(ren, grid, NULL, NULL);
 	}
 	SDL_SetRenderTarget(ren, NULL);
