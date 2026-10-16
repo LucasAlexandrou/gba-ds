@@ -77,6 +77,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	INT("lcd_strength", lcdStrength)
 	BOOL("vsync", vsync)
 	BOOL("pin_cores", pinCores)
+	BOOL("frame_buffer", frameBuffer)
 	BOOL("map", map)
 	BOOL("map_crop", mapCrop)
 	BOOL("map_animations", mapAnim)

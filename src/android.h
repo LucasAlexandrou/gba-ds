@@ -47,6 +47,9 @@ void android_perf_report(int64_t workNs);
  * others. android_set_pinning(false) (pin_cores = 0) turns it off; call it
  * before either thread pins itself. */
 void android_set_pinning(bool on);
+/* The calling thread to the game thread's priority (nice -10, or what the
+ * system allows); returns the nice value, or 0 if refused. */
+int android_raise_thread(void);
 void android_pin_game_thread(void);
 void android_pin_worker_thread(const char* what); /* what: for the log */
 

@@ -136,6 +136,16 @@ typedef struct APerformanceHintSession APerformanceHintSession;
 static APerformanceHintSession* hintSession;
 static int (*hintReport)(APerformanceHintSession*, int64_t);
 
+/* as high as the system lets an app go, short of audio's: other threads of
+ * ours and ordinary system work wait for the game */
+int android_raise_thread(void) {
+	static const int nices[] = { -10, -8, -4 };
+	for (int i = 0; i < 3; ++i) {
+		if (setpriority(PRIO_PROCESS, (id_t) gettid(), nices[i]) == 0) return nices[i];
+	}
+	return 0;
+}
+
 void android_perf_init(int64_t targetNs) {
 	static bool tried;
 	if (tried) return;
@@ -152,13 +162,7 @@ void android_perf_init(int64_t targetNs) {
 	/* the game thread ahead of the app's other threads (as for display
 	 * threads); refused on some systems, which is fine */
 	int32_t tid = gettid();
-	/* as high as the system lets an app go, short of audio's: other
-	 * threads of ours and ordinary system work wait for the game */
-	static const int nices[] = { -10, -8, -4 };
-	int got = 0;
-	for (int i = 0; i < 3 && !got; ++i) {
-		if (setpriority(PRIO_PROCESS, (id_t) tid, nices[i]) == 0) got = nices[i];
-	}
+	int got = android_raise_thread();
 	if (got) fprintf(stderr, "game thread priority raised (nice %d)\n", got);
 	else fprintf(stderr, "game thread priority: %s\n", strerror(errno));
 	APerformanceHintManager* m = getManager();

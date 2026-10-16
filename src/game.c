@@ -12,6 +12,7 @@
 #include "profiles.h"
 #include "cheats.h"
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,6 +69,88 @@ static int current_cpu(void) {
 
 static Config* cfg;
 static Emu emu;
+
+/* ------------------------------------------------- frame buffer (option)
+ * With frame_buffer on, the next frame is emulated on this thread while the
+ * game loop draws and shows the one before: a frame that runs long (the
+ * game thread kept off the CPU for a few ms, common on Android) no longer
+ * misses the screen's refresh, at the cost of one frame of input delay.
+ * The worker only runs emu_frame; everything else that touches the core
+ * (sound, RetroAchievements, map, probes, states, cheats, the menu) stays
+ * on the game loop and runs while the worker is idle: the loop waits for
+ * it at the top of each iteration and starts it again just before drawing. */
+static struct {
+	pthread_t thread;
+	pthread_mutex_t lock;
+	pthread_cond_t cond;
+	bool started, busy, quit;
+	uint32_t keys;
+} ahead = { .lock = PTHREAD_MUTEX_INITIALIZER, .cond = PTHREAD_COND_INITIALIZER };
+static bool aheadInFlight; /* the worker is emulating the next frame */
+static bool aheadReady;    /* it has: that frame is emulated but not yet used */
+static uint32_t aheadFb[GBA_W * GBA_H]; /* the frame on screen, while the worker writes the next */
+
+static void* ahead_worker(void* arg) {
+	(void) arg;
+#ifdef __ANDROID__
+	int nice = android_raise_thread();
+#else
+	int nice = 0;
+#endif
+	fprintf(stderr, "frame buffer: emulation thread started%s\n", nice ? " (priority raised)" : "");
+	pthread_mutex_lock(&ahead.lock);
+	for (;;) {
+		while (!ahead.busy && !ahead.quit) pthread_cond_wait(&ahead.cond, &ahead.lock);
+		if (ahead.quit) break;
+		uint32_t keys = ahead.keys;
+		pthread_mutex_unlock(&ahead.lock);
+		emu_frame(&emu, keys);
+		pthread_mutex_lock(&ahead.lock);
+		ahead.busy = false;
+		pthread_cond_broadcast(&ahead.cond);
+	}
+	pthread_mutex_unlock(&ahead.lock);
+	return NULL;
+}
+
+/* false: no thread (emulate inline instead) */
+static bool ahead_start(uint32_t keys) {
+	pthread_mutex_lock(&ahead.lock);
+	if (!ahead.started) {
+		ahead.quit = false;
+		ahead.started = pthread_create(&ahead.thread, NULL, ahead_worker, NULL) == 0;
+	}
+	bool ok = ahead.started;
+	if (ok) {
+		ahead.keys = keys;
+		ahead.busy = true;
+		pthread_cond_broadcast(&ahead.cond);
+	}
+	pthread_mutex_unlock(&ahead.lock);
+	return ok;
+}
+
+/* Wait for the frame being emulated, if any (then the core is ours again). */
+static void ahead_sync(void) {
+	if (!aheadInFlight) return;
+	pthread_mutex_lock(&ahead.lock);
+	while (ahead.busy) pthread_cond_wait(&ahead.cond, &ahead.lock);
+	pthread_mutex_unlock(&ahead.lock);
+	aheadInFlight = false;
+	aheadReady = true;
+}
+
+static void ahead_stop(void) {
+	ahead_sync();
+	aheadReady = false;
+	pthread_mutex_lock(&ahead.lock);
+	bool started = ahead.started;
+	ahead.quit = true;
+	pthread_cond_broadcast(&ahead.cond);
+	pthread_mutex_unlock(&ahead.lock);
+	if (started) pthread_join(ahead.thread, NULL);
+	ahead.started = false;
+}
 static MapCapture* mc;
 static GamePaths gp;
 
@@ -144,10 +227,10 @@ static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_CHEATS, M_ACH, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT };
+enum MenuItem { M_RESUME, M_CHEATS, M_ACH, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT, M_FRAMEBUF };
 static const char* menuLabels[] = {
 	/* title case: drawn in Futura from the built-in images (tools/make_brand.py) */
-	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_MAPRATE] = "", [M_RESTART] = "Restart Game",
+	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_FRAMEBUF] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_MAPRATE] = "", [M_RESTART] = "Restart Game",
 	[M_LOAD] = "Load State", [M_CHEATS] = "Cheats", [M_ACH] = "Achievements", [M_SHOT] = "Take Screenshot", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
 };
 static int menuItems[12], nMenuItems;
@@ -493,6 +576,7 @@ static void draw_menu(void) {
 		if (menuItems[i] == M_MAPRATE) label = map_rate_label(cfg->mapInterval);
 		if (menuItems[i] == M_LCD) label = cfg->lcdGrid ? "LCD Grid: On" : "LCD Grid: Off";
 		if (menuItems[i] == M_FPS) label = cfg->showFps ? "Show FPS: On" : "Show FPS: Off";
+		if (menuItems[i] == M_FRAMEBUF) label = cfg->frameBuffer ? "Frame Buffer: On" : "Frame Buffer: Off";
 		if (menuItems[i] == M_MAPANIM) label = cfg->mapAnim ? "Map Animations: On" : "Map Animations: Off";
 		if (menuItems[i] == M_OVERLAY) {
 			static const char* const ovl[4] = { "Overlays: None", "Overlays: Primary", "Overlays: Secondary", "Overlays: Both" };
@@ -775,6 +859,7 @@ static bool state_save(const char* path) {
 static bool state_load(const char* path) {
 	bool ok = emu_state_load_file(&emu, path);
 	if (ok) ra_state_loaded(path);
+	if (ok) aheadReady = false; /* a frame emulated before the load: emulate afresh */
 	return ok;
 }
 
@@ -1000,10 +1085,10 @@ static void save_prefs(void) {
 	FILE* f = fopen(prefs, "w");
 	if (f) {
 		fprintf(f, "# written by gba-ds's pause menu; overrides gba-ds.cfg\n");
-		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\nmap_animations = %d\nmap_interval = %d\n",
+		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\nmap_animations = %d\nmap_interval = %d\nframe_buffer = %d\n",
 		        cfg->swap ? 1 : 0, cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0,
 		        (const char* const[]) { "none", "primary", "secondary", "both" }[cfg->overlays & OVL_BOTH],
-		        cfg->mapAnim ? 1 : 0, cfg->mapInterval);
+		        cfg->mapAnim ? 1 : 0, cfg->mapInterval, cfg->frameBuffer ? 1 : 0);
 		fclose(f);
 	}
 }
@@ -1239,6 +1324,11 @@ static bool activate(int item, enum GameExit* exitTo) {
 		cfg->showFps = !cfg->showFps;
 		save_prefs();
 		break;
+	case M_FRAMEBUF:
+		cfg->frameBuffer = !cfg->frameBuffer;
+		snprintf(menuNote, sizeof(menuNote), "%s", cfg->frameBuffer ? "Smoother, one frame more input delay" : "Least input delay");
+		save_prefs();
+		break;
 	case M_MAPANIM:
 		cfg->mapAnim = !cfg->mapAnim;
 		if (!cfg->mapAnim && stillStale && mapRes.nFrames > 0) {
@@ -1259,6 +1349,7 @@ static bool activate(int item, enum GameExit* exitTo) {
 			break;
 		}
 		emu_reset(&emu);
+		aheadReady = false;
 		ra_reset();
 		mapShownIdx = -1; /* back to the logo until the next map */
 		restartArmed = false;
@@ -1380,6 +1471,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[0][pageLen[0]++] = M_RESTART;
 	pages[0][pageLen[0]++] = M_SAVE;
 	pages[0][pageLen[0]++] = M_LOAD;
+	pages[0][pageLen[0]++] = M_FRAMEBUF;
 	pages[2][pageLen[2]++] = M_CHEATS;
 	if (ra_enabled()) pages[2][pageLen[2]++] = M_ACH;
 	pages[2][pageLen[2]++] = M_SHOT;
@@ -1458,6 +1550,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	android_pin_game_thread();
 #endif
 	while (!done) {
+		ahead_sync(); /* the core is the loop's again */
 		Uint64 workT0 = SDL_GetPerformanceCounter(); /* this frame's work, without the wait at the end */
 		long preempt0 = thread_preemptions();
 		double cpuMs0 = thread_cpu_ms();
@@ -1757,7 +1850,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		Uint64 emuT0 = SDL_GetPerformanceCounter(), raT = 0, audT = 0;
 		double emuCpu0 = thread_cpu_ms();
 		for (int i = 0; i < runs; ++i) {
-			emu_frame(&emu, keys);
+			if (i == 0 && aheadReady) aheadReady = false; /* emulated by the worker while the last frame was shown */
+			else emu_frame(&emu, keys);
 			Uint64 raT0 = SDL_GetPerformanceCounter();
 			ra_frame();
 			raT += SDL_GetPerformanceCounter() - raT0;
@@ -1886,10 +1980,16 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 
 		Uint64 drawT0 = SDL_GetPerformanceCounter();
 		double drawCpu0 = thread_cpu_ms();
+		/* frame buffer: start the next frame now; this one is drawn from a copy */
+		const uint32_t* shownFb = emu.fb;
+		if (cfg->frameBuffer && !ff) {
+			memcpy(aheadFb, emu.fb, sizeof(aheadFb));
+			if (ahead_start(keys)) aheadInFlight = true, shownFb = aheadFb;
+		}
 		/* only the view the game is on needs it (all of them right after a swap,
 		 * since the menu draws the game without uploading) */
 		for (int i = 0; i < nViews; ++i) {
-			if (gameTexAll || i == screens[game_screen()].view) ui_update_texture(gameTex[i], emu.fb, GBA_W * 4);
+			if (gameTexAll || i == screens[game_screen()].view) ui_update_texture(gameTex[i], shownFb, GBA_W * 4);
 		}
 		gameTexAll = false;
 		ui_sync_view(cfg->vsync ? screens[game_screen()].view : -1); /* Android; testing (docs/ANDROID.md) */
@@ -1972,6 +2072,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 	}
 
+	ahead_stop(); /* before anything else touches the core */
 	ui_on_background(NULL);
 	ui_on_foreground(NULL);
 	ui_sync_view(-1);

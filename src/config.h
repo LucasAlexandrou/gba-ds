@@ -19,6 +19,7 @@ typedef struct Config {
 	bool lcdGrid;      /* draw an LCD pixel grid over game and map */
 	int lcdStrength;   /* grid darkness, 0..100 */
 	bool vsync;
+	bool frameBuffer; /* emulate a frame ahead on a second thread: smoother, a frame more input delay */
 	bool pinCores; /* Android: the game thread on a core of its own, the map capture off it (off by default) */
 	bool map;          /* enable the second-screen map */
 	bool mapCrop;      /* crop map bezels/prompts where the profile knows how */

@@ -479,6 +479,16 @@ frontend launch intents.
   alike. Separately, about once a session one frame waits 150-600 ms
   inside drawing the game's screen (second display's swap): a compositor
   or driver stall, not ours to fix so far.
+- Frame buffer option (owner's choice after the priority change: smooth
+  enough by default, but some players feel stutter more than input lag):
+  `frame_buffer` (pause menu, Game page; prefs.cfg). game.c's ahead_*: a
+  worker thread runs only emu_frame for frame k+1 while the loop draws and
+  shows frame k (from a copy, aheadFb); the loop waits for it at the top of
+  every iteration, so sound, RA, map, probes, states, cheats and the menu
+  all run with the worker idle. Load/reset discard the frame emulated
+  ahead; fast-forward runs inline. Desktop: same picture as without it
+  when idle, one frame later when moving. Shared code, so ROCKNIX has the
+  option too.
 - Opening the pause menu costs one ~300 ms frame (its text images); not
   looked at yet.
 - Slow frames: game.c logs, each second there are any, the worst frame's
@@ -493,5 +503,6 @@ to move into CHANGELOG.md and the release notes (see CLAUDE.md, "More than
 one session"). Empty after each release.
 
 - **GammaOS's own launcher** can start games with GBA DS: Game Systems → Game Boy Advance, Launch Type **Custom Package**, Package `io.github.kyannon.gbads`, and the Intent Template given in the README.
+- **Frame buffer** in the pause menu's Game page (off by default; both platforms): the next frame is emulated while the current one is shown, for players who'd rather have the smoothest picture than the least input delay (one frame, about 17 ms).
 - Smoother play: achievement popups no longer slow the game down, and text everywhere costs less to draw, and no more freeze when the game saves.
 - **RetroAchievements on Android** (casual mode), as on ROCKNIX: progress and unlocks on the second screen, and the Achievements list in the pause menu. Sign in in the game list's **Settings** → **RetroAchievements**; GBA DS keeps a sign-in token, not your password.
