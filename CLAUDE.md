@@ -190,6 +190,14 @@ Android session at the same time. To keep them from colliding:
   when there's no curl program. `gamecontrollerdb.txt` in the zip maps
   retrogame_joypad (Banana ships no SDL mapping). Cheats: `gba-ds/cheats`
   (assetDir) is searched before cheat_dir everywhere but Android.
+  Banana's own GBA list (esinteg.c banana_*; the game list's Settings row on
+  Banana): writes /data/banana/systems.conf (a copy of /etc/banana's, which
+  banana-ui-session uses instead at the menu's next start), [gba] run line
+  -> `bash '<dir>/banana-play.sh' %ROM%`, the original kept as
+  `# gba-ds: run = ...`. banana-play.sh runs `gba-ds --supported ROM` (exit
+  0 if a profile exists): GBA DS (banana-perf performance), else the
+  original line. Off restores it; the copy is deleted if ours and unchanged.
+  banana-ui hands both panels to any run line without "run-retroarch".
 - EmulationStation: `/usr/bin/runemu.sh` launches games; the GBA command is
   `/usr/bin/runemu.sh %ROM% -P%SYSTEM% --core=%CORE% --emulator=%EMULATOR%
   --controllers="%CONTROLLERSCONFIG%"`.

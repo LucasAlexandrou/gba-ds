@@ -24,7 +24,20 @@
 
 - **RetroAchievements:** the account from Banana's first-time setup (`banana/accounts.conf`) is used, in casual mode. Banana has no `curl` program, so GBA DS talks to the server through Banana's curl library instead (the log says "using libcurl").
 - **Battery and clock** in the pause menu come from the system, as on ROCKNIX.
-- **GBA DS in EmulationStation** (the game list's Settings) doesn't apply: Banana has no EmulationStation. Start games from GBA DS's own list.
+- **Back to Banana:** closing GBA DS from Ports goes back to Banana's menu.
+
+## Starting games from Banana's Game Boy Advance list
+
+GBA DS can take over the second-screen games in Banana's own **Game Boy Advance** list, so you don't have to open GBA DS first:
+
+1. Start GBA DS from Ports, open **Settings** in its game list (tap it, top right, or press SELECT) and switch **GBA DS in BananaOS's GBA list** on.
+2. Restart BananaOS (Settings → System), since Banana reads its systems list when it starts.
+
+Then a game picked in Banana's Game Boy Advance list starts in GBA DS when GBA DS has second-screen support for it (see [[Supported games]]), and closing it goes back to Banana's menu. Every other game plays in RetroArch (gpSP) as before.
+
+How it works: Banana reads its systems from `banana/systems.conf` on the card when there is one, instead of its built-in list. Switching this on makes that copy (or edits yours) so the Game Boy Advance entry runs `gba-ds/banana-play.sh`, keeping the original line as a comment (`# gba-ds: run = ...`), which `banana-play.sh` uses for the games GBA DS doesn't support. Switching it off puts the line back, and deletes the copy if GBA DS made it and nothing else in it changed.
+
+While the copy is there, systems added by later BananaOS updates don't appear in Banana's menu until you switch this off (Banana's own list is always in `banana/systems.conf.default`, to compare). If GBA DS's folder moves, it updates the line the next time it starts.
 
 ## If something's wrong
 

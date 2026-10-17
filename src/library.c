@@ -737,15 +737,20 @@ static bool settings_poll(Config* cfg) {
 static void draw_settings(const Config* cfg, int scr, int sel) {
 	SettingsGeom g = settings_geom(scr);
 	float px = g.px;
-	bool banana = access("/etc/banana", F_OK) == 0;
-	const char* labels[SETTINGS_ROWS] = { banana ? "GBA DS in EmulationStation: Not here"
+	bool banana = banana_present();
+	const char* labels[SETTINGS_ROWS] = { banana ? (banana_integration_on() ? "GBA DS in BananaOS's GBA list: On"
+	                                                                        : "GBA DS in BananaOS's GBA list: Off")
 	                                      : es_integration_on(cfg) ? "GBA DS in EmulationStation: On"
 	                                                               : "GBA DS in EmulationStation: Off" };
 	draw_settings_frame(scr, &g, sel, labels);
 	int tx = g.row[0].x + px * 2, tw = g.row[0].w - px * 4;
 	if (banana) {
-		draw_wrapped(scr, tx, g.textY[0], tw, px,
-		             "BananaOS has no EmulationStation: start GBA DS from Ports, and games from its list.", C_DIM);
+		int y = draw_wrapped(scr, tx, g.textY[0], tw, px,
+		                     "Games picked in BananaOS's own Game Boy Advance list start in GBA DS when it has "
+		                     "second-screen support for them; every other game plays in RetroArch as before. "
+		                     "BananaOS reads its list when it starts, so restart it after switching this.",
+		                     C_DIM);
+		if (settingsMsg[0]) draw_wrapped(scr, tx, y + px * 6, tw, px, settingsMsg, C_GOLD);
 		return;
 	}
 	int y = draw_wrapped(scr, tx, g.textY[0], tw, px,
@@ -758,7 +763,10 @@ static void draw_settings(const Config* cfg, int scr, int sel) {
 
 static void settings_activate(Config* cfg, int row) {
 	(void) row;
-	if (access("/etc/banana", F_OK) == 0) return; /* BananaOS: nothing to set */
+	if (banana_present()) {
+		banana_integration_set(!banana_integration_on(), settingsMsg, sizeof(settingsMsg));
+		return;
+	}
 	es_integration_set(cfg, !es_integration_on(cfg), settingsMsg, sizeof(settingsMsg));
 }
 

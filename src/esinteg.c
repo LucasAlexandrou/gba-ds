@@ -268,3 +268,149 @@ void es_integration_refresh(const Config* cfg) {
 	char msg[128];
 	if (!install(cfg, msg, sizeof(msg))) fprintf(stderr, "es: refresh failed: %s\n", msg);
 }
+
+/* ---------------------------------------------------------------- BananaOS */
+
+#ifndef BANANA_DEFAULT /* (overridden by tests) */
+#define BANANA_DEFAULT "/etc/banana/systems.conf"
+#define BANANA_USER "/data/banana/systems.conf"
+#endif
+#define BANANA_HEADER "# gba-ds: copied from " BANANA_DEFAULT " by GBA DS"
+#define BANANA_MARK "# gba-ds: run = "
+
+bool banana_present(void) {
+	struct stat st;
+	return stat("/etc/banana", &st) == 0;
+}
+
+bool banana_integration_on(void) {
+	char* t = read_file(BANANA_USER);
+	bool on = t && strstr(t, BANANA_MARK) != NULL;
+	free(t);
+	return on;
+}
+
+/* The [gba] section's "run = ..." line: start and end (after its newline). */
+static bool gba_run_line(const char* t, const char** start, const char** end) {
+	const char* sec = strstr(t, "[gba]");
+	while (sec && sec != t && sec[-1] != '\n') sec = strstr(sec + 1, "[gba]");
+	if (!sec) return false;
+	const char* p = strchr(sec, '\n');
+	while (p && *++p && *p != '[') {
+		const char* nl = strchr(p, '\n');
+		if (!nl) nl = p + strlen(p);
+		const char* q = p;
+		while (*q == ' ' || *q == '\t') ++q;
+		if (!strncmp(q, "run", 3) && (q[3] == ' ' || q[3] == '=' || q[3] == '\t')) {
+			*start = p;
+			*end = *nl ? nl + 1 : nl;
+			return true;
+		}
+		p = *nl ? nl : NULL;
+		if (!p) break;
+	}
+	return false;
+}
+
+static bool banana_on(char* msg, size_t msgSize) {
+	char dir[600];
+	if (!app_dir(dir, sizeof(dir))) {
+		snprintf(msg, msgSize, "Couldn't find GBA DS's folder.");
+		return false;
+	}
+	bool copy = access(BANANA_USER, F_OK) != 0;
+	char* t = read_file(copy ? BANANA_DEFAULT : BANANA_USER);
+	const char *a, *b;
+	if (!t || !gba_run_line(t, &a, &b)) {
+		free(t);
+		snprintf(msg, msgSize, "BananaOS's systems list has no Game Boy Advance entry.");
+		return false;
+	}
+	/* the original run line, kept as a comment, then GBA DS's */
+	const char* v = strchr(a, '=');
+	v = v && v < b ? v + 1 : b;
+	while (*v == ' ' || *v == '\t') ++v;
+	size_t vlen = (size_t) (b - v);
+	while (vlen && (v[vlen - 1] == '\n' || v[vlen - 1] == '\r' || v[vlen - 1] == ' ')) --vlen;
+	size_t n = strlen(t) + vlen + strlen(dir) + 512;
+	char* out = malloc(n);
+	snprintf(out, n, "%s%.*s" BANANA_MARK "%.*s\nrun = bash '%s/banana-play.sh' %%ROM%%\n%s",
+	         copy ? BANANA_HEADER " (game list > Settings: GBA DS in BananaOS's GBA list).\n"
+	                "# Switching that off puts the Game Boy Advance line back, and deletes this copy\n"
+	                "# if nothing else in it was changed.\n" : "",
+	         (int) (a - t), t, (int) vlen, v, dir, b);
+	bool ok = write_file(BANANA_USER, out, 0644);
+	free(out);
+	free(t);
+	if (!ok) {
+		snprintf(msg, msgSize, "Couldn't write %s.", BANANA_USER);
+		return false;
+	}
+	fprintf(stderr, "banana: GBA DS set for the Game Boy Advance list in %s\n", BANANA_USER);
+	snprintf(msg, msgSize, "On. Restart BananaOS (Settings > System) for its menu to use it.");
+	return true;
+}
+
+static bool banana_off(char* msg, size_t msgSize) {
+	char* t = read_file(BANANA_USER);
+	if (!t || !strstr(t, BANANA_MARK)) {
+		free(t);
+		snprintf(msg, msgSize, "Off.");
+		return true;
+	}
+	/* "# gba-ds: run = ORIG" + the "run = ..." after it -> "run = ORIG" */
+	char* m = strstr(t, BANANA_MARK);
+	char* mEnd = strchr(m, '\n');
+	char* next = mEnd ? strchr(mEnd + 1, '\n') : NULL;
+	size_t n = strlen(t) + 16;
+	char* out = malloc(n);
+	snprintf(out, n, "%.*srun = %.*s\n%s", (int) (m - t), t, (int) ((mEnd ? mEnd : m + strlen(m)) - (m + strlen(BANANA_MARK))),
+	         m + strlen(BANANA_MARK), next ? next + 1 : "");
+	/* the copy GBA DS made: its header out, and gone if it's the default again */
+	bool ours = strncmp(out, BANANA_HEADER, strlen(BANANA_HEADER)) == 0;
+	char* body = out;
+	if (ours) {
+		for (int k = 0; k < 3 && body; ++k) {
+			char* nl = strchr(body, '\n');
+			body = nl ? nl + 1 : NULL;
+		}
+		if (!body) body = out + strlen(out);
+	}
+	char* def = ours ? read_file(BANANA_DEFAULT) : NULL;
+	bool ok;
+	if (def && !strcmp(def, body)) {
+		ok = unlink(BANANA_USER) == 0;
+		fprintf(stderr, "banana: removed %s (back to BananaOS's own list)\n", BANANA_USER);
+	} else {
+		ok = write_file(BANANA_USER, body, 0644);
+		fprintf(stderr, "banana: Game Boy Advance list back to its emulator in %s\n", BANANA_USER);
+	}
+	free(def);
+	free(out);
+	free(t);
+	snprintf(msg, msgSize, ok ? "Off. Restart BananaOS (Settings > System) for its menu to use it." : "Couldn't change %s.",
+	         BANANA_USER);
+	return ok;
+}
+
+bool banana_integration_set(bool on, char* msg, size_t msgSize) {
+	if (on && banana_integration_on()) {
+		snprintf(msg, msgSize, "On.");
+		return true;
+	}
+	return on ? banana_on(msg, msgSize) : banana_off(msg, msgSize);
+}
+
+void banana_integration_refresh(void) {
+	/* GBA DS moved since it was switched on: point the line at its new folder */
+	if (!banana_present() || !banana_integration_on()) return;
+	char dir[600], want[700];
+	if (!app_dir(dir, sizeof(dir))) return;
+	snprintf(want, sizeof(want), "'%s/banana-play.sh'", dir);
+	char* t = read_file(BANANA_USER);
+	bool current = t && strstr(t, want);
+	free(t);
+	if (current) return;
+	char msg[160];
+	if (!banana_off(msg, sizeof(msg)) || !banana_on(msg, sizeof(msg))) fprintf(stderr, "banana: refresh failed: %s\n", msg);
+}

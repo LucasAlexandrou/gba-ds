@@ -15,6 +15,8 @@
 #include "paths.h"
 #include "ui.h"
 #include "ra.h"
+#include "emu.h"
+#include "profiles.h"
 
 #include <libgen.h>
 #include <signal.h>
@@ -33,6 +35,17 @@ int main(int argc, char** argv) {
 		if (!strcmp(argv[i], "--version")) {
 			printf("GBA DS %s\n", GBADS_VERSION);
 			return 0;
+		}
+		/* --supported ROM: exit 0 if GBA DS has second-screen support for the
+		 * game (a profile for its code), 1 if not, 2 if it can't be read
+		 * (BananaOS's banana-play.sh: other games go to RetroArch) */
+		if (!strcmp(argv[i], "--supported") && i + 1 < argc) {
+			uint8_t h[0xC0];
+			if (!emu_rom_header(argv[i + 1], h, sizeof(h))) return 2;
+			char code[5] = { (char) h[0xAC], (char) h[0xAD], (char) h[0xAE], (char) h[0xAF], 0 };
+			bool yes = profile_find(code) != NULL;
+			printf("%s: %s\n", code, yes ? "supported" : "not supported");
+			return yes ? 0 : 1;
 		}
 	}
 #ifdef __ANDROID__
@@ -86,6 +99,7 @@ int main(int argc, char** argv) {
 #ifndef __ANDROID__
 	/* keep EmulationStation's entry for GBA DS current, if it's switched on */
 	es_integration_refresh(&cfg);
+	banana_integration_refresh();
 #endif
 
 	signal(SIGTERM, on_signal);
