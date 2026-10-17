@@ -41,19 +41,32 @@ if [ -d "$OLD/states" ] && [ ! -d "$DIR/states" ]; then
 fi
 
 # BananaOS (github.com/JorreFog/BananaLinux): no compositor and no sway.
-# Banana's SDL puts one window over both panels itself (SDL_BANANA_PANELS:
-# the top panel on the left, the bottom one on the right, as sway lays them
-# out on ROCKNIX; touches on the bottom panel land on its half), drawn by the
-# CPU (the evdev driver: SDL's software renderer straight into the panels'
-# buffers). GBADS_BANANA_VIDEO=offscreen draws with OpenGL ES instead, each
-# frame read back onto the panels: under 5 frames a second on an RG DS Plus
-# (Banana 0.3.0). Its paths replace ROCKNIX's for the settings still at ROCKNIX's
+# GBADS_BANANA_VIDEO picks how GBA DS reaches the two panels:
+#   kmsdrm (default): SDL's KMS/DRM driver, a window on each panel, drawn by
+#     the GPU straight onto it (the top panel is display 0: SDL_KMSDRM_FIRST)
+#   evdev: Banana's SDL patch puts one window over both panels
+#     (SDL_BANANA_PANELS: the top one left, as sway lays them out), drawn by
+#     the CPU and copied onto them each frame: 24-30 frames a second on an
+#     RG DS Plus (Banana 0.3.0)
+#   offscreen: the same with OpenGL ES, each frame read back: under 5
+# Banana's paths replace ROCKNIX's for the settings still at ROCKNIX's
 # defaults in gba-ds.cfg (anything you changed there is kept).
 if [ -d /etc/banana ]; then
 	LOG="$DIR/gba-ds.log"
-	echo "BananaOS $(cat /etc/banana/VERSION /usr/share/banana/VERSION 2>/dev/null | head -n 1)" > "$LOG"
-	export SDL_VIDEODRIVER=${GBADS_BANANA_VIDEO:-evdev} SDL_BANANA_PANELS=side SDL_BANANA_TOP=${BANANA_TOP:-DSI-2}
-	unset SDL_KMSDRM_FIRST
+	VIDEO=${GBADS_BANANA_VIDEO:-kmsdrm}
+	echo "BananaOS, video: $VIDEO" > "$LOG"
+	B=()
+	cfgval() { sed -n "s/^$1 *= *//p" "$DIR/gba-ds.cfg" 2>/dev/null | tail -n 1; }
+	if [ "$VIDEO" = kmsdrm ]; then
+		export SDL_VIDEODRIVER=kmsdrm SDL_KMSDRM_FIRST=${BANANA_TOP:-DSI-2}
+		unset SDL_BANANA_PANELS
+		# a window on each panel; touches are the bottom panel's own
+		case "$(cfgval layout)" in auto|"") B+=(--layout=dual) ;; esac
+		case "$(cfgval touch_map)" in window|"") B+=(--touch-map=screen) ;; esac
+	else
+		export SDL_VIDEODRIVER=$VIDEO SDL_BANANA_PANELS=side SDL_BANANA_TOP=${BANANA_TOP:-DSI-2}
+		unset SDL_KMSDRM_FIRST
+	fi
 	# the ports launcher switched the bottom panel's backlight off (and
 	# bananad keeps it off while /run/banana/panel-off names it): on for us
 	if [ -f /run/banana/panel-off ]; then
@@ -61,8 +74,6 @@ if [ -d /etc/banana ]; then
 		rm -f /run/banana/panel-off
 		[ -w "$BL/bl_power" ] && echo 0 > "$BL/bl_power"
 	fi
-	cfgval() { sed -n "s/^$1 *= *//p" "$DIR/gba-ds.cfg" 2>/dev/null | tail -n 1; }
-	B=()
 	[ "$(cfgval rom_dir)" = /storage/roms/gba ] && B+=(--rom-dir=/data/roms/gba)
 	[ "$(cfgval screenshot_dir)" = /storage/roms/screenshots ] && B+=(--screenshot-dir=/data/screenshots)
 	case "$(cfgval cheat_dir)" in /config/retroarch/cheats*) B+=(--cheat-dir=/data/retroarch/cheats) ;; esac
