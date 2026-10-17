@@ -154,6 +154,18 @@ static bool create_view(View* v, int display, const char* title, bool fullscreen
 		fprintf(stderr, "SDL_CreateRenderer: %s\n", SDL_GetError());
 		return false;
 	}
+	{
+		/* which renderer, and for OpenGL which GPU driver (a software one,
+		 * such as llvmpipe, would mean no GPU at all) */
+		SDL_RendererInfo ri;
+		const char* gl = NULL;
+		if (SDL_GetRendererInfo(v->ren, &ri) == 0 && !strncmp(ri.name, "opengl", 6)) {
+			typedef const unsigned char* (*GetString)(unsigned int);
+			GetString gs = (GetString) SDL_GL_GetProcAddress("glGetString");
+			if (gs) gl = (const char*) gs(0x1F01); /* GL_RENDERER */
+		}
+		fprintf(stderr, "renderer: %s%s%s\n", SDL_GetRendererInfo(v->ren, &ri) == 0 ? ri.name : "?", gl ? ", " : "", gl ? gl : "");
+	}
 	SDL_SetRenderDrawBlendMode(v->ren, SDL_BLENDMODE_BLEND);
 	SDL_SetRenderDrawColor(v->ren, 0, 0, 0, 255);
 	SDL_RenderClear(v->ren);

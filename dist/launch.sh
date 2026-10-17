@@ -43,14 +43,16 @@ fi
 # BananaOS (github.com/JorreFog/BananaLinux): no compositor and no sway.
 # Banana's SDL puts one window over both panels itself (SDL_BANANA_PANELS:
 # the top panel on the left, the bottom one on the right, as sway lays them
-# out on ROCKNIX; touches on the bottom panel land on its half), drawn with
-# the GPU (the offscreen driver: OpenGL ES, each frame read back onto the
-# panels). Its paths replace ROCKNIX's for the settings still at ROCKNIX's
+# out on ROCKNIX; touches on the bottom panel land on its half), drawn by the
+# CPU (the evdev driver: SDL's software renderer straight into the panels'
+# buffers). GBADS_BANANA_VIDEO=offscreen draws with OpenGL ES instead, each
+# frame read back onto the panels: under 5 frames a second on an RG DS Plus
+# (Banana 0.3.0). Its paths replace ROCKNIX's for the settings still at ROCKNIX's
 # defaults in gba-ds.cfg (anything you changed there is kept).
 if [ -d /etc/banana ]; then
 	LOG="$DIR/gba-ds.log"
 	echo "BananaOS $(cat /etc/banana/VERSION /usr/share/banana/VERSION 2>/dev/null | head -n 1)" > "$LOG"
-	export SDL_VIDEODRIVER=${GBADS_BANANA_VIDEO:-offscreen} SDL_BANANA_PANELS=side SDL_BANANA_TOP=${BANANA_TOP:-DSI-2}
+	export SDL_VIDEODRIVER=${GBADS_BANANA_VIDEO:-evdev} SDL_BANANA_PANELS=side SDL_BANANA_TOP=${BANANA_TOP:-DSI-2}
 	unset SDL_KMSDRM_FIRST
 	# the ports launcher switched the bottom panel's backlight off (and
 	# bananad keeps it off while /run/banana/panel-off names it): on for us

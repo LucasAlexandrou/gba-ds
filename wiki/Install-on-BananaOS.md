@@ -9,7 +9,7 @@
 
 ## How it fits in
 
-- **Both screens:** Banana has no compositor, so GBA DS asks Banana's SDL to put its window over both panels (the top panel left, the bottom right), drawn with the GPU; touches on the bottom panel work as on ROCKNIX. Banana's ports launcher normally switches the bottom panel off; GBA DS switches it back on while it runs.
+- **Both screens:** Banana has no compositor, so GBA DS asks Banana's SDL to put its window over both panels (the top panel left, the bottom right), drawn by the CPU straight into the panels' buffers; touches on the bottom panel work as on ROCKNIX. Banana's ports launcher normally switches the bottom panel off; GBA DS switches it back on while it runs.
 - **Buttons:** the zip has a mapping for the RG DS's built-in controls (`gba-ds/gamecontrollerdb.txt`, ROCKNIX's), since Banana ships none for SDL apps. The buttons work as on ROCKNIX (HOME, or a tap on the bottom touchscreen, opens the pause menu).
 - **Where things go:** these replace ROCKNIX's paths unless you've changed them in `gba-ds.cfg`:
 
@@ -30,4 +30,4 @@
 
 Send `roms/ports/gba-ds/gba-ds.log` (and for a stutter or slowness, a log made with `export GBADS_DEBUG=1` added near the top of `gba-ds/launch.sh`). The log's first lines say it found BananaOS, which paths it used, the window size and the frame pacing.
 
-The window is drawn with the GPU and copied onto the panels each frame. If that turns out too slow on a device, `GBADS_BANANA_VIDEO=evdev` (in `launch.sh`, before the `if [ -d /etc/banana ]` line) draws without the GPU instead, for comparison.
+For comparison, `export GBADS_BANANA_VIDEO=offscreen` (in `launch.sh`, before the `if [ -d /etc/banana ]` line) draws with the GPU instead, each frame then copied onto the panels; on an RG DS Plus that ran under 5 frames a second.
