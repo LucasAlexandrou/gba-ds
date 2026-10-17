@@ -283,8 +283,13 @@ void cheats_load(Cheats* c, const Config* cfg, const char* romPath, const char* 
 	title_of(romPath, s.romTitle, sizeof(s.romTitle), NULL, NULL, 0);
 	s.region = gameCode ? region_of(gameCode[3]) : 0;
 	s.strict = gameCode && profile_ram_moved(gameCode);
-	char dirs[1024];
+	char dirs[2200];
+#ifdef __ANDROID__
 	snprintf(dirs, sizeof(dirs), "%s", cfg->cheatDir);
+#else
+	/* GBA DS's own cheats folder (gba-ds/cheats), then cheat_dir's folders */
+	snprintf(dirs, sizeof(dirs), "%s/cheats:%s", cfg->assetDir, cfg->cheatDir);
+#endif
 	char* save;
 	for (char* d = strtok_r(dirs, ":", &save); d; d = strtok_r(NULL, ":", &save)) scan(&s, d, 0);
 	qsort(c->files, c->nFiles, sizeof(*c->files), cmp_files);

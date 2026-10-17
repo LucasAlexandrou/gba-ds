@@ -176,16 +176,20 @@ Android session at the same time. To keep them from colliding:
   `vertical-check` and the RG DS device quirks.
 - Installed at `/storage/roms/ports/gba-ds/`, ROMs in `/storage/roms/gba/`.
 - **BananaOS** (github.com/JorreFog/BananaLinux; Buildroot, glibc, no compositor,
-  no udev): the same zip in `/data/roms/ports`, run by Banana's `run-port`
-  (bash, SDL_KMSDRM_FIRST, bottom panel's backlight off). launch.sh detects
-  `/etc/banana` and uses Banana's SDL patch instead of sway: SDL_VIDEODRIVER=
-  offscreen + SDL_BANANA_PANELS=side (one GLES window over both panels, read
-  back onto them each frame; touches mapped to the bottom half), turns the
-  backlight back on, and passes Banana's paths (`/data/roms/gba`,
+  no udev, libcurl but no curl program): the same zip in `/data/roms/ports`,
+  run by Banana's `run-port` (bash, SDL_KMSDRM_FIRST, bottom panel's
+  backlight off). launch.sh detects `/etc/banana`, turns the backlight back
+  on, and by default uses SDL's KMSDRM driver with the dual layout (a window
+  per panel, GPU straight to each; --touch-map=screen): full speed on the RG
+  DS Plus. GBADS_BANANA_VIDEO=evdev / offscreen use Banana's SDL patch
+  (SDL_BANANA_PANELS=side, one window over both panels, copied each frame:
+  24-30 / under 5 fps). It passes Banana's paths (`/data/roms/gba`,
   `/data/saves`, `/data/screenshots`, `/data/retroarch/cheats`) for settings
   still at ROCKNIX's defaults, plus the RA account from
-  `/data/banana/accounts.conf`. `gamecontrollerdb.txt` in the zip maps
-  retrogame_joypad (Banana ships no SDL mapping).
+  `/data/banana/accounts.conf`; ra.c falls back to libcurl (SDL_LoadObject)
+  when there's no curl program. `gamecontrollerdb.txt` in the zip maps
+  retrogame_joypad (Banana ships no SDL mapping). Cheats: `gba-ds/cheats`
+  (assetDir) is searched before cheat_dir everywhere but Android.
 - EmulationStation: `/usr/bin/runemu.sh` launches games; the GBA command is
   `/usr/bin/runemu.sh %ROM% -P%SYSTEM% --core=%CORE% --emulator=%EMULATOR%
   --controllers="%CONTROLLERSCONFIG%"`.

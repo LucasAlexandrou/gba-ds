@@ -18,11 +18,11 @@
 | Games | `/data/roms/gba` |
 | Battery saves (`.sav`) | `/data/saves`, beside RetroArch's: a game's RetroArch save (`.srm`, from Banana's gpSP) is carried over the first time you start it in GBA DS |
 | Screenshots | `/data/screenshots` |
-| Cheats | `/data/retroarch/cheats` (RetroArch `.cht` files) |
+| Cheats | `roms/ports/gba-ds/cheats` (RetroArch `.cht` files; subfolders are fine), and RetroArch's `/data/retroarch/cheats` |
 | Save states, settings from the menu, logos | `roms/ports/gba-ds/states/` |
 | Log | `roms/ports/gba-ds/gba-ds.log` |
 
-- **RetroAchievements:** the account from Banana's first-time setup (`banana/accounts.conf`) is used, in casual mode.
+- **RetroAchievements:** the account from Banana's first-time setup (`banana/accounts.conf`) is used, in casual mode. Banana has no `curl` program, so GBA DS talks to the server through Banana's curl library instead (the log says "using libcurl").
 - **Battery and clock** in the pause menu come from the system, as on ROCKNIX.
 - **GBA DS in EmulationStation** (the game list's Settings) doesn't apply: Banana has no EmulationStation. Start games from GBA DS's own list.
 

@@ -178,7 +178,142 @@ static int run_curl(char* const* argv, const char* in, char** out, size_t* outLe
 	return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
 }
 
+/* No curl program (BananaOS ships libcurl without it): the library itself,
+ * loaded at run time (SDL_LoadObject), so nothing new to link against. The
+ * option and info numbers are libcurl's stable ABI. */
+typedef void CURL;
+struct curl_slist;
+static struct {
+	bool tried, ok;
+	CURL* (*easy_init)(void);
+	int (*easy_setopt)(CURL*, int, ...);
+	int (*easy_perform)(CURL*);
+	int (*easy_getinfo)(CURL*, int, ...);
+	void (*easy_cleanup)(CURL*);
+	struct curl_slist* (*slist_append)(struct curl_slist*, const char*);
+	void (*slist_free_all)(struct curl_slist*);
+	const char* (*easy_strerror)(int);
+} lc;
+enum {
+	LC_WRITEDATA = 10001, LC_URL = 10002, LC_TIMEOUT = 13, LC_POSTFIELDS = 10015, LC_USERAGENT = 10018,
+	LC_HTTPHEADER = 10023, LC_FAILONERROR = 45, LC_FOLLOWLOCATION = 52, LC_POSTFIELDSIZE = 60, LC_NOSIGNAL = 99,
+	LC_CAINFO = 10065, LC_WRITEFUNCTION = 20011, LC_INFO_RESPONSE_CODE = 0x200002
+};
+
+static bool have_curl_program(void) {
+	static int found = -1;
+	if (found >= 0) return found;
+	found = 0;
+	const char* path = getenv("PATH");
+	char dir[1024];
+	while (path && *path && !found) {
+		size_t n = strcspn(path, ":");
+		snprintf(dir, sizeof(dir), "%.*s/curl", (int) n, path);
+		if (access(dir, X_OK) == 0) found = 1;
+		path += n + (path[n] == ':');
+	}
+	return found;
+}
+
+static bool libcurl_load(void) {
+	if (lc.tried) return lc.ok;
+	lc.tried = true;
+	void* h = SDL_LoadObject("libcurl.so.4");
+	if (!h) h = SDL_LoadObject("libcurl.so");
+	if (!h) {
+		fprintf(stderr, "ra: no curl program and no libcurl: can't reach the server\n");
+		return false;
+	}
+	*(void**) &lc.easy_init = SDL_LoadFunction(h, "curl_easy_init");
+	*(void**) &lc.easy_setopt = SDL_LoadFunction(h, "curl_easy_setopt");
+	*(void**) &lc.easy_perform = SDL_LoadFunction(h, "curl_easy_perform");
+	*(void**) &lc.easy_getinfo = SDL_LoadFunction(h, "curl_easy_getinfo");
+	*(void**) &lc.easy_cleanup = SDL_LoadFunction(h, "curl_easy_cleanup");
+	*(void**) &lc.slist_append = SDL_LoadFunction(h, "curl_slist_append");
+	*(void**) &lc.slist_free_all = SDL_LoadFunction(h, "curl_slist_free_all");
+	*(void**) &lc.easy_strerror = SDL_LoadFunction(h, "curl_easy_strerror");
+	void (*global_init)(long) = (void (*)(long)) SDL_LoadFunction(h, "curl_global_init");
+	lc.ok = lc.easy_init && lc.easy_setopt && lc.easy_perform && lc.easy_getinfo && lc.easy_cleanup && lc.slist_append &&
+	        lc.slist_free_all && lc.easy_strerror && global_init;
+	if (lc.ok) global_init(3); /* CURL_GLOBAL_DEFAULT */
+	fprintf(stderr, "ra: no curl program: %s\n", lc.ok ? "using libcurl" : "libcurl incomplete, can't reach the server");
+	return lc.ok;
+}
+
+typedef struct { char* buf; size_t len, cap; FILE* f; } LcSink;
+
+static size_t lc_write(char* p, size_t sz, size_t n, void* ud) {
+	LcSink* s = ud;
+	size_t k = sz * n;
+	if (s->f) return fwrite(p, 1, k, s->f);
+	if (s->len + k + 1 > s->cap) {
+		size_t cap = (s->len + k + 1) * 2;
+		char* nb = realloc(s->buf, cap);
+		if (!nb) return 0;
+		s->buf = nb, s->cap = cap;
+	}
+	memcpy(s->buf + s->len, p, k);
+	s->len += k;
+	s->buf[s->len] = 0;
+	return k;
+}
+
+static void run_job_libcurl(Job* j) {
+	j->status = RC_API_SERVER_RESPONSE_RETRYABLE_CLIENT_ERROR;
+	if (!libcurl_load()) return;
+	CURL* c = lc.easy_init();
+	if (!c) return;
+	LcSink sink = { 0 };
+	char tmp[1200] = "";
+	if (j->outPath) {
+		snprintf(tmp, sizeof(tmp), "%s.part", j->outPath);
+		sink.f = fopen(tmp, "wb");
+		if (!sink.f) {
+			lc.easy_cleanup(c);
+			return;
+		}
+		lc.easy_setopt(c, LC_FAILONERROR, 1L);
+	}
+	lc.easy_setopt(c, LC_URL, j->url);
+	lc.easy_setopt(c, LC_FOLLOWLOCATION, 1L);
+	lc.easy_setopt(c, LC_TIMEOUT, 30L);
+	lc.easy_setopt(c, LC_NOSIGNAL, 1L);
+	lc.easy_setopt(c, LC_USERAGENT, userAgent);
+	if (access("/etc/ssl/certs/ca-certificates.crt", R_OK) == 0) lc.easy_setopt(c, LC_CAINFO, "/etc/ssl/certs/ca-certificates.crt");
+	lc.easy_setopt(c, LC_WRITEFUNCTION, lc_write);
+	lc.easy_setopt(c, LC_WRITEDATA, &sink);
+	struct curl_slist* hdr = NULL;
+	char ctype[300];
+	if (j->post && !j->outPath) {
+		snprintf(ctype, sizeof(ctype), "Content-Type: %s", j->ctype ? j->ctype : "application/x-www-form-urlencoded");
+		hdr = lc.slist_append(NULL, ctype);
+		lc.easy_setopt(c, LC_HTTPHEADER, hdr);
+		lc.easy_setopt(c, LC_POSTFIELDSIZE, (long) strlen(j->post));
+		lc.easy_setopt(c, LC_POSTFIELDS, j->post);
+	}
+	int rc = lc.easy_perform(c);
+	long code = 0;
+	lc.easy_getinfo(c, LC_INFO_RESPONSE_CODE, &code);
+	if (rc) fprintf(stderr, "ra: %s: %s\n", j->outPath ? "download failed" : "request failed", lc.easy_strerror(rc));
+	if (hdr) lc.slist_free_all(hdr);
+	lc.easy_cleanup(c);
+	if (j->outPath) {
+		fclose(sink.f);
+		if (rc == 0) rename(tmp, j->outPath);
+		else unlink(tmp);
+		free(sink.buf);
+		return;
+	}
+	if (rc == 0 && code > 0) j->status = (int) code;
+	j->body = sink.buf;
+	j->len = rc == 0 ? sink.len : 0;
+}
+
 static void run_job(Job* j) {
+	if (!have_curl_program()) {
+		run_job_libcurl(j);
+		return;
+	}
 	char* argv[24];
 	int n = 0;
 	argv[n++] = "curl";

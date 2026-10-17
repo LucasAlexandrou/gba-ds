@@ -73,7 +73,7 @@ What `map_crop` changes in the Metroid map screens:
 | `save_dir` | empty | Battery saves (`.sav`). Empty: next to the ROM. An existing RetroArch `.srm` is copied to `.sav` the first time you play a game. |
 | `state_dir` | empty | Save states, resume points, menu settings and extracted art. Empty: `gba-ds/states`. |
 | `screenshot_dir` | `/storage/roms/screenshots` | Where Take Screenshot saves its PNGs. |
-| `cheat_dir` | RetroArch's cheat folders | `.cht` folders, searched two levels deep, `:`-separated. |
+| `cheat_dir` | RetroArch's cheat folders | RetroArch's `.cht` folders, searched two levels deep, `:`-separated. GBA DS's own `cheats` folder (`gba-ds/cheats`) is always searched first. |
 | `asset_dir` | empty | The folder holding your `logos/` and `overlays/`. Empty: the GBA DS folder. |
 | `es_config_dir` | `/storage/.config/emulationstation` | Where **GBA DS in EmulationStation** puts its two files. |
 

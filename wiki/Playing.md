@@ -82,7 +82,7 @@ The choice is remembered per game.
 
 GBA DS reads RetroArch's cheat files (`.cht`, the format of the [libretro cheat database](https://github.com/libretro/libretro-database/tree/master/cht/Nintendo%20-%20Game%20Boy%20Advance)).
 
-- **Where:** ROCKNIX: RetroArch's cheats folders, `/config/retroarch/cheats` and `/storage/.config/retroarch/cheats`, including subfolders such as `Nintendo - Game Boy Advance/` (`cheat_dir` adds others, `:`-separated). Android: `GBA DS/cheats` on the internal storage (subfolders are fine).
+- **Where:** GBA DS's own `cheats` folder (`gba-ds/cheats`, on ROCKNIX and BananaOS), then RetroArch's cheats folders: on ROCKNIX `/config/retroarch/cheats` and `/storage/.config/retroarch/cheats`, on BananaOS `/data/retroarch/cheats`. Subfolders such as `Nintendo - Game Boy Advance/` are searched too (`cheat_dir` changes RetroArch's folders, `:`-separated). Android: `GBA DS/cheats` on the internal storage (subfolders are fine).
 - **Which file:** picked by name, so `Metroid Fusion (World) (Code Breaker).cht` goes with `Metroid Fusion (USA).gba`. The bracketed parts don't have to match, except the region: a file marked `(USA)` isn't offered for a Japanese ROM. The Japanese Aria of Sorrow, Harmony of Dissonance and Metroid Fusion keep their data at different addresses from the other releases, so for those only files that say `(Japan)` are used, not `(World)` ones.
 - **Using them:** pause menu → Extras → **Cheats** lists them with an On/Off switch each: D-pad and A, L1 / R1 a page at a time, B to go back; or tap a cheat to switch it, and drag to scroll. A long name is shown in full at the bottom.
 - Code Breaker files usually start with an "Enable Code (Must Be On)" cheat: switch it on along with the others, as on the real device.
