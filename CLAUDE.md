@@ -47,7 +47,7 @@ with photos and screenshots; nothing ships untested on the device.
   check-runs/<job id>/annotations) and send them with the zip.
   Then bump `dev` to the next `-dev` version with an empty changelog
   section.
-- Test builds for the device: `dist/gba-ds-vX.Y.Z-dev-rocknix-aarch64.zip`,
+- Test builds for the device: `dist/gba-ds-vX.Y.Z-dev-linux-aarch64.zip`,
   sent to the owner after each change; Android test APKs are the artifacts
   of the workflow runs on `android` / `dev` (link the run).
 

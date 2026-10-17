@@ -2,7 +2,7 @@ GBA DS runs on stock [ROCKNIX](https://rocknix.org) and on ROCKNIXDS, on the Anb
 
 ## Install
 
-1. Download the latest `gba-ds-v…-rocknix-aarch64.zip` from the [Releases page](https://github.com/kyannon/gba-ds/releases).
+1. Download the latest `gba-ds-v…-linux-aarch64.zip` from the [Releases page](https://github.com/kyannon/gba-ds/releases).
 2. Unzip it into `/storage/roms/ports/` (over the network share, or with a file manager). You get:
    - `gba-ds/`: the app, its settings (`gba-ds.cfg`) and, later, its saved data (`states/`);
    - `GBA DS.sh`: the **GBA DS** entry in EmulationStation's Ports;

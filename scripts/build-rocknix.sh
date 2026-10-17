@@ -1,6 +1,6 @@
 #!/bin/bash
 # Reproducible cross-build of GBA DS for ROCKNIX (aarch64) on an x86_64 Linux host.
-# Produces dist/gba-ds-rocknix-aarch64.zip.
+# Produces dist/gba-ds-v<VERSION>-linux-aarch64.zip (ROCKNIX, BananaOS).
 #
 # Needs: git, cmake, make, zip, an x86_64 host. Everything else is fetched into ./deps.
 # Set AARCH64_TOOLCHAIN_BIN to use your own aarch64-linux-gnu-gcc instead.
@@ -58,7 +58,7 @@ make CROSS="$CROSS" MGBA_SRC="$DEPS/mgba" MGBA_BUILD="$DEPS/mgba/build-aarch64" 
 
 # --- package ---------------------------------------------------------------
 VERSION=$(cat VERSION)
-ZIP="gba-ds-v$VERSION-rocknix-aarch64.zip"
+ZIP="gba-ds-v$VERSION-linux-aarch64.zip"
 PKG="$ROOT/build/pkg/gba-ds"
 rm -rf "$ROOT/build/pkg"
 mkdir -p "$PKG"
@@ -83,6 +83,6 @@ cp "dist/GBA DS.sh" "$ROOT/build/pkg/"
 mkdir -p "$ROOT/build/pkg/images"
 cp assets/brand/gba-ds-icon.png "$ROOT/build/pkg/images/GBA DS.png"
 chmod +x "$PKG"/*.sh "$PKG/gba-ds" "$ROOT/build/pkg/GBA DS.sh"
-rm -f "$ROOT"/dist/gba-ds-*rocknix-aarch64.zip
+rm -f "$ROOT"/dist/gba-ds-*rocknix-aarch64.zip "$ROOT"/dist/gba-ds-*linux-aarch64.zip
 (cd "$ROOT/build/pkg" && zip -qr "$ROOT/dist/$ZIP" gba-ds "GBA DS.sh" images)
 echo "built dist/$ZIP"

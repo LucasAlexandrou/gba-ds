@@ -2,7 +2,7 @@
 
 ## Install
 
-1. Download the latest `gba-ds-v…-rocknix-aarch64.zip` from the [Releases page](https://github.com/kyannon/gba-ds/releases).
+1. Download the latest `gba-ds-v…-linux-aarch64.zip` from the [Releases page](https://github.com/kyannon/gba-ds/releases).
 2. Unzip it into the card's `roms/ports` folder (on the device: `/data/roms/ports`). You get a `gba-ds/` folder, a `GBA DS.sh` entry and `images/`. Banana's file sharing (Settings → Network) lets you copy it over Wi-Fi.
 3. Keep your Game Boy Advance games in `roms/gba` (`/data/roms/gba`), where Banana's own GBA list finds them too.
 4. In Banana's menu, open **Ports** and start **GBA DS**.

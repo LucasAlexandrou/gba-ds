@@ -1,12 +1,14 @@
 # Changelog
 
-## v1.1.6 (not yet released)
+## v1.1.6 (2026-10-17)
 
+- **The Linux download is now `gba-ds-vX.Y.Z-linux-aarch64.zip`** (it was `…-rocknix-aarch64.zip`): the same zip runs on ROCKNIX and BananaOS.
 - **BananaOS: play from Banana's own Game Boy Advance list.** Switch on **GBA DS in BananaOS's GBA list** in the game list's Settings (and restart BananaOS): games with second-screen support then start in GBA DS from Banana's menu, and every other game keeps playing in RetroArch.
 - **A cheats folder of GBA DS's own:** `.cht` files in `gba-ds/cheats` (subfolders are fine) are found as well as RetroArch's, on ROCKNIX and BananaOS alike: handy where RetroArch's cheat folder is hard to reach.
 - **RetroAchievements without the `curl` program:** systems that only have the curl library (BananaOS) now connect too.
-- **BananaOS support** (the light Linux for the RG DS and RG DS Plus): the ROCKNIX zip runs as a port there, on both screens with the touchscreen, with games from `roms/gba`, battery saves beside RetroArch's in `saves` (a RetroArch save is carried over), and the RetroAchievements account from Banana's setup. See the wiki's *Install on BananaOS*.
+- **BananaOS support** (the light Linux for the RG DS and RG DS Plus): the Linux zip runs as a port there, on both screens with the touchscreen, with games from `roms/gba`, battery saves beside RetroArch's in `saves` (a RetroArch save is carried over), and the RetroAchievements account from Banana's setup. See the wiki's *Install on BananaOS*.
 - **Match Display Rate** (pause menu → Performance, off by default): runs the game at the screen's refresh rate instead of the GBA's 59.73 frames a second, and shows each frame for exactly one refresh. On a 60 Hz screen that's 0.46% faster (the sound is adjusted to match; you can't hear it) and removes the small stutter of a frame shown twice about every 3.7 seconds. Also `match_display` in gba-ds.cfg.
+
 ## v1.1.5 (2026-10-16)
 
 - **GBA DS is now free software under the GNU General Public License, version 3.** The licence is in the repository and, from this release, in `gba-ds/licenses/` (ROCKNIX) and inside the APK.

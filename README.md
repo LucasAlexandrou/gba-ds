@@ -49,7 +49,7 @@ Until there's something to show, the second screen shows the game's logo, extrac
 
 Download the latest release from the [Releases page](https://github.com/kyannon/gba-ds/releases), then follow the guide for your system:
 
-- **[ROCKNIX](https://github.com/kyannon/gba-ds/wiki/Install-on-ROCKNIX)** (stock ROCKNIX or ROCKNIXDS): unzip `gba-ds-v…-rocknix-aarch64.zip` into `/storage/roms/ports/` and start **GBA DS** from Ports. The guide also covers the Ports icon, starting games from EmulationStation's Game Boy Advance list, and upgrading.
+- **[ROCKNIX](https://github.com/kyannon/gba-ds/wiki/Install-on-ROCKNIX)** (stock ROCKNIX or ROCKNIXDS): unzip `gba-ds-v…-linux-aarch64.zip` into `/storage/roms/ports/` and start **GBA DS** from Ports. The guide also covers the Ports icon, starting games from EmulationStation's Game Boy Advance list, and upgrading.
 - **[BananaOS](https://github.com/kyannon/gba-ds/wiki/Install-on-BananaOS)**: the same zip, unzipped into the card's `roms/ports`; games in `roms/gba`.
 - **[Android](https://github.com/kyannon/gba-ds/wiki/Install-on-Android)** (GammaOS): install `gba-ds-v…-android.apk`, allow All files access, and put your ROMs in `ROMs/gba`. To start games from GammaOS, Daijisho, ES-DE or another frontend, see [Launching from Android frontends](https://github.com/kyannon/gba-ds/wiki/Launching-from-Android-frontends).
 
@@ -58,7 +58,7 @@ Download the latest release from the [Releases page](https://github.com/kyannon/
 On an x86_64 Linux host with git, cmake, make, and zip, run:
 
 ```sh
-scripts/build-rocknix.sh            # -> dist/gba-ds-v<VERSION>-rocknix-aarch64.zip
+scripts/build-rocknix.sh            # -> dist/gba-ds-v<VERSION>-linux-aarch64.zip
 ```
 
 The script fetches a GCC aarch64 toolchain, mGBA (pinned commit), and SDL2 into `deps/`.
