@@ -247,7 +247,15 @@ bool ui_init(Config* c, bool wantDual) {
 	} else {
 		nViews = 1;
 		bool single = !strcmp(cfg->layout, "single");
-		if (!create_view(&views[0], 0, "GBA DS", fullscreen, single ? 720 : 1440, 480)) return false;
+		int ww = single ? 720 : 1440, wh = 480;
+		if (getenv("SDL_BANANA_PANELS")) {
+			/* BananaOS (no compositor): Banana's SDL makes the display both
+			 * panels together; the window covers it, and is split like sway's */
+			SDL_DisplayMode m;
+			if (SDL_GetDesktopDisplayMode(0, &m) == 0 && m.w > 0 && m.h > 0) ww = m.w, wh = m.h;
+			fprintf(stderr, "BananaOS: both panels as one window, %dx%d\n", ww, wh);
+		}
+		if (!create_view(&views[0], 0, "GBA DS", fullscreen, ww, wh)) return false;
 	}
 	ui_layout();
 	return true;

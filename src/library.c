@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <strings.h>
 #include <sys/stat.h>
 
@@ -736,10 +737,17 @@ static bool settings_poll(Config* cfg) {
 static void draw_settings(const Config* cfg, int scr, int sel) {
 	SettingsGeom g = settings_geom(scr);
 	float px = g.px;
-	const char* labels[SETTINGS_ROWS] = { es_integration_on(cfg) ? "GBA DS in EmulationStation: On"
-	                                                             : "GBA DS in EmulationStation: Off" };
+	bool banana = access("/etc/banana", F_OK) == 0;
+	const char* labels[SETTINGS_ROWS] = { banana ? "GBA DS in EmulationStation: Not here"
+	                                      : es_integration_on(cfg) ? "GBA DS in EmulationStation: On"
+	                                                               : "GBA DS in EmulationStation: Off" };
 	draw_settings_frame(scr, &g, sel, labels);
 	int tx = g.row[0].x + px * 2, tw = g.row[0].w - px * 4;
+	if (banana) {
+		draw_wrapped(scr, tx, g.textY[0], tw, px,
+		             "BananaOS has no EmulationStation: start GBA DS from Ports, and games from its list.", C_DIM);
+		return;
+	}
 	int y = draw_wrapped(scr, tx, g.textY[0], tw, px,
 	                     "Adds GBA DS to the emulators for Game Boy Advance games in EmulationStation. Pick it for one game "
 	                     "(its Advanced Game Options > Emulator) or for all of them (the system's advanced settings). "
@@ -750,6 +758,7 @@ static void draw_settings(const Config* cfg, int scr, int sel) {
 
 static void settings_activate(Config* cfg, int row) {
 	(void) row;
+	if (access("/etc/banana", F_OK) == 0) return; /* BananaOS: nothing to set */
 	es_integration_set(cfg, !es_integration_on(cfg), settingsMsg, sizeof(settingsMsg));
 }
 
