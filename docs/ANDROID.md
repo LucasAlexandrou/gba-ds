@@ -496,6 +496,17 @@ frontend launch intents.
   emulating, RetroAchievements, map, drawing (which screens redrawn)").
   Always on Android, with GBADS_DEBUG elsewhere.
 
+- Match Display Rate (main session, v1.1.6-dev; shared code, off by
+  default; `match_display`, pause menu → Performance): game.c's
+  pacing_update runs the loop at ui_display_hz (on Android SDL's whole-number
+  refresh_rate) when within 1.5% of 59.73, resamples the sound from
+  rate * hz / 59.73, and calls ui_sync_view(game's view), i.e. swap
+  interval 1 on the activity's display (never the Presentation surface, as
+  before). The clock then runs 0.5% faster than the display as a limit, and
+  the sound queue is kept level by dropping/repeating a sample frame per
+  chunk. Not tested on Android yet: the AChoreographer idea above would be
+  the alternative if interval 1 misbehaves there.
+
 ## For the next release
 
 Player-facing Android changes since the last release, for the main session

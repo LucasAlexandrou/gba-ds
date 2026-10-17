@@ -39,6 +39,7 @@ Upgrading GBA DS on ROCKNIX replaces `gba-ds.cfg`, so keep a copy of your change
 | `overlays` | `both` | `primary`, `secondary`, `both` or `none`: see [[Map screen surrounds and overlays]]. |
 | `border_color` | `000000` | Colour behind the map image where nothing else is drawn (RRGGBB). |
 | `show_fps` | `0` | Frames per second and % of full speed above the game. |
+| `match_display` | `0` | **Match Display Rate**: run the game at the display's refresh rate instead of the GBA's 59.73 frames a second, when the two are within 1.5% (a 60 Hz screen: 0.46% faster, sound resampled to match, which you can't hear), and present each frame in step with the display. The GBA's own rate on a 60 Hz screen shows one frame twice about every 3.7 seconds, a small regular stutter; matched, every frame gets exactly one refresh. Also in the pause menu. |
 | `frame_buffer` | `0` | Prepare the next frame while the current one is shown: smoother, one frame (about 17 ms) more input delay. Also in the pause menu. |
 
 ## Second screen

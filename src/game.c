@@ -9,6 +9,7 @@
 #include "ra.h"
 #include "logo.h"
 #include <dirent.h>
+#include <math.h>
 #include "mapframe.h"
 #include "profiles.h"
 #include "cheats.h"
@@ -247,10 +248,10 @@ static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_CHEATS, M_ACH, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT, M_FRAMEBUF, M_LOGO };
+enum MenuItem { M_RESUME, M_CHEATS, M_ACH, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT, M_FRAMEBUF, M_LOGO, M_MATCH };
 static const char* menuLabels[] = {
 	/* title case: drawn in Futura from the built-in images (tools/make_brand.py) */
-	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_FRAMEBUF] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_LOGO] = "", [M_MAPRATE] = "", [M_RESTART] = "Restart Game",
+	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_FRAMEBUF] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_LOGO] = "", [M_MATCH] = "", [M_MAPRATE] = "", [M_RESTART] = "Restart Game",
 	[M_LOAD] = "Load State", [M_CHEATS] = "Cheats", [M_ACH] = "Achievements", [M_SHOT] = "Take Screenshot", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
 };
 static int menuItems[12], nMenuItems;
@@ -683,6 +684,7 @@ static void draw_menu(void) {
 		if (menuItems[i] == M_FPS) label = cfg->showFps ? "Show FPS: On" : "Show FPS: Off";
 		if (menuItems[i] == M_FRAMEBUF) label = cfg->frameBuffer ? "Frame Buffer: On" : "Frame Buffer: Off";
 		if (menuItems[i] == M_MAPANIM) label = cfg->mapAnim ? "Map Animations: On" : "Map Animations: Off";
+		if (menuItems[i] == M_MATCH) label = cfg->matchDisplay ? "Match Display Rate: On" : "Match Display Rate: Off";
 		if (menuItems[i] == M_LOGO) label = cfg->showLogo ? "No Second Screen: Show Logo" : "No Second Screen: Keep Blank";
 		if (menuItems[i] == M_OVERLAY) {
 			static const char* const ovl[4] = { "Overlays: None", "Overlays: Primary", "Overlays: Secondary", "Overlays: Both" };
@@ -1411,6 +1413,26 @@ static int game_screen(void) {
 	return cfg->swap ? 1 : 0;
 }
 
+/* Frame pacing. The GBA runs at 59.73 frames a second; a 60 Hz screen then
+ * shows one frame twice about every 3.7 s (a small, regular stutter).
+ * "Match Display Rate" runs the game at the display's rate instead when it's
+ * within 1.5% (60 Hz: 0.46% faster, sound resampled to match, a pitch change
+ * nobody hears), and presents the game's screen in step with the display
+ * (vsync), so each frame gets exactly one refresh. */
+static double frameSec = 1.0 / GBA_FPS;
+static double pacedHz;    /* the display's rate when matched, else 0 */
+static double audioSpeed = 1.0; /* emulated time per real time */
+
+static void pacing_update(void) {
+	double hz = nScreens > 0 ? ui_display_hz(screens[game_screen()].view) : 0;
+	pacedHz = 0;
+	if (cfg->matchDisplay && hz > 0 && fabs(hz / GBA_FPS - 1) <= 0.015) pacedHz = hz;
+	frameSec = 1.0 / (pacedHz > 0 ? pacedHz : GBA_FPS);
+	audioSpeed = pacedHz > 0 ? pacedHz / GBA_FPS : 1.0;
+	fprintf(stderr, "frame pacing: display %.3f Hz, game %.3f frames a second (%s)\n", hz, 1.0 / frameSec,
+	        pacedHz > 0 ? "matched to the display" : cfg->matchDisplay ? "display too far off to match" : "the GBA's rate");
+}
+
 /* Display choices made in the menu are remembered for next time. */
 static void save_prefs(void) {
 	char prefs[1100];
@@ -1418,10 +1440,10 @@ static void save_prefs(void) {
 	FILE* f = fopen(prefs, "w");
 	if (f) {
 		fprintf(f, "# written by gba-ds's pause menu; overrides gba-ds.cfg\n");
-		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\nmap_animations = %d\nmap_interval = %d\nframe_buffer = %d\nshow_logo = %d\n",
+		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\nmap_animations = %d\nmap_interval = %d\nframe_buffer = %d\nshow_logo = %d\nmatch_display = %d\n",
 		        cfg->swap ? 1 : 0, cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0,
 		        (const char* const[]) { "none", "primary", "secondary", "both" }[cfg->overlays & OVL_BOTH],
-		        cfg->mapAnim ? 1 : 0, cfg->mapInterval, cfg->frameBuffer ? 1 : 0, cfg->showLogo ? 1 : 0);
+		        cfg->mapAnim ? 1 : 0, cfg->mapInterval, cfg->frameBuffer ? 1 : 0, cfg->showLogo ? 1 : 0, cfg->matchDisplay ? 1 : 0);
 		fclose(f);
 	}
 }
@@ -1704,6 +1726,14 @@ static bool activate(int item, enum GameExit* exitTo) {
 		snprintf(menuNote, sizeof(menuNote), "%s", cfg->frameBuffer ? "Smoother, one frame more input delay" : "Least input delay");
 		save_prefs();
 		break;
+	case M_MATCH:
+		cfg->matchDisplay = !cfg->matchDisplay;
+		pacing_update();
+		if (!cfg->matchDisplay) snprintf(menuNote, sizeof(menuNote), "The GBA's own %.2f frames a second", GBA_FPS);
+		else if (pacedHz > 0) snprintf(menuNote, sizeof(menuNote), "%.2f frames a second, %.1f%% faster", pacedHz, (pacedHz / GBA_FPS - 1) * 100);
+		else snprintf(menuNote, sizeof(menuNote), "The display's rate isn't close enough to match");
+		save_prefs();
+		break;
 	case M_LOGO:
 		cfg->showLogo = !cfg->showLogo;
 		save_prefs();
@@ -1872,6 +1902,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[2][pageLen[2]++] = M_MAPANIM;
 	pages[2][pageLen[2]++] = M_MAPRATE;
 	pages[2][pageLen[2]++] = M_FRAMEBUF;
+	pages[2][pageLen[2]++] = M_MATCH;
 	pages[2][pageLen[2]++] = M_FPS;
 	set_page(0);
 
@@ -1923,7 +1954,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	bool done = false;
 	bool wasMenu = false;
 
-	const double frameSec = 1.0 / GBA_FPS;
+	pacing_update();
 	const double freq = (double) SDL_GetPerformanceFrequency();
 	double next = SDL_GetPerformanceCounter() / freq;
 	double fpsT0 = next;
@@ -2260,7 +2291,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 					got = outN;
 				}
 				if (!got) continue;
-				int rate = (int) emu_audio_rate(&emu);
+				/* matched to the display, the game makes its sound audioSpeed times
+				 * faster than real time: resample it from that much higher a rate */
+				int rate = (int) lround(emu_audio_rate(&emu) * audioSpeed);
 				if (rate != convFrom || !audioConv) {
 					if (audioConv) SDL_FreeAudioStream(audioConv);
 					audioConv = SDL_NewAudioStream(AUDIO_S16SYS, 2, rate, AUDIO_S16SYS, 2, want.freq);
@@ -2271,7 +2304,21 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				SDL_AudioStreamPut(audioConv, samples, (int) got * 4);
 				static int16_t conv[8192 * 2];
 				int bytes;
-				while ((bytes = SDL_AudioStreamGet(audioConv, conv, sizeof(conv))) > 0) SDL_QueueAudio(audio, conv, bytes);
+				while ((bytes = SDL_AudioStreamGet(audioConv, conv, sizeof(conv))) > 0) {
+					/* Paced by the display, the loop can't slow down or speed up to
+					 * keep the sound queue level, so the sound gives: a sample frame
+					 * dropped or repeated per chunk (at most ~0.1%, inaudible) while
+					 * the queue is a quarter off its target. */
+					if (pacedHz > 0 && bytes >= 8) {
+						int q = (int) (SDL_GetQueuedAudioSize(audio) / 4);
+						if (q > targetQueued * 5 / 4) bytes -= 4;
+						else if (q < targetQueued * 3 / 4 && bytes + 4 <= (int) sizeof(conv)) {
+							memcpy((char*) conv + bytes, (char*) conv + bytes - 4, 4);
+							bytes += 4;
+						}
+					}
+					SDL_QueueAudio(audio, conv, bytes);
+				}
 			}
 			audT += SDL_GetPerformanceCounter() - audT0;
 		}
@@ -2382,7 +2429,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (gameTexAll || i == screens[game_screen()].view) ui_update_texture(gameTex[i], shownFb, GBA_W * 4);
 		}
 		gameTexAll = false;
-		ui_sync_view(cfg->vsync ? screens[game_screen()].view : -1); /* Android; testing (docs/ANDROID.md) */
+		ui_sync_view(cfg->vsync || pacedHz > 0 ? screens[game_screen()].view : -1); /* Match Display Rate; vsync: testing (docs/ANDROID.md) */
 		{
 			/* the other screen's redraw waits a frame if this one is past 70% of its time */
 			static double budget = -1;
@@ -2402,7 +2449,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		{
 			double msPer = 1000.0 / (double) SDL_GetPerformanceFrequency();
 			double total = (double) (drawT1 - workT0) * msPer;
-			if (!ff && total > frameSec * 1000.0) {
+			/* matched, each frame includes the wait for the display's refresh:
+			 * only one that missed its refresh (about two frames long) is slow */
+			if (!ff && total > frameSec * 1000.0 * (pacedHz > 0 ? 1.4 : 1.0)) {
 				SlowFrame f = { total, (double) (emuT0 - workT0) * msPer, (double) (emuT1 - emuT0 - raT) * msPer, (double) raT * msPer,
 					            (double) (drawT0 - emuT1) * msPer, (double) (drawT1 - drawT0) * msPer, 0, 0, 0,
 					            (unsigned long long) frameCount };
@@ -2443,8 +2492,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			fpsFrames = 0;
 			fpsT0 = now;
 		}
-		/* fast-forward is paced too: ff_speed frames per real frame */
-		next += frameSec;
+		/* fast-forward is paced too: ff_speed frames per real frame. Matched to
+		 * the display, presenting in step with it sets the pace; the clock runs
+		 * a little faster, as a limit for when the display doesn't make us wait. */
+		next += pacedHz > 0 ? frameSec / 1.005 : frameSec;
 		if (audio) {
 			int queued = (int) (SDL_GetQueuedAudioSize(audio) / 4);
 			if (queued > targetQueued * 3 / 2) next += frameSec * 0.015;

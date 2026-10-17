@@ -805,8 +805,62 @@ void ui_sync_view(int view) {
 #ifdef __ANDROID__
 	syncWant = view;
 #else
-	(void) view;
+	/* Present that view in step with its display (vsync), the others not.
+	 * Applied when it changes: a call costs a renderer round trip. */
+	static int applied = -2;
+	if (view == applied) return;
+	for (int i = 0; i < nViews; ++i) {
+		if (views[i].ren) SDL_RenderSetVSync(views[i].ren, view == i ? 1 : 0);
+	}
+	if (applied != -2 || view >= 0) {
+		fprintf(stderr, "presenting %s in step with its display\n",
+		        view < 0 ? "no screen" : view == screens[0].view ? "the top screen" : "the bottom screen");
+	}
+	applied = view;
 #endif
+}
+
+/* The refresh rate (Hz) of the display a view is on; 0 if unknown. Under
+ * sway, its exact rate (outputs' current modes, in mHz; when the window
+ * spans several, the slowest); otherwise SDL's, a whole number. */
+double ui_display_hz(int view) {
+	static double cached = -1;
+	if (view < 0 || view >= nViews || !views[view].win) return 0;
+	if (getenv("GBADS_DISPLAY_HZ")) return atof(getenv("GBADS_DISPLAY_HZ")); /* testing */
+	double hz = 0;
+#ifndef __ANDROID__
+	if (cached >= 0) return cached;
+	if (getenv("SWAYSOCK")) {
+		FILE* f = popen("swaymsg -r -t get_outputs 2>/dev/null", "r");
+		if (f) {
+			static char buf[65536];
+			size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+			buf[n] = 0;
+			pclose(f);
+			/* each output's "current_mode": { ..., "refresh": 60000, ... } */
+			for (char* p = strstr(buf, "\"current_mode\""); p; p = strstr(p + 1, "\"current_mode\"")) {
+				char* r = strstr(p, "\"refresh\"");
+				char* end = strchr(p, '}');
+				if (!r || (end && r > end)) continue;
+				r = strchr(r, ':');
+				int mhz = r ? atoi(r + 1) : 0;
+				fprintf(stderr, "display output: %.3f Hz\n", mhz / 1000.0);
+				if (mhz > 0 && (hz == 0 || mhz / 1000.0 < hz)) hz = mhz / 1000.0;
+			}
+		}
+	}
+#endif
+	if (hz <= 0) {
+		SDL_DisplayMode m;
+		int d = SDL_GetWindowDisplayIndex(views[view].win);
+		if (d >= 0 && SDL_GetCurrentDisplayMode(d, &m) == 0 && m.refresh_rate > 0) hz = m.refresh_rate;
+	}
+#ifndef __ANDROID__
+	cached = hz;
+#else
+	(void) cached;
+#endif
+	return hz;
 }
 
 void ui_present(void) {

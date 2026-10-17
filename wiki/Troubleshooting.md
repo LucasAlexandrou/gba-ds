@@ -27,6 +27,12 @@ When reporting a bug, attach `gba-ds.log` from a run where it happened, and say 
 
 The log's every-5-seconds report says whether the sound ran out (underruns) and why.
 
+## Small stutters
+
+**A tiny hitch about every 3-4 seconds, like clockwork:** the GBA runs at 59.73 frames a second and the screen at 60 Hz, so now and then a frame has to be shown twice. Turn on **Match Display Rate** (pause menu → Performance). The log's `frame pacing:` line, near the start of each game, shows both rates.
+
+**Hitches at irregular moments:** the log lists frames that took too long ("slow frames"), each with what took the time (emulating, drawing which screen, the map capture). With the debug log on (see above) it lists every one; send that log with a note of the game and roughly when the stutters happened. **Frame Buffer** (pause menu → Performance) smooths out occasional slow frames at the cost of a frame of input delay.
+
 ## The map
 
 **The map doesn't appear, or doesn't update.** Maps can't be shown on title screens, cutscenes, menus and during fades; the last good map stays up. In A Link to the Past, the map dims where L does nothing (houses, caves, dungeons without their map). With the debug log on, each capture is logged with the reason it was rejected.

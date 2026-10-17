@@ -83,6 +83,7 @@ static bool set_option(Config* c, const char* key, const char* val) {
 	BOOL("map_crop", mapCrop)
 	BOOL("map_animations", mapAnim)
 	BOOL("show_logo", showLogo)
+	BOOL("match_display", matchDisplay)
 	INT("map_interval", mapInterval)
 	BOOL("ab_swap", abSwap)
 	STR("hotkey", hotkey)

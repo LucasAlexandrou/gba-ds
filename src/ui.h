@@ -89,6 +89,8 @@ double ui_last_present_ms(int view);
  * (the one the game is on: each frame is shown, none dropped when one comes
  * a little late); -1 for none. Elsewhere: nothing. */
 void ui_sync_view(int view);
+/* The refresh rate (Hz) of the display a view is on; 0 if unknown. */
+double ui_display_hz(int view);
 
 /* Android: the next ui_present draws `first` (the game's view) first, and
  * puts off redrawing the other view to the next frame (at most a few in a
