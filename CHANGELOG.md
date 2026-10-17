@@ -1,5 +1,7 @@
 # Changelog
 
+## v1.1.7 (not yet released)
+
 ## v1.1.6 (2026-10-17)
 
 - **The Linux download is now `gba-ds-vX.Y.Z-linux-aarch64.zip`** (it was `…-rocknix-aarch64.zip`): the same zip runs on ROCKNIX and BananaOS.

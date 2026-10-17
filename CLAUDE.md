@@ -35,8 +35,8 @@ with photos and screenshots; nothing ships untested on the device.
 - **Release:** merge `android` into `dev` if it has anything new. Set
   VERSION to `X.Y.Z` and date the changelog section, commit
   "Release vX.Y.Z", push `dev`, push that commit to `main`. Two files:
-  - the ROCKNIX zip, built from a fresh clone of the release commit
-    (`scripts/build-rocknix.sh`);
+  - the Linux zip, `gba-ds-vX.Y.Z-linux-aarch64.zip` (ROCKNIX and BananaOS),
+    built from a fresh clone of the release commit (`scripts/build-rocknix.sh`);
   - the APK, `gba-ds-vX.Y.Z-android.apk`: the artifact of the Android
     workflow run for the release commit on `dev` (built and signed with the
     release key by CI; the owner downloads it from the run page, the zip
