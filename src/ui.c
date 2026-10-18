@@ -64,7 +64,7 @@ static float tapX, tapY;
 static char pendingShot[160];
 
 static uint32_t parse_btns(const char* s) {
-	static const char* names[B_COUNT] = { "A", "B", "X", "Y", "START", "SELECT", "HOME", "L", "R", "L2", "R2",
+	static const char* names[B_COUNT] = { "A", "B", "X", "Y", "START", "SELECT", "HOME", "L", "R", "L2", "R2", "L3",
 		                                  "UP", "DOWN", "LEFT", "RIGHT" };
 	uint32_t m = 0;
 	char buf[128];
@@ -568,6 +568,7 @@ void ui_read_buttons(void) {
 	btnNow[B_R] = phys[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER];
 	btnNow[B_L2] = l2;
 	btnNow[B_R2] = r2;
+	btnNow[B_L3] = phys[SDL_CONTROLLER_BUTTON_LEFTSTICK];
 	btnNow[B_UP] = phys[SDL_CONTROLLER_BUTTON_DPAD_UP];
 	btnNow[B_DOWN] = phys[SDL_CONTROLLER_BUTTON_DPAD_DOWN];
 	btnNow[B_LEFT] = phys[SDL_CONTROLLER_BUTTON_DPAD_LEFT];
@@ -587,6 +588,7 @@ void ui_read_buttons(void) {
 	if (k[SDL_SCANCODE_RIGHT]) btnNow[B_RIGHT] = true;
 	if (k[SDL_SCANCODE_TAB]) btnNow[B_L2] = true;
 	if (k[SDL_SCANCODE_SPACE]) btnNow[B_R2] = true;
+	if (k[SDL_SCANCODE_Q]) btnNow[B_L3] = true;
 	if (k[SDL_SCANCODE_ESCAPE] || k[SDL_SCANCODE_F1] || k[SDL_SCANCODE_HOME] || k[SDL_SCANCODE_AC_HOME] ||
 	    k[SDL_SCANCODE_MENU] || k[SDL_SCANCODE_APPLICATION]) {
 		btnNow[B_HOME] = true;

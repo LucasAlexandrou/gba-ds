@@ -12,6 +12,7 @@
 #include <mgba/core/core.h>
 #include <mgba/core/cheats.h>
 #include <mgba/core/serialize.h>
+#include <mgba/core/rewind.h>
 #include <mgba/core/config.h>
 #include <mgba-util/audio-buffer.h>
 #include <mgba-util/vfs.h>
@@ -193,8 +194,12 @@ bool emu_open(Emu* e, const char* romPath, const char* savePath, bool audio) {
 
 static void hide_release(Emu* e);
 
+static struct mCoreRewindContext rewindCtx;
+static Emu* rewindOwner;
+
 void emu_close(Emu* e) {
 	if (e->core) {
+		if (rewindOwner == e) emu_rewind_deinit();
 		split_release(e);
 		hide_release(e);
 		mCoreConfigDeinit(&e->core->config);
@@ -233,6 +238,38 @@ bool emu_state_load(Emu* e, const void* buf) {
 	bool ok = e->core->loadState(e->core, buf);
 	split_resync(e);
 	return ok;
+}
+
+/* ------------------------------------------------------------ rewind */
+
+/* mGBA's rewind: a state saved every so often, kept as the difference from
+ * the next one (worked out on mGBA's own thread). One buffer, for the game
+ * being played. */
+void emu_rewind_init(Emu* e, size_t entries) {
+	emu_rewind_deinit();
+	memset(&rewindCtx, 0, sizeof(rewindCtx));
+	mCoreRewindContextInit(&rewindCtx, entries, true);
+	rewindOwner = e;
+}
+
+void emu_rewind_deinit(void) {
+	if (!rewindOwner) return;
+	mCoreRewindContextDeinit(&rewindCtx);
+	rewindOwner = NULL;
+}
+
+void emu_rewind_append(Emu* e) {
+	if (rewindOwner == e) mCoreRewindAppend(&rewindCtx, e->core);
+}
+
+bool emu_rewind_step(Emu* e) {
+	if (rewindOwner != e || !mCoreRewindRestore(&rewindCtx, e->core, 1)) return false;
+	split_resync(e);
+	return true;
+}
+
+size_t emu_rewind_count(void) {
+	return rewindOwner ? rewindCtx.size : 0;
 }
 
 bool emu_state_save_file(Emu* e, const char* path) {

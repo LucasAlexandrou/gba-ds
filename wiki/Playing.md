@@ -34,7 +34,7 @@ Tap the touchscreen, or press **HOME** (Android: **SELECT + START** together, or
 - **Close Game** (back to the game list) and **Close GBA DS**: both save a resume point first.
 
 **Display** (remembered for next time)
-- **Swap Screens**: game and second screen trade places (also **L2**).
+- **Swap Screens**: game and second screen trade places (also **L3**, or HOME + Y).
 - **Scale**: Pixel Perfect (sharp, whole-number scale with a small border), Full Width (fills the width, keeps the shape, stays sharp), Zoom (fills the height, cutting off the left and right edges) or Stretch (fills the whole screen).
 - **LCD Grid**: a pixel grid like a GBA screen's, on both screens. `lcd_strength` sets how dark.
 - **Overlays**: primary / secondary / both / none. See [[Map screen surrounds and overlays]].
@@ -45,6 +45,7 @@ Tap the touchscreen, or press **HOME** (Android: **SELECT + START** together, or
 - **Map Refresh**: how often the map updates, every 3, 1.5 (default), 1 or 0.5 seconds. Shorter is more up to date but works the CPU harder.
 - **Frame Buffer**: off by default. On, the next frame is prepared while the current one is on screen, which smooths out the odd stutter at the cost of one frame (about 17 ms) of input delay.
 - **Match Display Rate**: off by default. On, the game runs at the screen's refresh rate (60 Hz: 0.5% faster than a GBA, too little to notice, with the sound adjusted to match) and each frame is shown for exactly one refresh. Off, a 60 Hz screen shows one frame twice about every 3.7 seconds: a small, regular stutter.
+- **Rewind**: on by default. Hold **L2** to go back in time, up to 30 seconds (`rewind_seconds`), at double speed and without sound; let go to play on from there. Off saves the little work it takes to keep the buffer.
 - **Show FPS**: frames per second and % of full speed, above the game.
 
 **Extras**
@@ -62,7 +63,8 @@ Tap the touchscreen, or press **HOME** (Android: **SELECT + START** together, or
 | L1 / R1 | GBA L / R |
 | Start / Select | Start / Select |
 | HOME, or tap the touchscreen | Pause menu (Android: SELECT + START, or BACK) |
-| L2 | Swap screens |
+| L2 (hold) | Rewind |
+| L3 (press the left stick) | Swap screens |
 | R2 (hold) | Fast-forward (`ff_speed`, default 3×) |
 | HOME + R1 / L1 | Quick save / load state |
 | HOME + Start | Quit |

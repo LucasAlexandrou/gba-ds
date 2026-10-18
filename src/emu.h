@@ -56,6 +56,14 @@ void emu_reset(Emu* e);
 size_t emu_state_size(Emu* e);
 bool emu_state_save(Emu* e, void* buf);
 bool emu_state_load(Emu* e, const void* buf);
+/* Rewind (mGBA's, one buffer of `entries` states for one core): append a
+ * state now and then while playing; each step goes back one of them
+ * (false when there are none left). */
+void emu_rewind_init(Emu* e, size_t entries);
+void emu_rewind_deinit(void);
+void emu_rewind_append(Emu* e);
+bool emu_rewind_step(Emu* e);
+size_t emu_rewind_count(void);
 
 /* Persist full savestates (including battery data) to disk. */
 bool emu_state_save_file(Emu* e, const char* path);

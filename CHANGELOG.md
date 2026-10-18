@@ -2,6 +2,8 @@
 
 ## v1.1.7 (not yet released)
 
+- **Rewind:** hold **L2** to go back in time, up to 30 seconds, at double speed; let go to play on from there. On by default; **Rewind** in the pause menu (Performance) switches it off, and `rewind_seconds` in gba-ds.cfg sets how far back it goes.
+- **Swap Screens moved to L3** (press the left stick), since L2 now rewinds. HOME + Y still swaps too.
 ## v1.1.6 (2026-10-17)
 
 - **The Linux download is now `gba-ds-vX.Y.Z-linux-aarch64.zip`** (it was `…-rocknix-aarch64.zip`): the same zip runs on ROCKNIX and BananaOS.

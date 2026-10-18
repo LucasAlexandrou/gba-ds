@@ -21,8 +21,8 @@ Upgrading GBA DS on ROCKNIX replaces `gba-ds.cfg`, so keep a copy of your change
 
 | Option | Default | |
 |---|---|---|
-| `layout` | `auto` | `auto` detects the screens. On ROCKNIX's sway, GBA DS makes its window full screen across both outputs and splits it. `span-h` / `span-v`: one window over two screens side by side / stacked. `dual`: one window per display. `single`: one screen; L2 flips between game and second screen. |
-| `swap` | `0` | `1` puts the second screen first (top) and the game second. The menu's Swap Screens and L2 are remembered in `prefs.cfg` and win over this. |
+| `layout` | `auto` | `auto` detects the screens. On ROCKNIX's sway, GBA DS makes its window full screen across both outputs and splits it. `span-h` / `span-v`: one window over two screens side by side / stacked. `dual`: one window per display. `single`: one screen; L3 flips between game and second screen. |
+| `swap` | `0` | `1` puts the second screen first (top) and the game second. The menu's Swap Screens and L3 are remembered in `prefs.cfg` and win over this. |
 | `touch_screen` | `second` | `first` or `second`: the screen with the touch panel. The menu and game list are drawn there. |
 | `sway` | `1` | On ROCKNIX, ask the sway compositor to make the window full screen across both outputs. `0` leaves the window as it is. |
 | `touch_map` | `window` | How touch coordinates map: across the whole window, or `screen` (just the touch screen). Try `screen` if taps land in the wrong place. |
@@ -40,6 +40,8 @@ Upgrading GBA DS on ROCKNIX replaces `gba-ds.cfg`, so keep a copy of your change
 | `border_color` | `000000` | Colour behind the map image where nothing else is drawn (RRGGBB). |
 | `show_fps` | `0` | Frames per second and % of full speed above the game. |
 | `match_display` | `0` | **Match Display Rate**: run the game at the display's refresh rate instead of the GBA's 59.73 frames a second, when the two are within 1.5% (a 60 Hz screen: 0.46% faster, sound resampled to match, which you can't hear), and present each frame in step with the display. The GBA's own rate on a 60 Hz screen shows one frame twice about every 3.7 seconds, a small regular stutter; matched, every frame gets exactly one refresh. Also in the pause menu. |
+| `rewind` | `1` | Keep a rewind buffer: hold **L2** to go back in time. Also in the pause menu (Performance). |
+| `rewind_seconds` | `30` | How far back rewind goes (5-300). The buffer holds the differences between states, about 1 MB a second. |
 | `frame_buffer` | `0` | Prepare the next frame while the current one is shown: smoother, one frame (about 17 ms) more input delay. Also in the pause menu. |
 
 ## Second screen

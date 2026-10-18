@@ -24,6 +24,8 @@ typedef struct Config {
 	bool map;          /* enable the second-screen map */
 	bool mapCrop;      /* crop map bezels/prompts where the profile knows how */
 	bool mapAnim;      /* cycle the map's animation frames (off: one still frame) */
+	bool rewind;       /* keep a rewind buffer (hold L2 to rewind) */
+	int rewindSeconds; /* how far back */
 	bool matchDisplay; /* run at the display's refresh rate (if close to the GBA's) instead of 59.73 Hz */
 	bool showLogo;     /* the game's logo on the second screen when it has nothing else (off: blank) */
 	int mapInterval;   /* frames between periodic map refreshes */

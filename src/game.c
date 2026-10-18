@@ -248,10 +248,10 @@ static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_CHEATS, M_ACH, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT, M_FRAMEBUF, M_LOGO, M_MATCH };
+enum MenuItem { M_RESUME, M_CHEATS, M_ACH, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT, M_FRAMEBUF, M_LOGO, M_MATCH, M_REWIND };
 static const char* menuLabels[] = {
 	/* title case: drawn in Futura from the built-in images (tools/make_brand.py) */
-	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_FRAMEBUF] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_LOGO] = "", [M_MATCH] = "", [M_MAPRATE] = "", [M_RESTART] = "Restart Game",
+	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_FRAMEBUF] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_LOGO] = "", [M_MATCH] = "", [M_REWIND] = "", [M_MAPRATE] = "", [M_RESTART] = "Restart Game",
 	[M_LOAD] = "Load State", [M_CHEATS] = "Cheats", [M_ACH] = "Achievements", [M_SHOT] = "Take Screenshot", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
 };
 static int menuItems[12], nMenuItems;
@@ -684,6 +684,7 @@ static void draw_menu(void) {
 		if (menuItems[i] == M_FPS) label = cfg->showFps ? "Show FPS: On" : "Show FPS: Off";
 		if (menuItems[i] == M_FRAMEBUF) label = cfg->frameBuffer ? "Frame Buffer: On" : "Frame Buffer: Off";
 		if (menuItems[i] == M_MAPANIM) label = cfg->mapAnim ? "Map Animations: On" : "Map Animations: Off";
+		if (menuItems[i] == M_REWIND) label = cfg->rewind ? "Rewind: On (Hold L2)" : "Rewind: Off";
 		if (menuItems[i] == M_MATCH) label = cfg->matchDisplay ? "Match Display Rate: On" : "Match Display Rate: Off";
 		if (menuItems[i] == M_LOGO) label = cfg->showLogo ? "No Second Screen: Show Logo" : "No Second Screen: Keep Blank";
 		if (menuItems[i] == M_OVERLAY) {
@@ -1433,6 +1434,21 @@ static void pacing_update(void) {
 	        pacedHz > 0 ? "matched to the display" : cfg->matchDisplay ? "display too far off to match" : "the GBA's rate");
 }
 
+/* Rewind (hold L2): mGBA's rewind buffer, a state every second frame,
+ * rewind_seconds long (default 30 s: 900 states, each kept as its
+ * difference from the next, a few MB). */
+static int rewindTick;
+static bool wasRewinding;
+
+static void rewind_setup(void) {
+	emu_rewind_deinit();
+	rewindTick = 0;
+	if (!cfg->rewind || !emu.core) return;
+	int secs = cfg->rewindSeconds < 5 ? 5 : cfg->rewindSeconds > 300 ? 300 : cfg->rewindSeconds;
+	emu_rewind_init(&emu, (size_t) secs * 30);
+	fprintf(stderr, "rewind: %d s (%d states)\n", secs, secs * 30);
+}
+
 /* Display choices made in the menu are remembered for next time. */
 static void save_prefs(void) {
 	char prefs[1100];
@@ -1440,10 +1456,10 @@ static void save_prefs(void) {
 	FILE* f = fopen(prefs, "w");
 	if (f) {
 		fprintf(f, "# written by gba-ds's pause menu; overrides gba-ds.cfg\n");
-		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\nmap_animations = %d\nmap_interval = %d\nframe_buffer = %d\nshow_logo = %d\nmatch_display = %d\n",
+		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\nmap_animations = %d\nmap_interval = %d\nframe_buffer = %d\nshow_logo = %d\nmatch_display = %d\nrewind = %d\n",
 		        cfg->swap ? 1 : 0, cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0,
 		        (const char* const[]) { "none", "primary", "secondary", "both" }[cfg->overlays & OVL_BOTH],
-		        cfg->mapAnim ? 1 : 0, cfg->mapInterval, cfg->frameBuffer ? 1 : 0, cfg->showLogo ? 1 : 0, cfg->matchDisplay ? 1 : 0);
+		        cfg->mapAnim ? 1 : 0, cfg->mapInterval, cfg->frameBuffer ? 1 : 0, cfg->showLogo ? 1 : 0, cfg->matchDisplay ? 1 : 0, cfg->rewind ? 1 : 0);
 		fclose(f);
 	}
 }
@@ -1726,6 +1742,12 @@ static bool activate(int item, enum GameExit* exitTo) {
 		snprintf(menuNote, sizeof(menuNote), "%s", cfg->frameBuffer ? "Smoother, one frame more input delay" : "Least input delay");
 		save_prefs();
 		break;
+	case M_REWIND:
+		cfg->rewind = !cfg->rewind;
+		rewind_setup();
+		snprintf(menuNote, sizeof(menuNote), "%s", cfg->rewind ? "Hold L2 to go back in time" : "No rewind buffer: a little less work");
+		save_prefs();
+		break;
 	case M_MATCH:
 		cfg->matchDisplay = !cfg->matchDisplay;
 		pacing_update();
@@ -1903,6 +1925,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[2][pageLen[2]++] = M_MAPRATE;
 	pages[2][pageLen[2]++] = M_FRAMEBUF;
 	pages[2][pageLen[2]++] = M_MATCH;
+	pages[2][pageLen[2]++] = M_REWIND;
 	pages[2][pageLen[2]++] = M_FPS;
 	set_page(0);
 
@@ -1916,6 +1939,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	} else {
 		ui_osd("Tap the screen or press HOME for the menu");
 	}
+	rewind_setup();
 
 	/* The device runs at a fixed rate. The GBA's own rate follows the game's
 	 * sound settings (32768 Hz at power-on, 65536 Hz once Zero Mission is
@@ -2186,7 +2210,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			continue;
 		}
 
-		if (btn_pressed(B_L2)) swap_screens();
+		if (btn_pressed(B_L3)) swap_screens();
 
 		/* ---- emulate */
 		uint32_t keys = 0;
@@ -2225,7 +2249,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			lastKeys = keys;
 		}
 
-		bool ff = btnNow[B_R2];
+		bool rewinding = cfg->rewind && btnNow[B_L2];
+		bool ff = btnNow[B_R2] && !rewinding;
 		int runs = ff ? SDL_max(1, cfg->ffSpeed) : 1;
 		/* Audio keeps flowing during fast-forward: every runs-th sample is kept,
 		 * so the device gets real-time worth of (sped-up) sound. Starving it
@@ -2269,7 +2294,26 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		Uint64 emuT0 = SDL_GetPerformanceCounter(), raT = 0, audT = 0;
 		double emuCpu0 = thread_cpu_ms();
-		for (int i = 0; i < runs; ++i) {
+		if (rewinding) {
+			/* Rewinding: each frame goes back one state of the buffer (two
+			 * frames) and runs one frame to draw it, so it plays backwards at
+			 * double speed; silent, no achievements. At the buffer's start
+			 * the picture stays. */
+			aheadReady = false; /* (a frame emulated ahead belongs to the present) */
+			if (emu_rewind_step(&emu)) {
+				emu_frame(&emu, 0);
+				ui_osd("Rewinding");
+			} else {
+				ui_osd("Can't rewind further");
+			}
+			while (emu_audio_read(&emu, samples, 4096) > 0) {}
+			rewindTick = 0;
+			wasRewinding = true;
+		} else if (wasRewinding) {
+			wasRewinding = false;
+			forceMap = true; /* the map, as of where the rewind stopped */
+		}
+		for (int i = 0; i < (rewinding ? 0 : runs); ++i) {
 			if (i == 0 && aheadReady) aheadReady = false; /* emulated by the worker while the last frame was shown */
 			else emu_frame(&emu, keys);
 			Uint64 raT0 = SDL_GetPerformanceCounter();
@@ -2326,6 +2370,11 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		double emuCpu1 = thread_cpu_ms();
 		emuTicks += emuT1 - emuT0;
 		++frameCount;
+		/* the rewind buffer: a state every second emulated frame */
+		if (cfg->rewind && !rewinding && (rewindTick += runs) >= 2) {
+			emu_rewind_append(&emu);
+			rewindTick = 0;
+		}
 
 		/* ---- map refresh */
 		if (mc) {
@@ -2419,7 +2468,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		double drawCpu0 = thread_cpu_ms();
 		/* frame buffer: start the next frame now; this one is drawn from a copy */
 		const uint32_t* shownFb = emu.fb;
-		if (cfg->frameBuffer && !ff) {
+		if (cfg->frameBuffer && !ff && !rewinding) {
 			memcpy(aheadFb, emu.fb, sizeof(aheadFb));
 			if (ahead_start(keys)) aheadInFlight = true, shownFb = aheadFb;
 		}
@@ -2524,6 +2573,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	if (audioConv) SDL_FreeAudioStream(audioConv);
 	mapcap_destroy(mc);
 	mc = NULL;
+	emu_rewind_deinit();
 	emu_close(&emu); /* flushes the battery save */
 	for (int i = 0; i < MAP_MAX_FRAMES; ++i) {
 		free(mapRes.frames[i]);
