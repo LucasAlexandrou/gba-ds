@@ -12,7 +12,7 @@ The USA, European and Japanese releases are all supported. Any other GBA game al
 | Mario Kart: Super Circuit (Mario Kart Advance in Japan) | `AMKE` `AMKP` `AMKJ` | the race HUD, results and podium | — |
 | Tony Hawk's Pro Skater 3 | `AT3E` (USA and Europe) `AT3F` `AT3D` | the logo, for now; optional four-button layout | — |
 | Super Mario Advance 2: Super Mario World | `AA2E` `AA2P` `AA2J` | the logo, for now | — |
-| Final Fantasy Tactics Advance | `AFXE` `AFXJ` | the logo, for now | — |
+| Final Fantasy Tactics Advance | `AFXE` `AFXP` `AFXJ` | the logo, for now | — |
 
 The codes are what `<CODE>` means in logo and overlay file names (see [Playing](Playing#logos) and [[Map screen surrounds and overlays]]).
 

@@ -2,7 +2,7 @@
 
 ## v1.1.7 (not yet released)
 
-- **Three more games in the list:** Tony Hawk's Pro Skater 3 (USA/Europe, France, Germany), Super Mario Advance 2: Super Mario World (USA, Europe, Japan) and Final Fantasy Tactics Advance (USA, Japan), with their logos on the second screen. Tony Hawk's Pro Skater 3 also gets the four-button layout under **Controls** (GBA or Four buttons for now).
+- **Three more games in the list:** Tony Hawk's Pro Skater 3 (USA/Europe, France, Germany), Super Mario Advance 2: Super Mario World (USA, Europe, Japan) and Final Fantasy Tactics Advance (USA, Europe, Japan), with their logos on the second screen. Tony Hawk's Pro Skater 3 also gets the four-button layout under **Controls** (GBA or Four buttons for now).
 - **Rewind:** hold **L2** to go back in time, up to 30 seconds, at double speed; let go to play on from there. On by default; **Rewind** in the pause menu (Performance) switches it off, and `rewind_seconds` in gba-ds.cfg sets how far back it goes.
 - **Swap Screens moved to L3** (press the left stick), since L2 now rewinds. HOME + Y still swaps too.
 ## v1.1.6 (2026-10-17)

@@ -387,6 +387,7 @@ static const Variant variants[] = {
 	{ "AZLP", "AZLE", 0, zelda_eur },
 	{ "AZLJ", "AZLE", 0, zelda_jpn },
 	{ "ATHJ", "ATHE", 0, thps2_jpn },
+	{ "AFXP", "AFXE", 0, lang_menu }, /* (logo only so far: no RAM addresses to shift) */
 };
 #define N_VARIANTS (sizeof(variants) / sizeof(*variants))
 static MapProfile variantProfiles[N_VARIANTS];
