@@ -176,6 +176,7 @@ typedef struct MapProfile {
 	 * (0-3) above row maxY. blackIsClear: the layer has an opaque black fill. */
 	struct {
 		int wait, wait2, layer, maxY;
+		unsigned layers; /* instead of layer: several BG layers (bit i: BG i) */
 		bool pressStart, blackIsClear;
 		MacroStep steps[24]; /* instead of wait/pressStart: button steps from power-on */
 		int rev; /* bump when extraction changes, so cached logos are made again */

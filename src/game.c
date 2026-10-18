@@ -1047,6 +1047,12 @@ static bool ctl_playing_now(void) {
 	return want && found == (1 << want) - 1;
 }
 
+/* tiles in the picker: Auto only where the profile can tell when the player
+ * is skating (its display mode and HUD sprites) */
+static int ctl_tiles(void) {
+	return ctlProf && (ctlProf->controls.hud[0].x || ctlProf->controls.hud[0].y) ? 3 : 2;
+}
+
 static bool ctl_four(void) {
 	return ctlProf && (ctlMode == CTL_FOUR || (ctlMode == CTL_AUTO && ctlPlaying));
 }
@@ -1064,6 +1070,7 @@ static void ctl_load(void) {
 		}
 	}
 	fclose(f);
+	if (ctlMode >= ctl_tiles()) ctlMode = CTL_GBA;
 }
 
 static void ctl_save(void) {
@@ -1093,7 +1100,8 @@ static CtlGeom ctl_geom(int s) {
 	int t = r.h * 23 / 200, gap = u * 3;
 	g.cap = t / 5;
 	int lw = ui_label_width(s, g.cap, "Controls");
-	int total = lw + gap * 3 + t * 3 + gap * 2;
+	int n = ctl_tiles();
+	int total = lw + gap * 3 + t * n + gap * (n - 1);
 	int x = (r.w - total) / 2;
 	SDL_Rect img = ui_image_rect(s, GBA_W, GBA_H, cfg->mapScale);
 	int below = r.h - (img.y + img.h);
@@ -1102,7 +1110,7 @@ static CtlGeom ctl_geom(int s) {
 	g.labelX = x + lw / 2;
 	g.labelY = y + t / 2;
 	x += lw + gap * 3;
-	for (int i = 0; i < 3; ++i) g.tile[i] = (SDL_Rect) { x + i * (t + gap), y, t, t };
+	for (int i = 0; i < 3; ++i) g.tile[i] = (SDL_Rect) { x + i * (t + gap), y, i < n ? t : 0, i < n ? t : 0 };
 	return g;
 }
 
@@ -1122,7 +1130,7 @@ static void ctl_draw(int s) {
 	int active = ctl_four() ? CTL_FOUR : CTL_GBA;
 	ui_fill_round(s, g.all, (SDL_Color) { 0, 0, 0, 150 }, u * 4);
 	ui_label(s, g.labelX, g.labelY, g.cap, "Controls", C_TEXT);
-	for (int i = 0; i < 3; ++i) {
+	for (int i = 0; i < ctl_tiles(); ++i) {
 		SDL_Rect t = g.tile[i];
 		int rad = t.w / 6;
 		bool sel = ctlMode == i;
@@ -1159,7 +1167,7 @@ static bool ctl_tap(int s, int x, int y) {
 	CtlGeom g = ctl_geom(s);
 	SDL_Point pt = { x, y };
 	if (!SDL_PointInRect(&pt, &g.all)) return false;
-	for (int i = 0; i < 3; ++i) {
+	for (int i = 0; i < ctl_tiles(); ++i) {
 		if (SDL_PointInRect(&pt, &g.tile[i]) && ctlMode != i) {
 			ctlMode = i;
 			ctl_save();

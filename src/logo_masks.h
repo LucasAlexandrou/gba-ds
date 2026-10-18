@@ -15,5 +15,6 @@ typedef struct LogoMask {
 
 extern const LogoMask logoMaskTHPS2;
 extern const LogoMask logoMaskSK8;
+extern const LogoMask logoMaskTHPS3;
 
 #endif

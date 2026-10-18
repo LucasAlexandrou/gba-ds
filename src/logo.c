@@ -33,6 +33,11 @@ static void layers(Emu* e, int only) {
 	for (int i = 0; i < NLAYERS; ++i) e->core->enableVideoLayer(e->core, i, only == -2 || i == only);
 }
 
+/* several layers at once (bit i: BG i, bit 4: sprites) */
+static void layer_set(Emu* e, unsigned mask) {
+	for (int i = 0; i < NLAYERS; ++i) e->core->enableVideoLayer(e->core, i, (mask >> i) & 1);
+}
+
 bool logo_extract(const char* romPath, const char* gameCode, const char* outPng) {
 	const MapProfile* p = profile_find(gameCode);
 	if (!p || (!p->logo.wait && !p->logo.steps[0].frames)) return false;
@@ -65,7 +70,9 @@ bool logo_extract(const char* romPath, const char* gameCode, const char* outPng)
 	emu_state_load(&e, st);
 	emu_frame(&e, 0);
 	memcpy(back, e.fb, GBA_W * GBA_H * 4);
-	layers(&e, p->logo.mask ? -2 : p->logo.layer); /* a mask cuts the logo out of the whole picture */
+	if (p->logo.mask) layers(&e, -2); /* a mask cuts the logo out of the whole picture */
+	else if (p->logo.layers) layer_set(&e, p->logo.layers); /* a logo over several layers (FFTA: its shadow) */
+	else layers(&e, p->logo.layer);
 	emu_state_load(&e, st);
 	emu_frame(&e, 0);
 	memcpy(fg, e.fb, GBA_W * GBA_H * 4);

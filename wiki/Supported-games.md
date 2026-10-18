@@ -10,6 +10,9 @@ The USA, European and Japanese releases are all supported. Any other GBA game al
 | The Legend of Zelda: A Link to the Past & Four Swords | `AZLE` `AZLP` `AZLJ` | world and dungeon maps | L |
 | Tony Hawk's Pro Skater 2 (SK8 in Japan) | `ATHE` (USA and Europe) `ATHF` `ATHD` `ATHJ` | the goal sheet for the current run | — |
 | Mario Kart: Super Circuit (Mario Kart Advance in Japan) | `AMKE` `AMKP` `AMKJ` | the race HUD, results and podium | — |
+| Tony Hawk's Pro Skater 3 | `AT3E` (USA and Europe) `AT3F` `AT3D` | the logo, for now; optional four-button layout | — |
+| Super Mario Advance 2: Super Mario World | `AA2E` `AA2P` `AA2J` | the logo, for now | — |
+| Final Fantasy Tactics Advance | `AFXE` `AFXJ` | the logo, for now | — |
 
 The codes are what `<CODE>` means in logo and overlay file names (see [Playing](Playing#logos) and [[Map screen surrounds and overlays]]).
 
@@ -46,6 +49,10 @@ You see the game's own map, with everything it shows (explored rooms, save and w
 
 - The second screen shows the goal sheet for the current run (Free Skate, Single Session and the career checklist), without the sprites the game draws over it. It stays up through the run, pauses and loading, and goes back to the logo at the menus.
 - An optional four-button layout, like the console games, is under **Controls** on the second screen: see [Playing](Playing#buttons).
+
+## Tony Hawk's Pro Skater 3, Super Mario Advance 2, Final Fantasy Tactics Advance
+
+Newly added: they're in the game list with their logos on the second screen while second-screen features for them are worked out. Tony Hawk's Pro Skater 3 already has the four-button layout under **Controls** (GBA or Four buttons; no Auto yet).
 
 ## Mario Kart: Super Circuit
 

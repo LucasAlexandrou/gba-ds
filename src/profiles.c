@@ -235,6 +235,33 @@ static const MapProfile profiles[] = {
 	},
 	},
 	{
+		.codes = { "AT3E", "AT3F", "AT3D" },
+		.title = "Tony Hawk's Pro Skater 3",
+		/* no second screen yet: listed, logo on the second screen */
+		.logoOnly = true,
+		/* like THPS2's: one full-screen picture with the badge painted in
+		 * (the same in all three releases), steady from frame 540 to 640 */
+		.logo = { .wait = 590, .mask = &logoMaskTHPS3 },
+		/* the console layout as for THPS2 (no Auto yet: no mode / HUD to tell
+		 * skating from the menus) */
+		.controls = { .fourFace = true },
+	},
+	{
+		.codes = { "AA2E", "AA2P", "AA2J" },
+		.title = "Super Mario Advance 2: Super Mario World",
+		.logoOnly = true,
+		/* Start during the intro brings up the title: the logo alone on BG2 */
+		.logo = { .wait = 400, .pressStart = true, .wait2 = 200, .layer = 2 },
+	},
+	{
+		.codes = { "AFXE", "AFXJ" },
+		.title = "Final Fantasy Tactics Advance",
+		.logoOnly = true,
+		/* Start during the intro: the logo on BG2 with its shadow on BG1 (the
+		 * copyright line below it is cut off by maxY) */
+		.logo = { .wait = 400, .pressStart = true, .wait2 = 200, .layers = 0x6, .maxY = 72 },
+	},
+	{
 		.codes = { "AMKE", "AMKP", "AMKJ" },
 		.title = "Mario Kart: Super Circuit",
 		/* no map yet: listed, logo on the second screen */

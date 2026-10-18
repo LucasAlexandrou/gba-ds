@@ -73,7 +73,7 @@ Tap the touchscreen, or press **HOME** (Android: **SELECT + START** together, or
 
 If HOME doesn't open the menu on your device, see `home_button` in [[Settings]]; `menu_combo = select+start` also makes SELECT + START open it.
 
-**Four-button layout (Tony Hawk's Pro Skater 2).** The GBA version uses L and R for two of the console games' four face buttons. Tap a layout under **Controls** at the bottom of the second screen (when it's the touchscreen):
+**Four-button layout (Tony Hawk's Pro Skater 2 and 3).** The GBA version uses L and R for two of the console games' four face buttons. Tap a layout under **Controls** at the bottom of the second screen (when it's the touchscreen). Tony Hawk's Pro Skater 3 has the same layouts, without Auto for now:
 - **GBA**: the layout above.
 - **Four buttons**: like the console games. Top = GBA A (grind), bottom = GBA B (ollie), left = GBA L (flip), right = GBA R (grab). L1 / R1 still work as L / R.
 - **Auto**: four buttons while you're skating, the GBA layout everywhere else (menus, pause, goal sheets, results), so A and B confirm and go back as the game expects. The tile for the layout in use right now is outlined.
