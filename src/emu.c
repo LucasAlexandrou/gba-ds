@@ -474,7 +474,11 @@ static void hide_release(Emu* e) {
  * it's on, the game's renderer leaves those out. Each renderer keeps its
  * own per-line state (affine counters, sprite lists), so the track's
  * per-line effects are unaffected. */
-#define HUD_CLEAR_555 0x7C1F /* magenta: no HUD pixel (games don't use it) */
+/* The 'no HUD pixel' colour: nearly black (red 1, blue 1 of 31), which
+ * games don't use, so a HUD layer blended with it (a half-transparent
+ * panel, a banner fading in) comes out as if over black, and one blended
+ * away entirely (alpha 0) comes out as this colour, nothing. */
+#define HUD_CLEAR_555 0x0401
 
 typedef struct {
 	struct GBAVideoSoftwareRenderer hud;
@@ -508,10 +512,7 @@ static void filtered_draw_scanline(struct GBAVideoRenderer* renderer, int y);
  * no brightening or darkening of it (BLDCNT's backdrop first target; Super
  * Mario Advance 2 darkens the bottom rows a little more each line). */
 static uint16_t hud_reg(uint32_t a, uint16_t v) {
-	/* nor blending with it (BLDCNT's backdrop second target): a
-	 * half-transparent panel would mix with that colour (Final Fantasy
-	 * Tactics Advance's menus); with nothing to mix with it's opaque */
-	return a == 0x50 ? v & ~0x2020 : v;
+	return a == 0x50 ? v & ~0x0020 : v;
 }
 static uint16_t split_reg(struct GBAVideoRenderer* r, uint32_t a, uint16_t v) {
 	uint16_t out = split.writeVideoRegister(r, a, v);
