@@ -389,7 +389,8 @@ static const MapProfile profiles[] = {
 		 * objects); of those, the portraits, panels, name entry and banners
 		 * (448 and up) move, and (tagged or not) the speech balloon's tail,
 		 * the hand cursor and the menus' orb (288-295, priority 0), and the
-		 * D-pad prompts among the map's markers (296-319, tagged). The markers on the map (296-319), scene
+		 * D-pad prompts among the map's markers (296-319, on the overlay
+		 * list: not the direction orbs). The markers on the map (296-319), scene
 		 * objects (320-427) and the height readout ("2h", 428-447) stay. If
 		 * the ROM can't be patched, those tile ranges alone. */
 		.romPatch = { { 0x080014C8, 12, ffta_core_orig, ffta_core_jump },
@@ -414,9 +415,11 @@ static const MapProfile profiles[] = {
 			.effectsPal = 9,
 			/* (the menus' blinking orb, 295, is drawn with the units: untagged) */
 			/* (the D-pad prompts, 299, among the map's markers 296-319: the
-			 * markers are drawn with the units, untagged) */
+			 * markers are drawn with the units, the direction orbs as a unit
+			 * is placed, 309-315, on the main list; the prompts on the
+			 * overlay list, tagged bit 9) */
 			.objs = { { -512, -256, 511, 255, 288, 295, 0 }, { -512, -256, 511, 255, 448, 1023, -1, 0, 0x0400 },
-			          { -512, -256, 511, 255, 296, 319, -1, 0, 0x0400 } },
+			          { -512, -256, 511, 255, 296, 319, -1, 0, 0x0200 } },
 			.backdropGrey = true,
 			/* the height readout stays on the game screen, not in the still */
 			.backdropHide = { { -512, -256, 511, 255, 428, 447, -1 } },
