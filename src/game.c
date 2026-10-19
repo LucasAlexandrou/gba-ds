@@ -1119,7 +1119,7 @@ static void update_hud(void) {
 	 * so they stay (from the next frame: the layers are picked as it starts) */
 	bool fx = hudOn && h->effects[0].addr && memprobes_match(h->effects, 2, &emu);
 	if (fx != hudFx) {
-		emu_hud_by_priority(fx ? 0 : h->bgPrioBelow);
+		emu_hud_by_priority(fx ? -1 : h->bgPrioBelow); /* (-1: none) */
 		if (debug) fprintf(stderr, "frame %llu: animation %s\n", (unsigned long long) frameCount, fx ? "on: layers stay" : "off");
 		hudFx = fx;
 	}
