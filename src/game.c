@@ -283,10 +283,10 @@ static bool debug;
 
 /* ---------------------------------------------------------------- menu */
 
-enum MenuItem { M_RESUME, M_CHEATS, M_ACH, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT, M_FRAMEBUF, M_LOGO, M_MATCH, M_REWIND };
+enum MenuItem { M_RESUME, M_CHEATS, M_ACH, M_SHOT, M_SWAP, M_SCALE, M_LCD, M_OVERLAY, M_MAPANIM, M_MAPRATE, M_FPS, M_SAVE, M_LOAD, M_RESTART, M_LIBRARY, M_EXIT, M_FRAMEBUF, M_LOGO, M_MATCH, M_REWIND, M_MENUPIX };
 static const char* menuLabels[] = {
 	/* title case: drawn in Futura from the built-in images (tools/make_brand.py) */
-	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_FRAMEBUF] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_LOGO] = "", [M_MATCH] = "", [M_REWIND] = "", [M_MAPRATE] = "", [M_RESTART] = "Restart Game",
+	[M_RESUME] = "Resume", [M_SWAP] = "Swap Screens", [M_SAVE] = "Save State", [M_SCALE] = "", [M_LCD] = "", [M_FPS] = "", [M_FRAMEBUF] = "", [M_OVERLAY] = "", [M_MAPANIM] = "", [M_LOGO] = "", [M_MATCH] = "", [M_REWIND] = "", [M_MENUPIX] = "", [M_MAPRATE] = "", [M_RESTART] = "Restart Game",
 	[M_LOAD] = "Load State", [M_CHEATS] = "Cheats", [M_ACH] = "Achievements", [M_SHOT] = "Take Screenshot", [M_LIBRARY] = "Close Game", [M_EXIT] = "Close GBA DS",
 };
 static int menuItems[12], nMenuItems;
@@ -716,6 +716,10 @@ static void draw_menu(void) {
 		if (menuItems[i] == M_SCALE) label = scale_label(cfg->scale);
 		if (menuItems[i] == M_MAPRATE) label = map_rate_label(cfg->mapInterval);
 		if (menuItems[i] == M_LCD) label = cfg->lcdGrid ? "LCD Grid: On" : "LCD Grid: Off";
+		if (menuItems[i] == M_MENUPIX) {
+			label = !strcmp(cfg->menuPixels, "gba") ? "Menu Pixels: 240×160" :
+			        !strcmp(cfg->menuPixels, "ds")  ? "Menu Pixels: 256×192" : "Menu Pixels: Off";
+		}
 		if (menuItems[i] == M_FPS) label = cfg->showFps ? "Show FPS: On" : "Show FPS: Off";
 		if (menuItems[i] == M_FRAMEBUF) label = cfg->frameBuffer ? "Frame Buffer: On" : "Frame Buffer: Off";
 		if (menuItems[i] == M_MAPANIM) label = cfg->mapAnim ? "Map Animations: On" : "Map Animations: Off";
@@ -1805,10 +1809,10 @@ static void save_prefs(void) {
 	FILE* f = fopen(prefs, "w");
 	if (f) {
 		fprintf(f, "# written by gba-ds's pause menu; overrides gba-ds.cfg\n");
-		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\nmap_animations = %d\nmap_interval = %d\nframe_buffer = %d\nshow_logo = %d\nmatch_display = %d\nrewind = %d\n",
+		fprintf(f, "swap = %d\nscale = %s\nmap_scale = %s\nlcd_grid = %d\nshow_fps = %d\noverlays = %s\nmap_animations = %d\nmap_interval = %d\nframe_buffer = %d\nshow_logo = %d\nmatch_display = %d\nrewind = %d\nmenu_pixels = %s\n",
 		        cfg->swap ? 1 : 0, cfg->scale, cfg->mapScale, cfg->lcdGrid ? 1 : 0, cfg->showFps ? 1 : 0,
 		        (const char* const[]) { "none", "primary", "secondary", "both" }[cfg->overlays & OVL_BOTH],
-		        cfg->mapAnim ? 1 : 0, cfg->mapInterval, cfg->frameBuffer ? 1 : 0, cfg->showLogo ? 1 : 0, cfg->matchDisplay ? 1 : 0, cfg->rewind ? 1 : 0);
+		        cfg->mapAnim ? 1 : 0, cfg->mapInterval, cfg->frameBuffer ? 1 : 0, cfg->showLogo ? 1 : 0, cfg->matchDisplay ? 1 : 0, cfg->rewind ? 1 : 0, cfg->menuPixels);
 		fclose(f);
 	}
 }
@@ -2061,6 +2065,13 @@ static bool activate(int item, enum GameExit* exitTo) {
 		cfg->lcdGrid = !cfg->lcdGrid;
 		save_prefs();
 		break;
+	case M_MENUPIX: {
+		/* Off -> 240x160 -> 256x192 -> Off */
+		const char* next = !strcmp(cfg->menuPixels, "gba") ? "ds" : !strcmp(cfg->menuPixels, "ds") ? "off" : "gba";
+		snprintf(cfg->menuPixels, sizeof(cfg->menuPixels), "%s", next);
+		save_prefs();
+		break;
+	}
 	case M_SAVE:
 		if (state_save(gp.state)) {
 			ui_osd("State saved");
@@ -2175,6 +2186,7 @@ static void take_screenshot(void) {
 
 enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	cfg = c;
+	ui_canvas(false); /* the game is set up for the screens as they are (the library leaves its canvas on) */
 	debug = getenv("GBADS_DEBUG") != NULL;
 	game_paths(cfg, rom, &gp);
 	if (!emu_open(&emu, rom, gp.sav, true)) {
@@ -2294,6 +2306,9 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	pages[1][pageLen[1]++] = M_LCD;
 	pages[1][pageLen[1]++] = M_OVERLAY;
 	pages[1][pageLen[1]++] = M_LOGO;
+#ifndef __ANDROID__
+	pages[1][pageLen[1]++] = M_MENUPIX;
+#endif
 	pages[2][pageLen[2]++] = M_MAPANIM;
 	pages[2][pageLen[2]++] = M_MAPRATE;
 	pages[2][pageLen[2]++] = M_FRAMEBUF;
@@ -2577,6 +2592,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 
 		if (menuOpen) {
 			ra_idle();
+			ui_canvas(true);
 			ui_clear();
 			draw_game();
 			draw_menu();
@@ -2887,6 +2903,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (budget < 0) budget = getenv("GBADS_DRAW_BUDGET") ? atof(getenv("GBADS_DRAW_BUDGET")) : frameSec * 1000.0 * 0.7;
 			ui_present_budget(ff ? -1 : screens[game_screen()].view, workT0, budget);
 		}
+		ui_canvas(false);
 		ui_clear();
 		draw_game();
 		if (shotPending) {

@@ -77,6 +77,12 @@ void ui_read_buttons(void);
 /* Input script for automated testing (see config_usage). */
 void ui_load_script(const char* path);
 
+/* Menus at a low resolution (cfg->menuPixels): true while a menu is drawn
+ * (before ui_clear), false for the game. Each screen is then drawn into a
+ * small canvas (screens[].rect and ui_px follow it), enlarged by a whole
+ * number at ui_present; pointers come in canvas coordinates. Off, or
+ * menu_pixels = off: the screens as they are. Not on Android. */
+void ui_canvas(bool on);
 void ui_clear(void);
 void ui_present(void);
 /* Which views the last ui_present drew (bit 0: view 0, bit 1: view 1; on

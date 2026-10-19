@@ -38,6 +38,7 @@ Tap the touchscreen, or press **HOME** (Android: **SELECT + START** together, or
 - **Scale**: Pixel Perfect (sharp, whole-number scale with a small border), Full Width (fills the width, keeps the shape, stays sharp), Zoom (fills the height, cutting off the left and right edges) or Stretch (fills the whole screen).
 - **LCD Grid**: a pixel grid like a GBA screen's, on both screens. `lcd_strength` sets how dark.
 - **Overlays**: primary / secondary / both / none. See [[Map screen surrounds and overlays]].
+- **Menu Pixels: Off / 240×160 / 256×192** (ROCKNIX and BananaOS; experimental): draws the game list, the pause menu and the other menus at a low resolution, then enlarges them by a whole number like the game (4× on the RG DS Plus), so they look like part of a GBA or DS game. 240×160 is the GBA's screen; 256×192 fills the RG DS Plus panel at 4×. Text is small at these sizes.
 - **No Second Screen: Show Logo / Keep Blank**: what the second screen shows when the game has nothing for it (title screens, menus, before the first map): the game's logo, or nothing.
 
 **Performance** (remembered for next time)

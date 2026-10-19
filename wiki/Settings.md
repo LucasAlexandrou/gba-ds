@@ -33,6 +33,7 @@ Upgrading GBA DS on ROCKNIX replaces `gba-ds.cfg`, so keep a copy of your change
 |---|---|---|
 | `scale` / `map_scale` | `integer` | Game screen / second screen: `integer` (pixel perfect: sharp, whole-number scale, 4× on the RG DS Plus, with a small border), `fit` (full width, keeps the shape, stays sharp: scaled up by a whole number on the GPU, then filtered down), `zoom` (fills the height, the left and right edges are cut off), `stretch` (fills the screen, distorts the shape). |
 | `lcd_grid` | `0` | A pixel grid like a GBA screen's, on both screens. Drawn on the GPU, so it costs almost nothing. It adapts to the screen: with 3 or more screen pixels per GBA pixel (the RG DS Plus) each line is one screen pixel; with fewer (2× on the RG DS) the lines are drawn finer, at the screen's own resolution, so the picture stays sharp. |
+| `menu_pixels` | `off` | Menus (the game list, the pause menu...) drawn at a low resolution and enlarged by a whole number: `gba` (240×160), `ds` (256×192, the RG DS Plus panel at 4×), or `off` (the screen's full resolution). Experimental; not on Android. The pause menu's **Menu Pixels** option (Display). |
 | `lcd_strength` | `35` | How dark the grid lines are, 0-100. |
 | `smooth` | `0` | Plain bilinear filtering instead of sharp scaling (blurry; usually leave off). |
 | `vsync` | `0` | Present frames in step with the display. Off is smoother on these devices. |
