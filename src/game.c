@@ -1163,8 +1163,13 @@ static void update_hud(void) {
 			 * the sprites the profile leaves out of it, rendered again) */
 			int nh = rule_count(h->backdropHide, 2);
 			if (world) {
-				/* the world map: its bottom layer alone, drawn next frame */
-				emu_hud_grab(&emu, 1u << mapBg, hudGrab);
+				/* the world map: its layers below the HUD's (the land and the
+				 * map, no sprites), drawn next frame */
+				unsigned m = 0;
+				for (int i = 0; i < 4; ++i) {
+					if ((emu_read16(&emu, 0x04000008 + i * 2) & 3) >= h->bgPrioBelow) m |= 1u << i;
+				}
+				emu_hud_grab(&emu, m, hudGrab);
 			} else {
 				if (nh) snapshot_hiding_sprites(h->backdropHide, nh, hudObjs, rule_count(hudObjs, 6), hudGrab);
 				else memcpy(hudGrab, emu.fb, sizeof(hudGrab));

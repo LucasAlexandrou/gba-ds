@@ -223,7 +223,8 @@ typedef struct MapProfile {
 		uint16_t mapCnt;
 		/* Another map layer (Final Fantasy Tactics Advance's world map):
 		 * while a layer has it, these sprites move instead of objs, and
-		 * the backdrop is that layer alone. */
+		 * the backdrop is the layers below the HUD's (bgPrioBelow) alone,
+		 * without sprites. */
 		struct {
 			uint16_t mapCnt;
 			SpriteRule objs[2];
