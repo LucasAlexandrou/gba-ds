@@ -33,9 +33,9 @@ typedef struct SpriteRule {
 	int tileMin, tileMax;
 	int prio; /* -1: any */
 	unsigned palMask; /* the palettes it applies to (bit n: palette n); 0: any */
-	unsigned tagged; /* not to non-affine sprites with any of these attr1 bits
-	                  * (9-11, unused there) set: tags a ROM patch adds
-	                  * (profiles.h romPatch) */
+	unsigned tagged; /* only sprites (not rotated ones) with one of these
+	                  * attr1 bits (9-11, unused there) set: tags a ROM patch
+	                  * adds (profiles.h romPatch) */
 } SpriteRule;
 
 typedef struct Emu {

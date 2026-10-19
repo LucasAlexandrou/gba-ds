@@ -1,17 +1,25 @@
-@ Final Fantasy Tactics Advance: tags the sprites the game draws in the
-@ world (spells, weapon swings, damage numbers) so the HUD split leaves them
-@ on the game screen. Placed at 0x08FFFF00 (the ROM's 0xFF padding); the
-@ bytes are in src/profiles.c (ffta_tag_us / _eu / _jp), built for each
-@ release by tools/make_ffta_tag.sh (needs llvm-mc and llvm-objcopy) with:
-@   SUBSP   the append's stack frame (its 'sub sp' after the pushes)
-@   CONT    the append's code after its first 12 bytes (Thumb: +1)
-@   ANIM, WEAPON, DAMAGE   return addresses (+1) of its calls from the
-@           animation engine, weapon swings and damage numbers
+@ Final Fantasy Tactics Advance: tags the sprites the game's UI code draws
+@ (attr1 bit 10, unused on sprites that aren't rotated), so GBA DS's HUD
+@ split moves those and nothing else. Every sprite list the game builds
+@ goes through one routine (the core, 0x080014C8 in the USA release); its
+@ first 12 bytes are replaced by a Thumb->ARM long jump to this code, put
+@ in the ROM's 0xFF padding at 0x08FFFF00. It runs the core, then tags the
+@ entries it added, unless the core was called through the main list's
+@ append (W2) by one of the game's world-drawing systems (the table:
+@ animations, weapon swings, damage numbers). Units and thrown objects are
+@ written to the lists by other code (in IWRAM) and are never tagged.
+@
+@ Built for each release by tools/make_ffta_tag.sh (needs llvm-mc and
+@ llvm-objcopy); the bytes are in src/profiles.c (ffta_tag_us / _eu / _jp).
+@   SUBSP     the core's stack frame (its 'sub sp' after the pushes)
+@   CONT      the core after its first 12 bytes (Thumb: +1)
+@   NARGS     the core's stack arguments; BASE / START: the offsets of the
+@             list's entries and the first index among them
+@   W2RET     the return address (+1) of W2's call to the core
+@   W2LR      where W2 keeps its own return address, from sp at that call
+@   ANIM, WEAPON, DAMAGE   return addresses (+1) of the world systems'
+@             calls to W2
 	.syntax unified
-@ FFTA: the sprite list append (0x08001F34) jumps here (its first 12 bytes
-@ replaced by a Thumb->ARM long jump). Append as usual; when the caller is
-@ one of the game's world-drawing systems (the table), set attr1 bit 11
-@ (unused on non-affine sprites) on each entry added, for GBA DS's HUD split.
 	.arm
 entry:
 	add r12, pc, #1
@@ -19,56 +27,57 @@ entry:
 	.thumb
 t:
 	push {r4-r7, lr}
-	sub sp, #28
+	sub sp, #(NARGS * 4)
+	@ the core's stack arguments, copied below ours
 	movs r4, #0
-1:	add r5, sp, #48
+1:	add r5, sp, #(NARGS * 4 + 20)
 	ldr r6, [r5, r4]
 	mov r5, sp
 	str r6, [r5, r4]
 	adds r4, #4
-	cmp r4, #28
+	cmp r4, #(NARGS * 4)
 	blt 1b
-	ldr r7, =0x03000028
-	ldrb r4, [r7]
-	lsls r4, r4, #2
-	ldr r5, =0x03000020
-	ldr r4, [r5, r4]
+	@ r7: tag (1) unless W2 was called by a world system (r0-r3 are the
+	@ core's arguments: untouched until it's called)
+	movs r7, #1
+	ldr r4, [sp, #(NARGS * 4 + 16)]
+	ldr r5, =W2RET
+	cmp r4, r5
+	bne 3f
+	ldr r4, [sp, #(NARGS * 4 + 20 + W2LR)]
+	adr r5, callers
+2:	ldr r6, [r5]
+	cmp r6, #0
+	beq 3f
+	adds r5, #4
+	cmp r6, r4
+	bne 2b
+	movs r7, #0
+3:	ldr r4, [sp, #BASE]
+	ldr r5, [sp, #START]
 	bl reloc
-	@ the caller in the table?
-	ldr r3, [sp, #44]
-	adr r2, callers
-5:	ldr r1, [r2]
-	cmp r1, #0
-	beq 4f
-	adds r2, #4
-	cmp r1, r3
-	bne 5b
-	ldrb r5, [r7]
-	lsls r6, r5, #2
-	ldr r1, =0x03000020
-	ldr r6, [r1, r6]
-	lsls r5, r5, #10
-	ldr r1, =0x03000030
-	adds r5, r5, r1
-2:	cmp r4, r6
-	bge 4f
-	lsls r1, r4, #3
-	adds r1, r1, r5
+	cmp r7, #0
+	beq 6f
+	@ tag entries START..r0 (the count the core returns)
+4:	cmp r5, r0
+	bge 6f
+	lsls r1, r5, #3
+	adds r1, r1, r4
 	ldrh r2, [r1, #0]
 	lsls r3, r2, #23
-	bmi 3f
+	bmi 5f
 	ldrh r2, [r1, #2]
-	movs r3, #8
+	movs r3, #4
 	lsls r3, r3, #8
 	orrs r2, r3
 	strh r2, [r1, #2]
-3:	adds r4, #1
-	b 2b
-4:	add sp, #28
+5:	adds r5, #1
+	b 4b
+6:	add sp, #(NARGS * 4)
 	pop {r4-r7}
 	pop {r1}
 	bx r1
-	@ the append's first instructions, then the rest of it
+	@ the core's first instructions, then the rest of it
 reloc:
 	push {r4-r7, lr}
 	mov r7, r10

@@ -220,6 +220,7 @@ static bool hudBackValid;
 static int hudFrames; /* split frames since the race (re)started */
 static int mapX0, mapY0, mapX1, mapY1; /* the map's box on the HUD, measured over the first frames */
 static bool mapFound;
+static SpriteRule hudObjs[6]; /* hudProf's hud.objs, as used (see romPatch) */
 static bool hudFx; /* FFTA's animation engine is running: no BG layer moves */
 static bool hudScene; /* the profile's other scene (Mario Kart's podium): logo backdrop, its own sprites */
 static uint32_t hudLogoBack[HUD_CW * HUD_CH];
@@ -1103,7 +1104,7 @@ static void update_hud(void) {
 	}
 	bool scene = race && h->scene.when[0].addr && memprobes_match(h->scene.when, 2, &emu);
 	if (race != hudOn || scene != hudScene) {
-		const SpriteRule* objs = scene ? h->scene.objs : h->objs;
+		const SpriteRule* objs = scene ? h->scene.objs : hudObjs;
 		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, scene ? 4 : 6), hudPx);
 		/* (by priority: the renderer picks the layers line by line) */
 		emu_hud_by_priority(h->bgPrioBelow);
@@ -1134,7 +1135,7 @@ static void update_hud(void) {
 			/* the game screen as it is now: the scene, without the HUD (nor
 			 * the sprites the profile leaves out of it, rendered again) */
 			int nh = rule_count(h->backdropHide, 2);
-			if (nh) snapshot_hiding_sprites(h->backdropHide, nh, h->objs, rule_count(h->objs, 6), hudGrab);
+			if (nh) snapshot_hiding_sprites(h->backdropHide, nh, hudObjs, rule_count(hudObjs, 6), hudGrab);
 			else memcpy(hudGrab, emu.fb, sizeof(hudGrab));
 			hud_make_backdrop();
 		}
@@ -2085,7 +2086,13 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		snapProf = logoOnly && lp->snap.showMin ? lp : NULL;
 		/* the HUD moves only when there's another screen to put it on */
 		hudProf = lp && lp->hud.on[0].addr && nScreens > 1 ? lp : NULL;
-		if (hudProf && profile_patch_rom(hudProf, &emu)) fprintf(stderr, "HUD split: ROM patched\n");
+		if (hudProf) {
+			/* the sprites that move; tagged ones only if the tags go in */
+			memcpy(hudObjs, hudProf->hud.objs, sizeof(hudObjs));
+			bool patched = profile_patch_rom(hudProf, &emu);
+			if (patched) fprintf(stderr, "HUD split: ROM patched\n");
+			for (int i = 0; !patched && i < 6; ++i) hudObjs[i].tagged = 0;
+		}
 		hudOn = false;
 		hudShown = false;
 		hudScene = false;
