@@ -207,6 +207,7 @@ typedef struct MapProfile {
 		 * settles; in grey with backdropGrey. */
 		uint16_t mapCnt;
 		bool backdropGrey;
+		SpriteRule backdropHide[2]; /* sprites left out of that still (rendered again) */
 	} hud;
 
 	/* Title-screen logo, pulled out of the running game: boot, wait, optionally

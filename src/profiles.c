@@ -329,6 +329,8 @@ static const MapProfile profiles[] = {
 			.objs = { { -512, -256, 511, 255, 288, 295, -1 }, { -512, -256, 511, 255, 320, 427, -1 },
 			          { -512, -256, 511, 255, 448, 699, -1, 0xFE01 }, { -512, -256, 511, 255, 700, 1023, -1 } },
 			.backdropGrey = true,
+			/* the height readout stays on the game screen, not in the still */
+			.backdropHide = { { -512, -256, 511, 255, 428, 447, -1 } },
 		},
 	},
 	{

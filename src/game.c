@@ -747,10 +747,10 @@ static int probes_hit(const uint32_t* fb, const Probe* p, int tol) {
 	return n;
 }
 
-/* Renders the current frame again without the profile's snap.hide sprites
- * into out, then puts the game back exactly as it was (state, picture,
- * sound). */
-static void snapshot_hiding_sprites(uint32_t* out) {
+/* Renders the current frame again without these sprites (on top of the
+ * ones already hidden: `kept`, put back afterwards) into out, then puts the
+ * game back exactly as it was (state, picture, sound). */
+static void snapshot_hiding_sprites(const SpriteRule* hide, int n, const SpriteRule* kept, int nKept, uint32_t* out) {
 	static void* st;
 	static size_t stSize;
 	static uint32_t raw[GBA_W * GBA_H];
@@ -765,14 +765,15 @@ static void snapshot_hiding_sprites(uint32_t* out) {
 		return;
 	}
 	memcpy(raw, emu.fb, sizeof(raw));
-	const SpriteRule* hide = snapProf->snap.hide;
-	int n = 0;
-	while (n < 4 && hide[n].x1) ++n;
-	emu_hide_sprites(&emu, hide, n);
+	SpriteRule all[8];
+	int na = 0;
+	for (int i = 0; i < nKept && na < 8; ++i) all[na++] = kept[i];
+	for (int i = 0; i < n && na < 8; ++i) all[na++] = hide[i];
+	emu_hide_sprites(&emu, all, na);
 	emu_state_load(&emu, st);
 	emu_frame(&emu, 0);
 	memcpy(out, emu.fb, sizeof(raw));
-	emu_hide_sprites(&emu, NULL, 0);
+	emu_hide_sprites(&emu, nKept ? kept : NULL, nKept);
 	emu_state_load(&emu, st);
 	int16_t drop[2048];
 	while (emu_audio_read(&emu, drop, 1024) > 0) {}
@@ -1107,8 +1108,11 @@ static void update_hud(void) {
 		uint32_t sum = map_tiles_sum(mapBg);
 		if (hudFrames == hudRegrab || !hudBackValid || sum != hudMapSum) {
 			hudMapSum = sum;
-			/* the game screen as it is now: the scene, without the HUD */
-			memcpy(hudGrab, emu.fb, sizeof(hudGrab));
+			/* the game screen as it is now: the scene, without the HUD (nor
+			 * the sprites the profile leaves out of it, rendered again) */
+			int nh = rule_count(h->backdropHide, 2);
+			if (nh) snapshot_hiding_sprites(h->backdropHide, nh, h->objs, rule_count(h->objs, 4), hudGrab);
+			else memcpy(hudGrab, emu.fb, sizeof(hudGrab));
 			hud_make_backdrop();
 		}
 	}
@@ -1154,7 +1158,9 @@ static void update_snapshot(void) {
 				static uint32_t last[GBA_W * GBA_H], clean[GBA_W * GBA_H];
 				if (mapShownIdx < 0 || memcmp(last, emu.fb, sizeof(last))) {
 					memcpy(last, emu.fb, sizeof(last));
-					snapshot_hiding_sprites(clean);
+					int n = 0;
+					while (n < 4 && sn->hide[n].x1) ++n;
+					snapshot_hiding_sprites(sn->hide, n, NULL, 0, clean);
 					for (int i = 0; i < nViews; ++i) ui_update_texture(mapTex[i], clean, GBA_W * 4);
 				}
 				px = NULL;
