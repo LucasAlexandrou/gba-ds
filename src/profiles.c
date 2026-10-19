@@ -257,7 +257,7 @@ static const MapProfile profiles[] = {
 		 * On the world map, not paused (0x03002C74 = 2; 7 paused), the
 		 * SELECT menu is the "map": the level list with time and score, in a
 		 * yellow frame. Its display settings (0x1700: BG0-2 and sprites) are
-		 * its own; the title screens have BG3 unset (0). */
+		 * its own. */
 		.open = { { K_SELECT, 4 } },
 		.settleMax = 90, .openWithin = 40, .stableFrames = 3, .maxDiff = 400,
 		.crop_x = 0, .crop_y = 0, .crop_w = 240, .crop_h = 160,
@@ -266,7 +266,9 @@ static const MapProfile profiles[] = {
 		.tolerance = 8,
 		.mem = { { 0x04000000, 0xFFFF, 0x1700, 2 } },
 		.live = { { 0x03002BC6, 0xFF, 0x1E, 1 }, { 0x04000000, 0xFFFF, 0x3E00, 2 }, { 0x03002C74, 0xFF, 0x02, 1 } },
-		.menu = { { 0x0400000E, 0xFFFF, 0x0000, 2 } },
+		/* the title, game select and file screens: modes 0x00-0x17 (title
+		 * 0x05, game select 0x09, Super Mario World's title 0x13, files 0x15) */
+		.menu = { { 0x03002BC6, 0xFF, 0x00, 1, true, 0x17, true } },
 		/* Peach's HELP! blinks */
 		.animFrames = 8, .animStep = 8,
 		/* In a level (game mode 0x24, also paused) the status bar is BG3 (0xDC44), rows
@@ -283,6 +285,8 @@ static const MapProfile profiles[] = {
 			.moves = { { 104, 0, 135, 15, 0, 0, 0, 0, true }, { 0, 16, 239, 159, 0, 0, 0, 0, true } },
 			.logoBelow = true,
 		},
+		/* (spriteLit: also found by searching the ROM for that code, if
+		 * another revision has it elsewhere) */
 		/* SNES layout: B (bottom) jumps (GBA A), Y (left) runs (GBA B), A
 		 * (right) and X (top) spin jump (GBA R); L pans the camera left, R
 		 * right. In a level and not paused (0x03002BC3: 2 paused, 0
@@ -424,6 +428,7 @@ static void sma2_jpn(MapProfile* p) {
 	p->live[2] = (MemProbe) { 0 };
 	p->hud.on[0].addr -= 0x10;
 	p->hud.keep[0].addr -= 0x10;
+	p->menu[0].addr -= 0x10;
 	p->controls.snes.when[0].addr -= 0x10;
 	p->controls.snes.when[2].addr -= 0x10;
 	p->controls.snes.pan -= 0x14;

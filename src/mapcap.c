@@ -110,7 +110,8 @@ bool memprobes_match(const MemProbe* list, int n, Emu* e) {
 		default: v = emu_read8(e, m->addr); break;
 		}
 		uint32_t mask = m->mask ? m->mask : 0xFFFFFFFF;
-		if ((v & mask) != (m->value & mask) && !(m->hasAlt && (v & mask) == (m->alt & mask))) {
+		if (m->range ? (v & mask) < m->value || (v & mask) > m->alt
+		             : (v & mask) != (m->value & mask) && !(m->hasAlt && (v & mask) == (m->alt & mask))) {
 			return false;
 		}
 	}

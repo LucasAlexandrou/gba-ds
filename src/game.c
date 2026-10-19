@@ -102,6 +102,25 @@ static const struct MapProfile* ctlProf; /* NULL: no alternate layout for this g
 /* A pan in progress: Mario's real facing, put back afterwards; the sprite
  * code's literal points at a ROM byte holding it meanwhile. */
 static struct { bool on; uint8_t facing; } pan;
+static uint32_t spriteLit; /* where the sprite code's literal is in this ROM (0: none, plain GBA L) */
+
+/* The sprite code's literal: where the profile says, or else found in the
+ * ROM (another revision): `ldr r3, [pc, #n]; add r0, r4, r3; ldrb r0, [r0];
+ * lsl r0, r0, #1` loading the facing's offset. */
+static uint32_t find_sprite_lit(const typeof(((MapProfile*) 0)->controls.snes)* sn) {
+	uint32_t want = sn->pan - sn->spriteBase;
+	if (emu_read32(&emu, sn->spriteLit) == want) return sn->spriteLit;
+	uint32_t found = 0;
+	int n = 0;
+	for (uint32_t a = 0x08000000; a < 0x08800000; a += 2) {
+		uint16_t op = emu_read16(&emu, a);
+		if (op >> 8 != 0x4B || emu_read16(&emu, a + 2) != 0x18E0 || emu_read16(&emu, a + 4) != 0x7800 ||
+		    emu_read16(&emu, a + 6) != 0x0040) continue;
+		uint32_t lit = ((a + 4) & ~3u) + (op & 0xFF) * 4;
+		if (emu_read32(&emu, lit) == want) found = lit, ++n;
+	}
+	return n == 1 ? found : 0;
+}
 
 static void write32(uint32_t a, uint32_t v) {
 	for (int k = 0; k < 4; ++k) emu_write8(&emu, a + k, (uint8_t) (v >> (k * 8)));
@@ -120,7 +139,7 @@ static uint32_t rom_byte(uint8_t v) {
 static void pan_end(bool restore) {
 	if (!pan.on) return;
 	const typeof(ctlProf->controls.snes)* sn = &ctlProf->controls.snes;
-	write32(sn->spriteLit, sn->pan - sn->spriteBase);
+	write32(spriteLit, sn->pan - sn->spriteBase);
 	if (restore) emu_write8(&emu, sn->pan, pan.facing);
 	pan.on = false;
 	if (debug) fprintf(stderr, "camera pan released%s\n", restore ? "" : " (facing left alone)");
@@ -136,15 +155,25 @@ static void run_frame(uint32_t keys) {
 		bool level = (want || pan.on) && memprobes_match(sn->when, 3, &emu);
 		bool here = want && !(keys & (K_LEFT | K_RIGHT)) && level;
 		if (!here && pan.on) pan_end(memprobes_match(sn->when, 1, &emu)); /* still in the level (maybe paused): put the facing back */
+		if (want && !here) {
+			/* (in the log once each, for reports) */
+			static bool told[2];
+			int why = !level ? 0 : 1;
+			if (!told[why]) {
+				told[why] = true;
+				fprintf(stderr, "camera pan: not now (%s; game mode %02x, paused %02x)\n", why ? "left or right held" : "not playing a level",
+				        emu_read8(&emu, sn->when[0].addr), emu_read8(&emu, sn->when[2].addr));
+			}
+		}
 		if (here && !pan.on) {
-			if (emu_read32(&emu, sn->spriteLit) != sn->pan - sn->spriteBase) {
+			if (!spriteLit || emu_read32(&emu, spriteLit) != sn->pan - sn->spriteBase) {
 				static bool warned;
-				if (!warned) fprintf(stderr, "camera pan: unexpected code at %08x, shoulders stay GBA L\n", sn->spriteLit), warned = true;
+				if (!warned) fprintf(stderr, "camera pan: Mario's sprite code not found, shoulders stay GBA L\n"), warned = true;
 			} else {
 				pan.facing = emu_read8(&emu, sn->pan) ? 1 : 0;
 				uint32_t hold = rom_byte(pan.facing);
 				if (hold) {
-					write32(sn->spriteLit, hold - sn->spriteBase);
+					write32(spriteLit, hold - sn->spriteBase);
 					pan.on = true;
 					if (debug) fprintf(stderr, "camera pan %s (Mario faces %s)\n", want & KX_PAN_L ? "left" : "right", pan.facing ? "right" : "left");
 				}
@@ -1990,6 +2019,12 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		ctlProf = cp && (cp->controls.fourFace || cp->controls.snes.bottom) ? cp : NULL;
 		snesHere = false;
 		pan.on = false;
+		spriteLit = 0;
+		if (ctl_snes() && cp->controls.snes.pan) {
+			spriteLit = find_sprite_lit(&cp->controls.snes);
+			if (spriteLit) fprintf(stderr, "camera pan: Mario's sprite code at %08x%s\n", spriteLit, spriteLit == cp->controls.snes.spriteLit ? "" : " (found by searching)");
+			else fprintf(stderr, "camera pan: Mario's sprite code not found in this ROM: L and R both pan the way he faces\n");
+		}
 		if (ctlProf) ctl_load();
 	}
 	if (cfg->map) {

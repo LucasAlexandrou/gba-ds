@@ -24,6 +24,7 @@ typedef struct {
 	int size; /* 1, 2 or 4 bytes */
 	bool hasAlt; /* also accept `alt` (A Link to the Past: overworld OR dungeon) */
 	uint32_t alt;
+	bool range; /* with hasAlt: anything from value to alt */
 } MemProbe;
 
 /* A piece of a split-off HUD moved on the way to the screen: what's inside
