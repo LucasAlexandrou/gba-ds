@@ -4,6 +4,8 @@
 
 - **Three more games in the list:** Tony Hawk's Pro Skater 3 (USA/Europe, France, Germany), Super Mario Advance 2: Super Mario World (USA, Europe, Japan) and Final Fantasy Tactics Advance (USA, Europe, Japan), with their logos on the second screen. Tony Hawk's Pro Skater 3 also gets the four-button layout under **Controls** (GBA or Four buttons for now).
 - **Rewind:** hold **L2** to go back in time, up to 30 seconds, at double speed; let go to play on from there. On by default; **Rewind** in the pause menu (Performance) switches it off, and `rewind_seconds` in gba-ds.cfg sets how far back it goes.
+- **Super Mario Advance 2: Super Mario World** gets its second screen. On the world map it shows the SELECT menu (the island's levels with your time and score), kept up to date as you move; in a level, the status bar moves to the top of the second screen with a smaller logo below it, and the blue item box stays on the game screen.
+- **Super Mario Advance 2: SNES layout** under **Controls** on the second screen: in levels, B jumps, Y runs, A and X spin-jump, and L / R pan the camera left / right as on the Super Nintendo, without moving Mario. Menus and the world map keep the GBA buttons.
 - **Swap Screens moved to L3** (press the left stick), since L2 now rewinds. HOME + Y still swaps too.
 ## v1.1.6 (2026-10-17)
 

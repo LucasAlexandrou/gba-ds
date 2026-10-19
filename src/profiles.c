@@ -247,11 +247,45 @@ static const MapProfile profiles[] = {
 		.controls = { .fourFace = true },
 	},
 	{
-		.codes = { "AA2E", "AA2P", "AA2J" },
+		.codes = { "AA2E", "AA2P" },
 		.title = "Super Mario Advance 2: Super Mario World",
-		.logoOnly = true,
 		/* Start during the intro brings up the title: the logo alone on BG2 */
 		.logo = { .wait = 400, .pressStart = true, .wait2 = 200, .layer = 2 },
+		/* On the world map (0x03002C74 = 2; levels 0, paused in a level 7,
+		 * the SELECT menu 3) the SELECT menu is the "map": the level list
+		 * with time and score, in a yellow frame. Its display settings
+		 * (0x1700: BG0-2 and sprites) are its own; the title screens have
+		 * BG3 unset (0). */
+		.open = { { K_SELECT, 4 } },
+		.settleMax = 90, .openWithin = 40, .stableFrames = 3, .maxDiff = 400,
+		.crop_x = 0, .crop_y = 0, .crop_w = 240, .crop_h = 160,
+		.probes = { { 2, 2, 0xF7DE6B }, { 237, 2, 0xF7DE6B }, { 2, 157, 0xFFFF9C }, { 237, 157, 0xFFFF9C },
+		            { 120, 1, 0xD6BD4A }, { 4, 80, 0xFFFF9C }, { 235, 80, 0xFFFF9C }, { 120, 158, 0xCEDE73 } },
+		.tolerance = 8,
+		.mem = { { 0x04000000, 0xFFFF, 0x1700, 2 } },
+		.live = { { 0x03002C74, 0xFF, 0x02, 1 }, { 0x04000000, 0xFFFF, 0x3E00, 2 } },
+		.menu = { { 0x0400000E, 0xFFFF, 0x0000, 2 } },
+		/* Peach's HELP! blinks */
+		.animFrames = 8, .animStep = 8,
+		/* In a level (also paused) the status bar is BG3 (0xDC44), rows
+		 * 0-15: it goes to the top of the second screen, except the blue
+		 * item box (104-135; the item in it is a sprite and stays). The rest
+		 * of BG3 (message and pause boxes) stays on the game picture. */
+		.hud = {
+			.on = { { 0x03002C74, 0xFF, 0x00, 1, true, 0x07 }, { 0x0400000E, 0xFFFF, 0xDC44, 2 },
+			        { 0x04000000, 0x0800, 0x0800, 2 } },
+			.bgMask = 8,
+			.moves = { { 104, 0, 135, 15, 0, 0, 0, 0, true }, { 0, 16, 239, 159, 0, 0, 0, 0, true } },
+			.logoBelow = true,
+		},
+		/* SNES layout: B (bottom) jumps (GBA A), Y (left) runs (GBA B), A
+		 * (right) and X (top) spin jump (GBA R); L pans the camera left, R
+		 * right (0x03003FA5; Mario's facing 0x030000A2), in a level */
+		.controls = {
+			.snes = { .right = K_R, .bottom = K_A, .top = K_R, .left = K_B,
+			          .pan = 0x03003FA5, .facing = 0x030000A2,
+			          .when = { { 0x03002C74, 0xFF, 0x00, 1, true, 0x07 }, { 0x0400000E, 0xFFFF, 0xDC44, 2 } } },
+		},
 	},
 	{
 		.codes = { "AFXE", "AFXJ" },
@@ -373,6 +407,17 @@ static void zelda_jpn(MapProfile* p) {
 }
 
 
+/* Super Mario Advance 2 in Japan: the mode byte and the camera's pan
+ * direction are 0x14 lower, Mario's facing 0x10 (the I/O registers, of
+ * course, don't move) */
+static void sma2_jpn(MapProfile* p) {
+	p->live[0].addr -= 0x14;
+	p->hud.on[0].addr -= 0x14;
+	p->controls.snes.when[0].addr -= 0x14;
+	p->controls.snes.pan -= 0x14;
+	p->controls.snes.facing -= 0x10;
+}
+
 static const Variant variants[] = {
 	{ "A2CP", "A2CE", 0, lang_menu },
 	{ "A2CJ", "A2CE", -0x30, NULL },
@@ -388,6 +433,7 @@ static const Variant variants[] = {
 	{ "AZLJ", "AZLE", 0, zelda_jpn },
 	{ "ATHJ", "ATHE", 0, thps2_jpn },
 	{ "AFXP", "AFXE", 0, lang_menu }, /* (logo only so far: no RAM addresses to shift) */
+	{ "AA2J", "AA2E", 0, sma2_jpn },
 };
 #define N_VARIANTS (sizeof(variants) / sizeof(*variants))
 static MapProfile variantProfiles[N_VARIANTS];

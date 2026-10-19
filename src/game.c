@@ -92,6 +92,27 @@ static bool aheadInFlight; /* the worker is emulating the next frame */
 static bool aheadReady;    /* it has: that frame is emulated but not yet used */
 static uint32_t aheadFb[GBA_W * GBA_H]; /* the frame on screen, while the worker writes the next */
 
+/* Bits above the GBA keys, for run_frame: the SNES layout's camera pan
+ * (profile controls.snes) left / right while a shoulder is held, and back to
+ * the player's facing on the frame after. */
+#define KX_PAN_L (1u << 20)
+#define KX_PAN_R (1u << 21)
+#define KX_PAN_END (1u << 22)
+static const struct MapProfile* ctlProf; /* NULL: no alternate layout for this game */
+
+/* One frame of the game with these keys (on the worker too, while the main
+ * thread leaves the core alone). */
+static void run_frame(uint32_t keys) {
+	if (keys & (KX_PAN_L | KX_PAN_R | KX_PAN_END) && ctlProf && ctlProf->controls.snes.pan) {
+		const typeof(ctlProf->controls.snes)* sn = &ctlProf->controls.snes;
+		if (memprobes_match(sn->when, 2, &emu)) {
+			uint8_t dir = keys & KX_PAN_L ? 0 : keys & KX_PAN_R ? 1 : emu_read8(&emu, sn->facing) ? 1 : 0;
+			emu_write8(&emu, sn->pan, dir);
+		}
+	}
+	emu_frame(&emu, keys & 0x3FF);
+}
+
 static void* ahead_worker(void* arg) {
 	(void) arg;
 #ifdef __ANDROID__
@@ -106,7 +127,7 @@ static void* ahead_worker(void* arg) {
 		if (ahead.quit) break;
 		uint32_t keys = ahead.keys;
 		pthread_mutex_unlock(&ahead.lock);
-		emu_frame(&emu, keys);
+		run_frame(keys);
 		pthread_mutex_lock(&ahead.lock);
 		ahead.busy = false;
 		pthread_cond_broadcast(&ahead.cond);
@@ -158,6 +179,7 @@ static GamePaths gp;
 
 static SDL_Texture* gameTex[2];
 static SDL_Texture* mapTex[2];
+static SDL_Texture* hudTex[2]; /* the HUD's second screen (HUD_CW x HUD_CH) */
 static SDL_Texture* logoTex[2];
 /* the logo centred in a GBA-sized picture, so it's scaled (and gridded)
  * like the game; NULL for a user's high-resolution logo */
@@ -197,6 +219,9 @@ static bool mapFound;
 static bool hudScene; /* the profile's other scene (Mario Kart's podium): logo backdrop, its own sprites */
 static uint32_t hudLogoBack[HUD_CW * HUD_CH];
 static bool hudLogoDone;
+static bool hudShown; /* the second screen shows the HUD picture (hudTex) */
+static uint32_t hudLogoBelow[HUD_CW * HUD_CH]; /* profile hud.logoBelow: black, the logo at half size */
+static bool hudLogoBelowDone;
 static int snapShow, snapRevert;   /* consecutive frames matching show / a revert screen */
 
 static uint64_t mapAnimStart, frameCount;
@@ -824,6 +849,40 @@ static void hud_make_logo_back(void) {
 	SDL_FreeSurface(lg);
 }
 
+/* Profile hud.logoBelow: black, with the game's logo at half the size the
+ * second screen shows it otherwise (a pixel of an extracted logo per canvas
+ * pixel), centred in the space below the HUD's rows. */
+static void hud_make_logo_below(void) {
+	hudLogoBelowDone = true;
+	for (int i = 0; i < HUD_CW * HUD_CH; ++i) hudLogoBelow[i] = 0xFF000000;
+	bool pixelArt;
+	SDL_Surface* lg = ui_logo_surface(cfg, emu.gameCode, &pixelArt);
+	if (!lg) return;
+	int top = 0; /* below the HUD: its lowest row on the canvas */
+	for (int m = 0; m < 4; ++m) {
+		const HudMove* mv = &hudProf->hud.moves[m];
+		if (mv->toGame && !mv->how && !mv->vhow && mv->x0 == 0 && mv->x1 >= GBA_W - 1 && mv->y0 > 0) top = mv->y0 * 2;
+	}
+	int mw = GBA_W, mh = SDL_min(GBA_H, HUD_CH - top - 16);
+	int w = lg->w, h = lg->h;
+	if (w > mw || h > mh) {
+		float sc = SDL_min((float) mw / lg->w, (float) mh / lg->h);
+		w = SDL_max(1, (int) (lg->w * sc)), h = SDL_max(1, (int) (lg->h * sc));
+	}
+	int x0 = (HUD_CW - w) / 2, y0 = top + (HUD_CH - top - h) / 2;
+	SDL_LockSurface(lg);
+	for (int y = 0; y < h; ++y) {
+		const uint8_t* row = (const uint8_t*) lg->pixels + (size_t) (y * lg->h / h) * lg->pitch;
+		for (int x = 0; x < w; ++x) {
+			const uint8_t* p = row + (size_t) (x * lg->w / w) * 4; /* RGBA32 */
+			unsigned a = p[3];
+			hudLogoBelow[(y0 + y) * HUD_CW + x0 + x] = 0xFF000000u | (p[2] * a / 255) << 16 | (p[1] * a / 255) << 8 | p[0] * a / 255;
+		}
+	}
+	SDL_UnlockSurface(lg);
+	SDL_FreeSurface(lg);
+}
+
 static int rule_count(const SpriteRule* r, int max) {
 	int n = 0;
 	while (n < max && (r[n].x1 || r[n].tileMax)) ++n;
@@ -879,6 +938,9 @@ static void hud_compose(void) {
 	if (hudScene) {
 		if (!hudLogoDone) hud_make_logo_back();
 		memcpy(hudCanvas, hudLogoBack, sizeof(hudCanvas));
+	} else if (h->logoBelow) {
+		if (!hudLogoBelowDone) hud_make_logo_below();
+		memcpy(hudCanvas, hudLogoBelow, sizeof(hudCanvas));
 	} else if (hudBackValid) {
 		memcpy(hudCanvas, hudBack, sizeof(hudCanvas));
 	} else {
@@ -890,7 +952,7 @@ static void hud_compose(void) {
 	bool moving[4] = { false };
 	for (int m = 0; moves && m < 4; ++m) {
 		const HudMove* mv = &moves[m];
-		if (!mv->how && !mv->vhow) continue;
+		if (!mv->how && !mv->vhow && !mv->toGame) continue;
 		int lo = GBA_W, hi = -1, top = GBA_H, bot = -1;
 		for (int y = SDL_max(mv->y0, 0); y <= SDL_min(mv->y1, GBA_H - 1); ++y) {
 			for (int x = SDL_max(mv->x0, 0); x <= SDL_min(mv->x1, GBA_W - 1); ++x) {
@@ -957,9 +1019,9 @@ static void update_hud(void) {
 	if (hudOn && race) {
 		if (emu_hud_grabbed()) hud_make_backdrop(); /* (that frame drew no HUD: the last one is reused) */
 		hud_compose();
-		for (int i = 0; i < nViews; ++i) ui_update_texture(mapTex[i], hudCanvas, HUD_CW * 4);
-		if (mapShownIdx < 0 && debug) fprintf(stderr, "frame %llu: HUD on the second screen\n", (unsigned long long) frameCount);
-		mapShownIdx = 0;
+		for (int i = 0; i < nViews; ++i) ui_update_texture(hudTex[i], hudCanvas, HUD_CW * 4);
+		if (!hudShown && debug) fprintf(stderr, "frame %llu: HUD on the second screen\n", (unsigned long long) frameCount);
+		hudShown = true;
 	}
 	bool scene = race && h->scene.when[0].addr && memprobes_match(h->scene.when, 2, &emu);
 	if (race != hudOn || scene != hudScene) {
@@ -973,9 +1035,9 @@ static void update_hud(void) {
 	}
 	/* the course's backdrop, as each race starts (not for the scene) */
 	if (hudOn && ++hudFrames == 2 && h->backdrop && !hudScene) emu_hud_grab(&emu, h->backdrop, hudGrab);
-	if (!race && mapShownIdx >= 0 && !memprobes_match(h->keep, 4, &emu)) {
-		mapShownIdx = -1; /* menus: the logo */
-		if (debug) fprintf(stderr, "frame %llu: HUD gone, logo\n", (unsigned long long) frameCount);
+	if (!race && hudShown && !memprobes_match(h->keep, 4, &emu)) {
+		hudShown = false; /* menus: the logo (or the map) */
+		if (debug) fprintf(stderr, "frame %llu: HUD gone\n", (unsigned long long) frameCount);
 	}
 }
 
@@ -1025,7 +1087,8 @@ static void update_snapshot(void) {
 static int game_screen(void);
 enum { CTL_GBA, CTL_FOUR, CTL_AUTO };
 static const char* const ctlNames[] = { "gba", "four", "auto" };
-static const MapProfile* ctlProf; /* NULL: no alternate layout for this game */
+static bool panHeld; /* SNES layout: a shoulder was panning the camera last frame */
+static bool snesHere; /* SNES layout: the game is where it applies (controls.snes.when: in a level) */
 static int ctlMode;
 static bool ctlPlaying; /* Auto: the player is controlling the character */
 static char ctlPath[1400];
@@ -1057,6 +1120,15 @@ static bool ctl_four(void) {
 	return ctlProf && (ctlMode == CTL_FOUR || (ctlMode == CTL_AUTO && ctlPlaying));
 }
 
+/* the alternate layout is the SNES one (profile controls.snes), not four-face */
+static bool ctl_snes(void) {
+	return ctlProf && ctlProf->controls.snes.bottom;
+}
+
+static const char* ctl_name(int i) {
+	return i == CTL_FOUR && ctl_snes() ? "snes" : ctlNames[i];
+}
+
 static void ctl_load(void) {
 	ctlMode = CTL_GBA;
 	ctlPlaying = false;
@@ -1066,7 +1138,7 @@ static void ctl_load(void) {
 	char w[16] = "";
 	if (fscanf(f, "%15s", w) == 1) {
 		for (int i = 0; i < 3; ++i) {
-			if (!strcmp(w, ctlNames[i])) ctlMode = i;
+			if (!strcmp(w, ctl_name(i))) ctlMode = i;
 		}
 	}
 	fclose(f);
@@ -1076,7 +1148,7 @@ static void ctl_load(void) {
 static void ctl_save(void) {
 	FILE* f = fopen(ctlPath, "w");
 	if (!f) return;
-	fprintf(f, "%s\n", ctlNames[ctlMode]);
+	fprintf(f, "%s\n", ctl_name(ctlMode));
 	fclose(f);
 }
 
@@ -1143,7 +1215,9 @@ static void ctl_draw(int s) {
 		ui_fill_round(s, t, sel ? C_BTN_SEL : C_BTN, rad);
 		t = g.tile[i];
 		int d = t.w * 30 / 100;
-		if (i == CTL_GBA) {
+		if (ctl_snes()) {
+			ui_label(s, t.x + t.w / 2, t.y + t.h / 2, g.cap, i == CTL_GBA ? "GBA" : "SNES", C_TEXT);
+		} else if (i == CTL_GBA) {
 			ctl_button(s, BRAND_PILL_L, &t, 32, 27, t.w * 34 / 100);
 			ctl_button(s, BRAND_PILL_R, &t, 68, 27, t.w * 34 / 100);
 			d = t.w * 28 / 100;
@@ -1171,7 +1245,7 @@ static bool ctl_tap(int s, int x, int y) {
 		if (SDL_PointInRect(&pt, &g.tile[i]) && ctlMode != i) {
 			ctlMode = i;
 			ctl_save();
-			if (debug) fprintf(stderr, "frame %llu: controls %s\n", (unsigned long long) frameCount, ctlNames[i]);
+			if (debug) fprintf(stderr, "frame %llu: controls %s\n", (unsigned long long) frameCount, ctl_name(i));
 		}
 	}
 	return true;
@@ -1616,11 +1690,15 @@ static void draw_game(void) {
 			continue;
 		}
 		/* the map screen */
-		if (mapShownIdx >= 0 && draw_framed_map(s)) {
+		if (hudShown) {
+			/* the HUD picture is at 2x: a grid cell per GBA pixel */
+			ui_fill(s, (SDL_Rect) { 0, 0, r.w, r.h }, borderColor);
+			ui_image_pixels(s, hudTex, HUD_CW, HUD_CH, cfg->mapScale, cfg->lcdGrid ? 2 : 0);
+		} else if (mapShownIdx >= 0 && draw_framed_map(s)) {
 			/* map + generated surround */
 		} else if (mapShownIdx >= 0) {
 			ui_fill(s, (SDL_Rect) { 0, 0, r.w, r.h }, borderColor);
-			ui_image_pixels(s, mapTex, mapW, mapH, cfg->mapScale, cfg->lcdGrid ? (hudProf ? 2 : 1) : 0); /* the HUD picture is at 2x: a cell per GBA pixel */
+			ui_image_pixels(s, mapTex, mapW, mapH, cfg->mapScale, cfg->lcdGrid ? 1 : 0);
 		} else if (!cfg->showLogo) {
 			/* nothing to show: the screen stays blank */
 		} else if (logoCanvasTex[0] || logoCanvasTex[1]) {
@@ -1632,10 +1710,10 @@ static void draw_game(void) {
 			SDL_Rect area = ui_image_rect(s, GBA_W, GBA_H, cfg->mapScale);
 			ui_image(s, logoTex, logoW, logoH, logoPixel ? "integer" : "fit", &area);
 		}
-		if (mapShownIdx >= 0 && (cfg->overlays & OVL_SECONDARY)) { /* the map only, never the logo */
+		if ((hudShown || mapShownIdx >= 0) && (cfg->overlays & OVL_SECONDARY)) { /* the map only, never the logo */
 			draw_overlay(s, 1);
 		}
-		if (mapShownIdx >= 0 && mapInactive) {
+		if (!hudShown && mapShownIdx >= 0 && mapInactive) {
 			ui_dim(s, 120);
 		}
 		if (ctl_shown(s)) ctl_draw(s);
@@ -1861,7 +1939,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	hudOn = false;
 	{
 		const MapProfile* cp = profile_find(emu.gameCode);
-		ctlProf = cp && cp->controls.fourFace ? cp : NULL;
+		ctlProf = cp && (cp->controls.fourFace || cp->controls.snes.bottom) ? cp : NULL;
+		panHeld = snesHere = false;
 		if (ctlProf) ctl_load();
 	}
 	if (cfg->map) {
@@ -1873,12 +1952,13 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		logoOnly = lp && lp->logoOnly;
 		snapProf = logoOnly && lp->snap.showMin ? lp : NULL;
 		/* the HUD moves only when there's another screen to put it on */
-		hudProf = logoOnly && lp->hud.on[0].addr && nScreens > 1 ? lp : NULL;
+		hudProf = lp && lp->hud.on[0].addr && nScreens > 1 ? lp : NULL;
 		hudOn = false;
+		hudShown = false;
 		hudScene = false;
 		hudLogoDone = false;
+		hudLogoBelowDone = false;
 		hudBackValid = false;
-		if (hudProf) mapW = HUD_CW, mapH = HUD_CH; /* the second screen's picture */
 		snapShow = snapRevert = 0;
 		if (mc) mapcap_set_still(mc, !cfg->mapAnim);
 		if (logoOnly) fprintf(stderr, "logo only: %s\n", lp->title);
@@ -1897,6 +1977,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	for (int i = 0; i < nViews; ++i) {
 		gameTex[i] = SDL_CreateTexture(views[i].ren, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, GBA_W, GBA_H);
 		mapTex[i] = SDL_CreateTexture(views[i].ren, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, mapW, mapH);
+		hudTex[i] = hudProf ? SDL_CreateTexture(views[i].ren, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, HUD_CW, HUD_CH) : NULL;
+		if (hudTex[i]) SDL_SetTextureBlendMode(hudTex[i], SDL_BLENDMODE_NONE);
 		SDL_SetTextureBlendMode(gameTex[i], SDL_BLENDMODE_NONE);
 		SDL_SetTextureBlendMode(mapTex[i], SDL_BLENDMODE_NONE);
 	}
@@ -2012,7 +2094,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		if (!logoTex[0] && !logoTex[1] && logo_generation() != logoGen) {
 			logoGen = logo_generation();
-			if (ui_load_logo(cfg, NULL, emu.gameCode, logoTex, &logoW, &logoH, &logoPixel)) make_logo_canvas();
+			if (ui_load_logo(cfg, NULL, emu.gameCode, logoTex, &logoW, &logoH, &logoPixel)) {
+				make_logo_canvas();
+				hudLogoBelowDone = hudLogoDone = false; /* the HUD's pictures with it */
+			}
 		}
 		if (!ui_events()) {
 			exitTo = GAME_QUIT_APP;
@@ -2226,7 +2311,20 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (!btnNow[b]) suppress[b] = false; /* released: counts again */
 		}
 		if (!btnNow[modBtn] || hotkeyBack) {
-			if (ctl_four()) {
+			/* the SNES layout only where it applies (Super Mario Advance 2: in
+			 * a level; on the world map R switches Mario and Luigi, and only A
+			 * enters a level) */
+			bool snes = ctl_four() && ctl_snes() && snesHere;
+			if (snes) {
+				/* by position, as the profile says (Super Mario Advance 2: B
+				 * bottom jumps, Y left runs, A right and X top spin jump) */
+				const typeof(ctlProf->controls.snes)* sn = &ctlProf->controls.snes;
+				int right = cfg->abSwap ? B_B : B_A, bottom = cfg->abSwap ? B_A : B_B;
+				if (HELD(right)) keys |= sn->right;
+				if (HELD(bottom)) keys |= sn->bottom;
+				if (HELD(B_X)) keys |= sn->top;
+				if (HELD(B_Y)) keys |= sn->left;
+			} else if (ctl_four() && !ctl_snes()) {
 				/* by position: top A, bottom B, left L, right R (on the RG DS
 				 * the top face button arrives as X, the left one as Y) */
 				int right = cfg->abSwap ? B_B : B_A, bottom = cfg->abSwap ? B_A : B_B;
@@ -2240,13 +2338,24 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			}
 			if (HELD(B_START) && !(hotkeyBack && btnNow[B_SELECT]) && comboHold != B_START) keys |= K_START;
 			if (HELD(B_SELECT) && !hotkeyBack && comboHold != B_SELECT) keys |= K_SELECT;
-			if (HELD(B_L)) keys |= K_L;
-			if (HELD(B_R)) keys |= K_R;
+			if (snes) {
+				/* both shoulders are GBA L, panning the camera their own way */
+				if (HELD(B_L)) keys |= K_L | KX_PAN_L;
+				else if (HELD(B_R)) keys |= K_L | KX_PAN_R;
+			} else {
+				if (HELD(B_L)) keys |= K_L;
+				if (HELD(B_R)) keys |= K_R;
+			}
 			if (HELD(B_UP)) keys |= K_UP;
 			if (HELD(B_DOWN)) keys |= K_DOWN;
 			if (HELD(B_LEFT)) keys |= K_LEFT;
 			if (HELD(B_RIGHT)) keys |= K_RIGHT;
-			if (hotkeyBack && btnNow[B_SELECT]) keys &= ~(K_L | K_R | K_START);
+			if (hotkeyBack && btnNow[B_SELECT]) keys &= ~(K_L | K_R | K_START | KX_PAN_L | KX_PAN_R);
+		}
+		{
+			bool pan = keys & (KX_PAN_L | KX_PAN_R);
+			if (!pan && panHeld) keys |= KX_PAN_END; /* let go: L pans the way Mario faces again */
+			panHeld = pan;
 		}
 		if (selectPulse > 0) keys |= K_SELECT, --selectPulse;
 		if (comboPulse[0] > 0) keys |= K_SELECT, --comboPulse[0];
@@ -2323,7 +2432,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		}
 		for (int i = 0; i < (rewinding ? 0 : runs); ++i) {
 			if (i == 0 && aheadReady) aheadReady = false; /* emulated by the worker while the last frame was shown */
-			else emu_frame(&emu, keys);
+			else run_frame(keys);
 			Uint64 raT0 = SDL_GetPerformanceCounter();
 			ra_frame();
 			raT += SDL_GetPerformanceCounter() - raT0;
@@ -2459,6 +2568,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 
 		if (snapProf) update_snapshot();
 		if (hudProf) update_hud();
+		if (ctl_snes()) snesHere = memprobes_match(ctlProf->controls.snes.when, 2, &emu);
 		if (ctlProf) {
 			/* switch after a few frames in the new state, not on one odd frame */
 			static int ctlStreak;
@@ -2593,7 +2703,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	for (int i = 0; i < nViews; ++i) {
 		SDL_DestroyTexture(gameTex[i]);
 		SDL_DestroyTexture(mapTex[i]);
-		gameTex[i] = mapTex[i] = NULL;
+		if (hudTex[i]) SDL_DestroyTexture(hudTex[i]);
+		gameTex[i] = mapTex[i] = hudTex[i] = NULL;
 	}
 	ui_free_image(logoTex);
 	ui_free_image(logoCanvasTex);

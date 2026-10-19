@@ -11,7 +11,7 @@ The USA, European and Japanese releases are all supported. Any other GBA game al
 | Tony Hawk's Pro Skater 2 (SK8 in Japan) | `ATHE` (USA and Europe) `ATHF` `ATHD` `ATHJ` | the goal sheet for the current run | — |
 | Mario Kart: Super Circuit (Mario Kart Advance in Japan) | `AMKE` `AMKP` `AMKJ` | the race HUD, results and podium | — |
 | Tony Hawk's Pro Skater 3 | `AT3E` (USA and Europe) `AT3F` `AT3D` | the logo, for now; optional four-button layout | — |
-| Super Mario Advance 2: Super Mario World | `AA2E` `AA2P` `AA2J` | the logo, for now | — |
+| Super Mario Advance 2: Super Mario World | `AA2E` `AA2P` `AA2J` | the SELECT menu on the world map; the status bar in levels; optional SNES layout | — |
 | Final Fantasy Tactics Advance | `AFXE` `AFXP` `AFXJ` | the logo, for now | — |
 
 The codes are what `<CODE>` means in logo and overlay file names (see [Playing](Playing#logos) and [[Map screen surrounds and overlays]]).
@@ -50,7 +50,13 @@ You see the game's own map, with everything it shows (explored rooms, save and w
 - The second screen shows the goal sheet for the current run (Free Skate, Single Session and the career checklist), without the sprites the game draws over it. It stays up through the run, pauses and loading, and goes back to the logo at the menus.
 - An optional four-button layout, like the console games, is under **Controls** on the second screen: see [Playing](Playing#buttons).
 
-## Tony Hawk's Pro Skater 3, Super Mario Advance 2, Final Fantasy Tactics Advance
+## Super Mario Advance 2: Super Mario World
+
+- **On the world map,** the second screen shows the SELECT menu: the list of levels on the island with your time and score, kept up to date as you move around (Peach's HELP! blinks). It's captured in the background like the other games' maps; the game itself is never paused.
+- **In a level,** the status bar (lives, Dragon Coins, time, coins and score) moves to the top of the second screen, with a smaller logo below it. The blue item box stays at the top of the game screen, with your reserve item in it. Message boxes and the pause box stay on the game screen.
+- An optional **SNES layout** is under **Controls** on the second screen: see [Playing](Playing#buttons).
+
+## Tony Hawk's Pro Skater 3, Final Fantasy Tactics Advance
 
 Newly added: they're in the game list with their logos on the second screen while second-screen features for them are worked out. Tony Hawk's Pro Skater 3 already has the four-button layout under **Controls** (GBA or Four buttons; no Auto yet).
 

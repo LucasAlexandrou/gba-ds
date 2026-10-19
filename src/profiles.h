@@ -87,6 +87,19 @@ typedef struct MapProfile {
 		bool fourFace;
 		int mode;
 		struct { int x, y; } hud[4];
+		/* Games ported from the SNES (Super Mario Advance 2): an "SNES"
+		 * layout instead of the four-face one. Face buttons by position give
+		 * these GBA keys, and both shoulders give GBA L. The game pans the
+		 * camera with L toward where the player faces; the SNES panned left
+		 * with L and right with R. So while a shoulder is held where `when`
+		 * matches, the byte at `pan` (the direction L pans: 0 left, 1 right)
+		 * is set to match, and back to the player's facing (`facing`) when
+		 * it's let go. */
+		struct {
+			uint32_t right, bottom, top, left;
+			uint32_t pan, facing;
+			MemProbe when[2];
+		} snes;
 	} controls;
 	int stableFrames;  /* consecutive "quiet" frames required */
 	int maxDiff;       /* pixels allowed to change between quiet frames (blinking markers) */
@@ -134,7 +147,8 @@ typedef struct MapProfile {
 	 * triggers an early capture. Only addr/size are used. */
 	MemProbe room[4];
 
-	/* Logo-only games whose HUD moves to the second screen (Mario Kart):
+	/* Games whose HUD moves to the second screen (Mario Kart; Super Mario
+	 * Advance 2 in its levels, with a map capture elsewhere):
 	 * while every `on` probe matches (I/O registers or RAM, after each
 	 * frame), the BG layers in bgMask and the sprites of priority objPrio are
 	 * drawn there, on black, instead of on the game screen (emu_hud_split).
@@ -167,8 +181,14 @@ typedef struct MapProfile {
 			SpriteRule objs[4];
 			HudMove moves[4];
 		} scene;
-		/* moves while racing (with the `layout` probes) */
+		/* moves while racing (with the `layout` probes; no layout probes:
+		 * always). A move with toGame and no how / vhow copies its box back
+		 * onto the game picture where it was. */
 		HudMove moves[4];
+		/* The second screen is the HUD on black with the game's logo below
+		 * it, at half the usual size (Super Mario Advance 2), instead of a
+		 * backdrop. */
+		bool logoBelow;
 	} hud;
 
 	/* Title-screen logo, pulled out of the running game: boot, wait, optionally

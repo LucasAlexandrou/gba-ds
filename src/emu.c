@@ -296,6 +296,9 @@ bool emu_state_load_file(Emu* e, const char* path) {
 uint8_t emu_read8(Emu* e, uint32_t a) {
 	return e->core->rawRead8(e->core, a, -1);
 }
+void emu_write8(Emu* e, uint32_t a, uint8_t v) {
+	e->core->rawWrite8(e->core, a, -1, v);
+}
 uint16_t emu_read16(Emu* e, uint32_t a) {
 	return e->core->rawRead16(e->core, a, -1);
 }
@@ -496,9 +499,15 @@ static Split split;
 
 static void filtered_draw_scanline(struct GBAVideoRenderer* renderer, int y);
 
+/* The HUD renderer's backdrop must stay exactly the 'nothing here' colour:
+ * no brightening or darkening of it (BLDCNT's backdrop first target; Super
+ * Mario Advance 2 darkens the bottom rows a little more each line). */
+static uint16_t hud_reg(uint32_t a, uint16_t v) {
+	return a == 0x50 ? v & ~0x0020 : v;
+}
 static uint16_t split_reg(struct GBAVideoRenderer* r, uint32_t a, uint16_t v) {
 	uint16_t out = split.writeVideoRegister(r, a, v);
-	split.hud.d.writeVideoRegister(&split.hud.d, a, v);
+	split.hud.d.writeVideoRegister(&split.hud.d, a, hud_reg(a, v));
 	return out;
 }
 static void split_vram(struct GBAVideoRenderer* r, uint32_t a) {
@@ -551,7 +560,7 @@ static void split_resync(Emu* e) {
 	if (!split.installed || gba->video.renderer != split.main) return; /* another core (logo, map capture) */
 	struct GBAVideoRenderer* h = &split.hud.d;
 	h->reset(h);
-	for (uint32_t a = 0; a <= 0x56; a += 2) h->writeVideoRegister(h, a, gba->memory.io[a >> 1]);
+	for (uint32_t a = 0; a <= 0x56; a += 2) h->writeVideoRegister(h, a, hud_reg(a, gba->memory.io[a >> 1]));
 	for (uint32_t a = 0; a < 0x400; a += 2) h->writePalette(h, a, a == 0 ? HUD_CLEAR_555 : gba->video.palette[a >> 1]);
 	for (uint32_t i = 0; i < 512; ++i) h->writeOAM(h, i);
 	split.hud.oamDirty = true;

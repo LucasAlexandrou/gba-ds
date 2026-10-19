@@ -6,7 +6,7 @@ There are three kinds of second screen, and a profile can use the parts it needs
 |---|---|---|
 | **Map capture** | Castlevanias, Metroids, A Link to the Past | Opens the game's own map on a hidden copy of the game and shows it. |
 | **Screen snapshot** (`logoOnly` + `snap`) | Tony Hawk's Pro Skater 2 | Copies a screen the game shows (the goal sheet) to the second screen while it's useful. |
-| **HUD split** (`logoOnly` + `hud`) | Mario Kart: Super Circuit | Draws some layers and sprites on the second screen instead of the game screen. |
+| **HUD split** (`hud`) | Mario Kart: Super Circuit; Super Mario Advance 2 (with a map capture) | Draws some layers and sprites on the second screen instead of the game screen. |
 
 Every profile also gets a **logo** for the game list and the second screen.
 
@@ -54,16 +54,17 @@ The hidden copy is given the live game's state, the map button is pressed, and t
 
 ## Screen snapshot
 
-For games without a map but with a screen worth keeping (`logoOnly = true`): `snap.show` probes (at least `showMin`, for `stable` frames) say the screen is up; it's copied to the second screen and stays until one of the `revert` screens matches. `snap.hide` leaves sprites out of the copy. `controls` adds the four-face-button picker (Tony Hawk's).
+For games without a map but with a screen worth keeping (`logoOnly = true`): `snap.show` probes (at least `showMin`, for `stable` frames) say the screen is up; it's copied to the second screen and stays until one of the `revert` screens matches. `snap.hide` leaves sprites out of the copy. `controls` adds the four-face-button picker (Tony Hawk's); `controls.snes` an SNES-layout picker instead (Super Mario Advance 2: face buttons by position, both shoulders as GBA L, with the camera pan direction in RAM set from the shoulder held, where `snes.when` matches).
 
 ## HUD split
 
-For games whose HUD is better on the second screen (`logoOnly = true`). A second renderer receives the same video writes as the game's and draws only the HUD layers and sprites; the game screen draws everything else, so nothing behind the HUD is lost.
+For games whose HUD is better on the second screen, logo-only or alongside a map capture (Super Mario Advance 2: the HUD in levels, the captured SELECT menu on the world map; the HUD picture wins while it's up). A second renderer receives the same video writes as the game's and draws only the HUD layers and sprites; the game screen draws everything else, so nothing behind the HUD is lost.
 
 - `hud.on`: while all match (I/O registers like DISPCNT at `0x04000000`, or RAM), the split is on. `hud.keep`: while these match (the pause menu), the last HUD picture stays.
 - `hud.bgMask` (bit 0 = BG0) and `hud.objs`: what moves.
-- `hud.layout`: while these also match (racing, not results), `sign` (a box left on the game screen when nothing else of the HUD is beside it), `map` (scaled up 2× or 1.5×), the `backdrop` (BG layers grabbed above row `backdropRows`, dimmed) and `moves` apply.
-- `hud.moves`: `HudMove` boxes measured each frame and placed by an edge or centre (`'L' 'C' 'R'` at `x`, `'T' 'M' 'B'` at `y`), on the second screen or with `toGame` back on the game screen (Mario Kart's item box and place).
+- `hud.layout`: while these also match (racing, not results; no probes: always), `sign` (a box left on the game screen when nothing else of the HUD is beside it), `map` (scaled up 2× or 1.5×), the `backdrop` (BG layers grabbed above row `backdropRows`, dimmed) and `moves` apply.
+- `hud.moves`: `HudMove` boxes measured each frame and placed by an edge or centre (`'L' 'C' 'R'` at `x`, `'T' 'M' 'B'` at `y`), on the second screen or with `toGame` back on the game screen (Mario Kart's item box and place). With `toGame` and no `how` / `vhow`, the box goes back where it was (Super Mario Advance 2's item box, and BG3 below the status bar: message and pause boxes).
+- `hud.logoBelow`: the second screen is the HUD on black with the logo at half size below it, instead of a backdrop.
 - `hud.scene`: another scene with its own sprites and moves, with the logo as the backdrop (Mario Kart's podium).
 
 The second screen is a 480×320 canvas (2× GBA pixels), so moved and scaled pieces stay sharp.

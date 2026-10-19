@@ -78,6 +78,12 @@ If HOME doesn't open the menu on your device, see `home_button` in [[Settings]];
 - **Four buttons**: like the console games. Top = GBA A (grind), bottom = GBA B (ollie), left = GBA L (flip), right = GBA R (grab). L1 / R1 still work as L / R.
 - **Auto**: four buttons while you're skating, the GBA layout everywhere else (menus, pause, goal sheets, results), so A and B confirm and go back as the game expects. The tile for the layout in use right now is outlined.
 
+**SNES layout (Super Mario Advance 2).** Under **Controls**, **SNES** gives Super Mario World the Super Nintendo's buttons in levels:
+- bottom (B) jumps, left (Y) runs and carries, right (A) and top (X) spin-jump;
+- **L1 pans the camera left and R1 pans it right**, as on the SNES, without moving Mario. (In the GBA version L pans the way Mario faces.)
+
+On the world map, the SELECT menu, the pause box and the menus, the buttons stay as on the GBA (A enters a level, R switches between Mario and Luigi). **GBA** keeps the GBA layout everywhere.
+
 The choice is remembered per game.
 
 ## Cheats
