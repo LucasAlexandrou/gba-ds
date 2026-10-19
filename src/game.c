@@ -99,22 +99,58 @@ static uint32_t aheadFb[GBA_W * GBA_H]; /* the frame on screen, while the worker
 static bool debug; /* GBADS_DEBUG (declared again below) */
 static const struct MapProfile* ctlProf; /* NULL: no alternate layout for this game */
 
+/* A pan in progress: Mario's real facing, put back afterwards; the sprite
+ * code's literal points at a ROM byte holding it meanwhile. */
+static struct { bool on; uint8_t facing; } pan;
+
+static void write32(uint32_t a, uint32_t v) {
+	for (int k = 0; k < 4; ++k) emu_write8(&emu, a + k, (uint8_t) (v >> (k * 8)));
+}
+
+/* a ROM address holding this byte (the first in the ROM) */
+static uint32_t rom_byte(uint8_t v) {
+	for (uint32_t a = 0x08000000; a < 0x08100000; ++a) {
+		if (emu_read8(&emu, a) == v) return a;
+	}
+	return 0;
+}
+
+/* End a pan: the sprite code reads the facing again, and (when still in
+ * the level) the facing is put back. */
+static void pan_end(bool restore) {
+	if (!pan.on) return;
+	const typeof(ctlProf->controls.snes)* sn = &ctlProf->controls.snes;
+	write32(sn->spriteLit, sn->pan - sn->spriteBase);
+	if (restore) emu_write8(&emu, sn->pan, pan.facing);
+	pan.on = false;
+	if (debug) fprintf(stderr, "camera pan released%s\n", restore ? "" : " (facing left alone)");
+}
+
 /* One frame of the game with these keys (on the worker too, while the main
- * thread leaves the core alone). The pan direction is left as set when the
- * shoulder is let go: the game sets it again from Mario's facing as soon as
- * he moves. */
+ * thread leaves the core alone). */
 static void run_frame(uint32_t keys) {
-	uint32_t pan = keys & (KX_PAN_L | KX_PAN_R);
 	if (ctlProf && ctlProf->controls.snes.pan) {
-		static uint32_t lastPan;
 		const typeof(ctlProf->controls.snes)* sn = &ctlProf->controls.snes;
-		bool here = pan && memprobes_match(sn->when, 2, &emu);
-		if (debug && pan != lastPan) {
-			fprintf(stderr, "camera pan %s%s (pan byte %02x)\n", !pan ? "released" : pan & KX_PAN_L ? "left" : "right",
-			        pan && !here ? ": not in a level, left alone" : "", emu_read8(&emu, sn->pan));
+		uint32_t want = keys & (KX_PAN_L | KX_PAN_R);
+		/* walking ends it: the game turns Mario itself */
+		bool level = (want || pan.on) && memprobes_match(sn->when, 3, &emu);
+		bool here = want && !(keys & (K_LEFT | K_RIGHT)) && level;
+		if (!here && pan.on) pan_end(memprobes_match(sn->when, 1, &emu)); /* still in the level (maybe paused): put the facing back */
+		if (here && !pan.on) {
+			if (emu_read32(&emu, sn->spriteLit) != sn->pan - sn->spriteBase) {
+				static bool warned;
+				if (!warned) fprintf(stderr, "camera pan: unexpected code at %08x, shoulders stay GBA L\n", sn->spriteLit), warned = true;
+			} else {
+				pan.facing = emu_read8(&emu, sn->pan) ? 1 : 0;
+				uint32_t hold = rom_byte(pan.facing);
+				if (hold) {
+					write32(sn->spriteLit, hold - sn->spriteBase);
+					pan.on = true;
+					if (debug) fprintf(stderr, "camera pan %s (Mario faces %s)\n", want & KX_PAN_L ? "left" : "right", pan.facing ? "right" : "left");
+				}
+			}
 		}
-		lastPan = pan;
-		if (here) emu_write8(&emu, sn->pan, pan & KX_PAN_L ? 0 : 1);
+		if (pan.on) emu_write8(&emu, sn->pan, want & KX_PAN_L ? 0 : 1);
 	}
 	emu_frame(&emu, keys & 0x3FF);
 }
@@ -1041,8 +1077,14 @@ static void update_hud(void) {
 	}
 	/* the course's backdrop, as each race starts (not for the scene) */
 	if (hudOn && ++hudFrames == 2 && h->backdrop && !hudScene) emu_hud_grab(&emu, h->backdrop, hudGrab);
-	if (!race && hudShown && !memprobes_match(h->keep, 4, &emu)) {
-		hudShown = false; /* menus: the logo (or the map) */
+	/* menus: the logo (or the map), once it's been gone for a third of a
+	 * second (not for a moment between rooms); no keep probes: never kept */
+	static int goneFor;
+	bool gone = !race && hudShown && !(h->keep[0].addr && memprobes_match(h->keep, 4, &emu));
+	goneFor = gone ? goneFor + 1 : 0;
+	if (goneFor >= 20) {
+		hudShown = false;
+		goneFor = 0;
 		if (debug) fprintf(stderr, "frame %llu: HUD gone\n", (unsigned long long) frameCount);
 	}
 }
@@ -1283,6 +1325,7 @@ static bool state_load(const char* path) {
 	bool ok = emu_state_load_file(&emu, path);
 	if (ok) ra_state_loaded(path);
 	if (ok) aheadReady = false; /* a frame emulated before the load: emulate afresh */
+	if (ok) pan_end(false); /* (the facing saved belongs to before) */
 	return ok;
 }
 
@@ -1946,6 +1989,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		const MapProfile* cp = profile_find(emu.gameCode);
 		ctlProf = cp && (cp->controls.fourFace || cp->controls.snes.bottom) ? cp : NULL;
 		snesHere = false;
+		pan.on = false;
 		if (ctlProf) ctl_load();
 	}
 	if (cfg->map) {
@@ -2568,7 +2612,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 
 		if (snapProf) update_snapshot();
 		if (hudProf) update_hud();
-		if (ctl_snes()) snesHere = memprobes_match(ctlProf->controls.snes.when, 2, &emu);
+		if (ctl_snes()) snesHere = memprobes_match(ctlProf->controls.snes.when, 3, &emu);
 		if (ctlProf) {
 			/* switch after a few frames in the new state, not on one odd frame */
 			static int ctlStreak;

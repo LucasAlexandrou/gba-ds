@@ -247,7 +247,7 @@ static const MapProfile profiles[] = {
 		.controls = { .fourFace = true },
 	},
 	{
-		.codes = { "AA2E", "AA2P" },
+		.codes = { "AA2E" },
 		.title = "Super Mario Advance 2: Super Mario World",
 		/* Start during the intro brings up the title: the logo alone on BG2 */
 		.logo = { .wait = 400, .pressStart = true, .wait2 = 200, .layer = 2 },
@@ -276,18 +276,24 @@ static const MapProfile profiles[] = {
 		.hud = {
 			.on = { { 0x03002BC6, 0xFF, 0x24, 1 }, { 0x0400000E, 0xFFFF, 0xDC44, 2 },
 			        { 0x04000000, 0x0800, 0x0800, 2 } },
+			/* through doors and pipes (the level loading again, modes
+			 * 0x20-0x23); to the world map (0x1B, 0x1D) or the title it goes */
+			.keep = { { 0x03002BC6, 0xFC, 0x20, 1 } },
 			.bgMask = 8,
 			.moves = { { 104, 0, 135, 15, 0, 0, 0, 0, true }, { 0, 16, 239, 159, 0, 0, 0, 0, true } },
 			.logoBelow = true,
 		},
 		/* SNES layout: B (bottom) jumps (GBA A), Y (left) runs (GBA B), A
 		 * (right) and X (top) spin jump (GBA R); L pans the camera left, R
-		 * right (0x03003FA5, the direction L pans; the game sets it from
-		 * Mario's facing as he moves), in a level */
+		 * right. In a level and not paused (0x03002BC3: 2 paused, 0
+		 * playing; message boxes 0 too). Mario's facing (0x03003FA5, 1
+		 * right) is what GBA L pans toward; his sprite reads it through the
+		 * literal at 0x0806B314 (an offset from 0x03002340). */
 		.controls = {
 			.snes = { .right = K_R, .bottom = K_A, .top = K_R, .left = K_B,
-			          .pan = 0x03003FA5,
-			          .when = { { 0x03002BC6, 0xFF, 0x24, 1 }, { 0x0400000E, 0xFFFF, 0xDC44, 2 } } },
+			          .pan = 0x03003FA5, .spriteLit = 0x0806B314, .spriteBase = 0x03002340,
+			          .when = { { 0x03002BC6, 0xFF, 0x24, 1 }, { 0x0400000E, 0xFFFF, 0xDC44, 2 },
+			                    { 0x03002BC3, 0xFF, 0x00, 1 } } },
 		},
 	},
 	{
@@ -417,8 +423,16 @@ static void sma2_jpn(MapProfile* p) {
 	p->live[0].addr -= 0x10;
 	p->live[2] = (MemProbe) { 0 };
 	p->hud.on[0].addr -= 0x10;
+	p->hud.keep[0].addr -= 0x10;
 	p->controls.snes.when[0].addr -= 0x10;
+	p->controls.snes.when[2].addr -= 0x10;
 	p->controls.snes.pan -= 0x14;
+	p->controls.snes.spriteLit = 0x0806ACBC;
+	p->controls.snes.spriteBase = 0x03002330;
+}
+/* Europe: the same RAM; the sprite code sits elsewhere in the ROM */
+static void sma2_eur(MapProfile* p) {
+	p->controls.snes.spriteLit = 0x0806BD28;
 }
 
 static const Variant variants[] = {
@@ -436,6 +450,7 @@ static const Variant variants[] = {
 	{ "AZLJ", "AZLE", 0, zelda_jpn },
 	{ "ATHJ", "ATHE", 0, thps2_jpn },
 	{ "AFXP", "AFXE", 0, lang_menu }, /* (logo only so far: no RAM addresses to shift) */
+	{ "AA2P", "AA2E", 0, sma2_eur },
 	{ "AA2J", "AA2E", 0, sma2_jpn },
 };
 #define N_VARIANTS (sizeof(variants) / sizeof(*variants))

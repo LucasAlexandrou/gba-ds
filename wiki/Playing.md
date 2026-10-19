@@ -82,7 +82,7 @@ If HOME doesn't open the menu on your device, see `home_button` in [[Settings]];
 - bottom (B) jumps, left (Y) runs and carries, right (A) and top (X) spin-jump;
 - **L1 pans the camera left and R1 pans it right**, as on the SNES, without moving Mario. (In the GBA version L pans the way Mario faces.)
 
-On the world map, the SELECT menu, the pause box and the menus, the buttons stay as on the GBA (A enters a level, R switches between Mario and Luigi). **GBA** keeps the GBA layout everywhere.
+Mario keeps facing the way he was while the camera pans; walking ends the pan, as on the SNES. While the game is paused, on the world map, in the SELECT menu and the menus, the buttons are the GBA's (A enters a level and confirms, R switches between Mario and Luigi). **GBA** keeps the GBA layout everywhere.
 
 The choice is remembered per game.
 
