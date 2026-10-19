@@ -368,12 +368,13 @@ static const MapProfile profiles[] = {
 		 * recorded, but shown still, with both (the state that covers more:
 		 * they're dark text on light) */
 		.animFrames = 8, .animStep = 8, .mapStill = true, .stillPick = STILL_COVER,
-		/* In a level (game mode 0x24, also paused) the status bar is BG3 (0xDC44), rows
+		/* In a level (game mode 0x24, also paused) the status bar is BG3 (0xDC44,
+		 * at any priority: some castle rooms put it at 3, 0xDC47), rows
 		 * 0-15: it goes to the top of the second screen, except the blue
 		 * item box (104-135; the item in it is a sprite and stays). The rest
 		 * of BG3 (message and pause boxes) stays on the game picture. */
 		.hud = {
-			.on = { { 0x03002BC6, 0xFF, 0x24, 1 }, { 0x0400000E, 0xFFFF, 0xDC44, 2 },
+			.on = { { 0x03002BC6, 0xFF, 0x24, 1 }, { 0x0400000E, 0xFFFC, 0xDC44, 2 },
 			        { 0x04000000, 0x0800, 0x0800, 2 } },
 			/* through doors and pipes: the fade out (0x1F, also the world
 			 * map's into a level: on only from a level), the level loading
@@ -395,7 +396,7 @@ static const MapProfile profiles[] = {
 		.controls = {
 			.snes = { .right = K_R, .bottom = K_A, .top = K_R, .left = K_B,
 			          .pan = 0x03004005,
-			          .when = { { 0x03002BC6, 0xFF, 0x24, 1 }, { 0x0400000E, 0xFFFF, 0xDC44, 2 },
+			          .when = { { 0x03002BC6, 0xFF, 0x24, 1 }, { 0x0400000E, 0xFFFC, 0xDC44, 2 },
 			                    { 0x03002BC3, 0xFF, 0x00, 1 } } },
 		},
 	},
