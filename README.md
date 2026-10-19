@@ -23,9 +23,9 @@ The idea here is "what if the Game Boy Advance had a second screen" -- part of w
 | The Legend of Zelda: A Link to the Past | world and dungeon maps |
 | Tony Hawk's Pro Skater 2 (incl. SK8, Japan) | the goal sheet for the current run; optional four-button layout |
 | Mario Kart: Super Circuit (incl. Mario Kart Advance, Japan) | the race HUD, with a large course map; results and the cup podium |
-| Tony Hawk's Pro Skater 3 | the goal list during a run; optional four-button layout |
+| Tony Hawk's Pro Skater 3 (incl. French and German) | the goal list during a run; four-button layout, or Auto (four buttons while skating) |
 | Super Mario Advance 2: Super Mario World | the SELECT menu's level list on the world map; the status bar in levels; optional SNES layout |
-| Final Fantasy Tactics Advance | in battles and the scenes around them: dialogue, menus and unit details |
+| Final Fantasy Tactics Advance | in battles and their scenes: dialogue, menus and unit details; on the world map: notices, funds and the date |
 
 Any other GBA game also runs; it just plays on one screen. See [Supported games](https://github.com/kyannon/gba-ds/wiki/Supported-games) for what each game does.
 
