@@ -1,10 +1,11 @@
 **GBA DS** is a Game Boy Advance emulator for dual-screen handhelds, made for the Anbernic RG DS Plus (on [ROCKNIX](https://rocknix.org) and on Android with GammaOS). The game runs on one screen; the other screen shows the game's own map, kept current as you play, or other second-screen information such as Mario Kart's race HUD, the way the DS Castlevanias use their bottom screen.
 
 <p>
-<img src="https://raw.githubusercontent.com/kyannon/gba-ds/main/docs/cotm.png" width="24%" alt="Castlevania: Circle of the Moon with its map">
-<img src="https://raw.githubusercontent.com/kyannon/gba-ds/main/docs/fusion.png" width="24%" alt="Metroid Fusion with its map">
-<img src="https://raw.githubusercontent.com/kyannon/gba-ds/main/docs/zelda.png" width="24%" alt="A Link to the Past with the world map">
-<img src="https://raw.githubusercontent.com/kyannon/gba-ds/main/docs/mario-kart-race.png" width="24%" alt="Mario Kart: Super Circuit with its HUD on the second screen">
+<img src="https://raw.githubusercontent.com/kyannon/gba-ds/main/docs/fusion.png" width="19%" alt="Metroid Fusion with its map">
+<img src="https://raw.githubusercontent.com/kyannon/gba-ds/main/docs/cotm.png" width="19%" alt="Castlevania: Circle of the Moon with its 99.8% map">
+<img src="https://raw.githubusercontent.com/kyannon/gba-ds/main/docs/mario-kart-race.png" width="19%" alt="Mario Kart: Super Circuit with its race HUD on the second screen">
+<img src="https://raw.githubusercontent.com/kyannon/gba-ds/main/docs/sma2.png" width="19%" alt="Super Mario Advance 2: Super Mario World with the island's level list on the second screen">
+<img src="https://raw.githubusercontent.com/kyannon/gba-ds/main/docs/thps2.png" width="19%" alt="Tony Hawk's Pro Skater 2 with the goal sheet on the second screen">
 </p>
 
 ## Getting started

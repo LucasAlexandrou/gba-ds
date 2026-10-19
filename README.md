@@ -5,10 +5,11 @@ A Game Boy Advance emulator for dual-screen handhelds (built for the Anbernic RG
 The idea here is "what if the Game Boy Advance had a second screen" -- part of what this means is that, at least for now, neither screen is treated like a touchscreen. Instead the secondary screen is used similarly to how the DS Castlevania games use it -- displaying maps or other secondary information to make the gameplay experience a little more pleasant on a device with the space to accommodate it. (This whole project was inspired by playing through all the DS Castlevania games and then feeling a little sad about the prospect of going back in time to the GBA games...)
 
 <p>
-<img src="docs/cotm.png" width="24%" alt="Castlevania: Circle of the Moon with its 99.8% map">
-<img src="docs/fusion.png" width="24%" alt="Metroid Fusion with its map">
-<img src="docs/zelda.png" width="24%" alt="A Link to the Past with the world map">
-<img src="docs/mario-kart-race.png" width="24%" alt="Mario Kart: Super Circuit with its race HUD on the second screen">
+<img src="docs/fusion.png" width="19%" alt="Metroid Fusion with its map">
+<img src="docs/cotm.png" width="19%" alt="Castlevania: Circle of the Moon with its 99.8% map">
+<img src="docs/mario-kart-race.png" width="19%" alt="Mario Kart: Super Circuit with its race HUD on the second screen">
+<img src="docs/sma2.png" width="19%" alt="Super Mario Advance 2: Super Mario World with the island's level list on the second screen">
+<img src="docs/thps2.png" width="19%" alt="Tony Hawk's Pro Skater 2 with the goal sheet on the second screen">
 </p>
 
 <sub>Stacked screens, pixel-perfect scaling, LCD grid on.</sub>
