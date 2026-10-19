@@ -22,6 +22,10 @@
 @             address, from sp at that call
 @   ANIM, WEAPON, DAMAGE, CURSOR   return addresses (+1) of the world
 @             systems' calls to W2 (W1 for the cursor)
+@   URET      the return address (+1) of the units' drawing routine (U,
+@             frame 76 bytes) calling W2; VRET of V (frame 44) calling U;
+@             BANK of the Monster Bank calling V (the deployment menu's
+@             unit and the Status screen's come through V too, and move)
 	.syntax unified
 	.arm
 entry:
@@ -51,7 +55,17 @@ t:
 	cmp r4, r5
 	bne 3f
 7:	ldr r4, [sp, #(NARGS * 4 + 20 + W2LR)]
-	adr r5, callers
+	@ the units' drawing (U, called by V for whatever wants a unit
+	@ drawn): who called V instead
+	ldr r5, =URET
+	cmp r4, r5
+	bne 8f
+	ldr r4, [sp, #(NARGS * 4 + 20 + W2LR + 4 + 72)]
+	ldr r5, =VRET
+	cmp r4, r5
+	bne 3f
+	ldr r4, [sp, #(NARGS * 4 + 20 + W2LR + 4 + 72 + 44)]
+8:	adr r5, callers
 2:	ldr r6, [r5]
 	cmp r6, #0
 	beq 3f
@@ -110,5 +124,6 @@ callers:
 	.word WEAPON @ weapon swings
 	.word DAMAGE @ damage numbers
 	.word CURSOR @ the world map's cursor (the feather pen), through W1
+	.word BANK   @ the Monster Bank's monsters, through V and U
 	.word 0
 	.ltorg
