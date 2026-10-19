@@ -858,6 +858,7 @@ static void hud_make_logo_back(void) {
  * pixel), centred in the space below the HUD's rows. */
 static void hud_make_logo_below(void) {
 	hudLogoBelowDone = true;
+	bool behind = hudProf->hud.logoBehind;
 	for (int i = 0; i < HUD_CW * HUD_CH; ++i) hudLogoBelow[i] = 0xFF000000;
 	bool pixelArt;
 	SDL_Surface* lg = ui_logo_surface(cfg, emu.gameCode, &pixelArt);
@@ -874,12 +875,13 @@ static void hud_make_logo_below(void) {
 		w = SDL_max(1, (int) (lg->w * sc)), h = SDL_max(1, (int) (lg->h * sc));
 	}
 	int x0 = (HUD_CW - w) / 2, y0 = top + (HUD_CH - top - h) / 2;
+	unsigned dim = behind ? 90 : 255; /* behind the HUD: dimmed well back */
 	SDL_LockSurface(lg);
 	for (int y = 0; y < h; ++y) {
 		const uint8_t* row = (const uint8_t*) lg->pixels + (size_t) (y * lg->h / h) * lg->pitch;
 		for (int x = 0; x < w; ++x) {
 			const uint8_t* p = row + (size_t) (x * lg->w / w) * 4; /* RGBA32 */
-			unsigned a = p[3];
+			unsigned a = p[3] * dim / 255;
 			hudLogoBelow[(y0 + y) * HUD_CW + x0 + x] = 0xFF000000u | (p[2] * a / 255) << 16 | (p[1] * a / 255) << 8 | p[0] * a / 255;
 		}
 	}
@@ -942,7 +944,7 @@ static void hud_compose(void) {
 	if (hudScene) {
 		if (!hudLogoDone) hud_make_logo_back();
 		memcpy(hudCanvas, hudLogoBack, sizeof(hudCanvas));
-	} else if (h->logoBelow) {
+	} else if (h->logoBelow || h->logoBehind) {
 		if (!hudLogoBelowDone) hud_make_logo_below();
 		memcpy(hudCanvas, hudLogoBelow, sizeof(hudCanvas));
 	} else if (hudBackValid) {
@@ -1028,9 +1030,20 @@ static void update_hud(void) {
 		hudShown = true;
 	}
 	bool scene = race && h->scene.when[0].addr && memprobes_match(h->scene.when, 2, &emu);
-	if (race != hudOn || scene != hudScene) {
+	/* the layers: fixed, or by priority as the game has them now */
+	static unsigned lastMask;
+	unsigned mask = h->bgMask;
+	if (h->bgPrioBelow) {
+		mask = 0;
+		for (int i = 0; i < 4; ++i) {
+			if ((emu_read16(&emu, 0x04000008 + i * 2) & 3) < h->bgPrioBelow) mask |= 1u << i;
+		}
+	}
+	if (race != hudOn || scene != hudScene || (race && mask != lastMask)) {
 		const SpriteRule* objs = scene ? h->scene.objs : h->objs;
-		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, 4), hudPx);
+		emu_hud_split(&emu, race, mask, objs, rule_count(objs, 4), hudPx);
+		if (debug && race && mask != lastMask) fprintf(stderr, "frame %llu: HUD layers %x\n", (unsigned long long) frameCount, mask);
+		lastMask = mask;
 		if (debug && race && scene != hudScene) fprintf(stderr, "frame %llu: HUD scene %s\n", (unsigned long long) frameCount, scene ? "on" : "off");
 		hudOn = race;
 		hudScene = scene;

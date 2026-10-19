@@ -190,6 +190,14 @@ typedef struct MapProfile {
 		 * it, at half the usual size (Super Mario Advance 2), instead of a
 		 * backdrop. */
 		bool logoBelow;
+		/* The same, the logo centred and dimmed, behind the HUD (Final
+		 * Fantasy Tactics Advance). */
+		bool logoBehind;
+		/* Instead of bgMask: the BG layers drawn at a priority below this
+		 * (BGxCNT bits 0-1), taken again each frame. Final Fantasy Tactics
+		 * Advance moves its map and menus between layers, but its menus,
+		 * text and boxes are always priority 0-1, the map 2-3. */
+		int bgPrioBelow;
 	} hud;
 
 	/* Title-screen logo, pulled out of the running game: boot, wait, optionally

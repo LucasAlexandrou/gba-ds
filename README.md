@@ -25,7 +25,7 @@ The idea here is "what if the Game Boy Advance had a second screen" -- part of w
 | Mario Kart: Super Circuit (incl. Mario Kart Advance, Japan) | the race HUD, with a large course map; results and the cup podium |
 | Tony Hawk's Pro Skater 3 | the logo, for now; optional four-button layout |
 | Super Mario Advance 2: Super Mario World | the SELECT menu's level list on the world map; the status bar in levels; optional SNES layout |
-| Final Fantasy Tactics Advance | the logo, for now |
+| Final Fantasy Tactics Advance | in battles and the scenes around them: dialogue, menus and unit details |
 
 Any other GBA game also runs; it just plays on one screen. See [Supported games](https://github.com/kyannon/gba-ds/wiki/Supported-games) for what each game does.
 

@@ -503,7 +503,10 @@ static void filtered_draw_scanline(struct GBAVideoRenderer* renderer, int y);
  * no brightening or darkening of it (BLDCNT's backdrop first target; Super
  * Mario Advance 2 darkens the bottom rows a little more each line). */
 static uint16_t hud_reg(uint32_t a, uint16_t v) {
-	return a == 0x50 ? v & ~0x0020 : v;
+	/* nor blending with it (BLDCNT's backdrop second target): a
+	 * half-transparent panel would mix with that colour (Final Fantasy
+	 * Tactics Advance's menus); with nothing to mix with it's opaque */
+	return a == 0x50 ? v & ~0x2020 : v;
 }
 static uint16_t split_reg(struct GBAVideoRenderer* r, uint32_t a, uint16_t v) {
 	uint16_t out = split.writeVideoRegister(r, a, v);

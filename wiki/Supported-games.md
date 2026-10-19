@@ -12,7 +12,7 @@ The USA, European and Japanese releases are all supported. Any other GBA game al
 | Mario Kart: Super Circuit (Mario Kart Advance in Japan) | `AMKE` `AMKP` `AMKJ` | the race HUD, results and podium | — |
 | Tony Hawk's Pro Skater 3 | `AT3E` (USA and Europe) `AT3F` `AT3D` | the logo, for now; optional four-button layout | — |
 | Super Mario Advance 2: Super Mario World | `AA2E` `AA2P` `AA2J` | the SELECT menu on the world map; the status bar in levels; optional SNES layout | — |
-| Final Fantasy Tactics Advance | `AFXE` `AFXP` `AFXJ` | the logo, for now | — |
+| Final Fantasy Tactics Advance | `AFXE` `AFXP` `AFXJ` | in battles and the scenes on the battle maps: dialogue, menus, unit details | — |
 
 The codes are what `<CODE>` means in logo and overlay file names (see [Playing](Playing#logos) and [[Map screen surrounds and overlays]]).
 
@@ -56,9 +56,14 @@ You see the game's own map, with everything it shows (explored rooms, save and w
 - **In a level,** the status bar (lives, Dragon Coins, time, coins and score) moves to the top of the second screen, with a smaller logo below it. The blue item box stays at the top of the game screen, with your reserve item in it. Message boxes and the pause box stay on the game screen.
 - An optional **SNES layout** is under **Controls** on the second screen: see [Playing](Playing#buttons).
 
-## Tony Hawk's Pro Skater 3, Final Fantasy Tactics Advance
+## Final Fantasy Tactics Advance
 
-Newly added: they're in the game list with their logos on the second screen while second-screen features for them are worked out. Tony Hawk's Pro Skater 3 already has the four-button layout under **Controls** (GBA or Four buttons; no Auto yet).
+- **In battles and the scenes played on the battle maps** (the opening snowball fight included), everything the game draws over the map moves to the second screen: dialogue with its portraits, the name entry, banners such as GET READY!, the unit's details, the command menus and the tile height. It's drawn on black over the logo, dimmed. The game screen keeps the map, the units and the markers on the map (the move and target ranges, the arrow over the active unit, the target cursor).
+- Everywhere else (the title, the world map, menus), the second screen shows the logo.
+
+## Tony Hawk's Pro Skater 3
+
+Newly added: it's in the game list with its logo on the second screen while second-screen features for it are worked out. It already has the four-button layout under **Controls** (GBA or Four buttons; no Auto yet).
 
 ## Mario Kart: Super Circuit
 
