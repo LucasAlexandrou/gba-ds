@@ -222,6 +222,8 @@ static int mapX0, mapY0, mapX1, mapY1; /* the map's box on the HUD, measured ove
 static bool mapFound;
 static SpriteRule hudWorldObjs[4]; /* hud.world.objs, the same way */
 static SpriteRule hudObjs[6]; /* hudProf's hud.objs, as used (see romPatch) */
+static int hudFadeEff, hudFadeIn; /* the last full fade (2: white, 3: black); frames to fade the next backdrop in */
+static long hudPalRef[8]; /* bg_pal_levels() as the backdrop was taken */
 static unsigned hudKeep; /* BG layers kept on the game screen (FFTA's spells) */
 static bool hudWorld; /* FFTA's world map (hud.world) */
 static bool hudScene; /* the profile's other scene (Mario Kart's podium): logo backdrop, its own sprites */
@@ -806,6 +808,41 @@ static int hudRegrab; /* hudFrames at which to grab the map layer again (0: kept
 static bool hudSettle; /* after a fade: wait for the brightness to settle */
 static uint32_t hudMapSum; /* the grabbed map's tiles (map_tiles_sum) */
 
+/* How bright each of the first 8 BG palettes is (the map's; the menus use
+ * the others): games that fade the screen by scaling their palettes. */
+static void bg_pal_levels(long out[8]) {
+	for (int p = 0; p < 8; ++p) {
+		out[p] = 0;
+		for (int i = 0; i < 16; ++i) {
+			uint16_t c = emu_read16(&emu, 0x05000000 + (p * 16 + i) * 2);
+			out[p] += (c & 31) + ((c >> 5) & 31) + ((c >> 10) & 31);
+		}
+	}
+}
+
+/* How far the palettes have faded since ref, in 64ths: negative to black,
+ * positive to white; the median over the palettes (one replaced, not
+ * faded, doesn't count) */
+static int bg_pal_fade(const long ref[8]) {
+	long cur[8];
+	bg_pal_levels(cur);
+	int v[8], n = 0;
+	for (int p = 0; p < 8; ++p) {
+		if (ref[p] <= 0) continue;
+		long full = 16 * 93;
+		if (cur[p] < ref[p]) v[n++] = (int) -(64 - cur[p] * 64 / ref[p]);
+		else v[n++] = ref[p] < full ? (int) ((cur[p] - ref[p]) * 64 / (full - ref[p])) : 0;
+	}
+	if (!n) return 0;
+	for (int i = 1; i < n; ++i) {
+		for (int j = i; j > 0 && v[j - 1] > v[j]; --j) {
+			int t = v[j];
+			v[j] = v[j - 1], v[j - 1] = t;
+		}
+	}
+	return v[n / 2];
+}
+
 /* A checksum of a BG layer's tile graphics (its char block, the first 8 KB):
  * the same through a battle however the camera moves (its tile map, though,
  * is rewritten as the camera goes), another map's differ. */
@@ -837,12 +874,14 @@ static void hud_make_backdrop(void) {
 		if (hudSettle && good && labs(level - lastLevel) > 3) good = false;
 		lastLevel = level;
 		hudSettle = !good; /* (a poor take: the next must also hold steady) */
-		hudRegrab = good ? 0 : hudFrames + (hudSettle ? 15 : 30);
+		hudRegrab = good ? 0 : hudFrames + (hudSettle ? 5 : 30);
 		if (debug) fprintf(stderr, "frame %llu: backdrop taken: %ld%% drawn, brightness %ld%s\n", (unsigned long long) frameCount,
 		                   drawn * 100 / (GBA_W * GBA_H), luma / SDL_max(drawn, 1) / 3, good ? "" : " (again later)");
 		if (!good) return; /* keep the last good one meanwhile (or none: black) */
 	}
+	if (!hudBackValid && hudFadeEff) hudFadeIn = 16; /* (after a fade out) */
 	hudBackValid = true;
+	bg_pal_levels(hudPalRef);
 	if (debug) {
 		char path[1200];
 		snprintf(path, sizeof(path), "%s/hud-backdrop.bmp", cfg->stateDir);
@@ -1017,8 +1056,45 @@ static void hud_compose(void) {
 		memcpy(hudCanvas, hudLogoBelow, sizeof(hudCanvas));
 	} else if (hudBackValid) {
 		memcpy(hudCanvas, hudBack, sizeof(hudCanvas));
+		/* the game fading the whole screen to black or white: the
+		 * backdrop too. By BLDCNT (every BG layer, darken or brighten, by
+		 * BLDY, in 16ths) */
+		uint16_t bld = emu_read16(&emu, 0x04000050);
+		int fade = SDL_min(emu_read16(&emu, 0x04000054) & 31, 16), eff = (bld >> 6) & 3;
+		if (!((bld & 0x0F) == 0x0F && (eff == 2 || eff == 3) && fade)) fade = 0;
+		/* or by scaling its palettes (to black, or white): against how
+		 * bright they were as the backdrop was taken (in 64ths) */
+		int pf = fade ? 0 : bg_pal_fade(hudPalRef);
+		if (pf <= -2) eff = 3, fade = -pf;
+		else if (pf >= 2) eff = 2, fade = pf;
+		else fade *= 4;
+		fade = SDL_clamp(fade, 0, 64);
+		/* faded out all the way: that backdrop is done (the next scene's
+		 * comes in as the game fades in, or after: then fading in too) */
+		if (fade >= 62 && h->mapCnt) {
+			hudBackValid = false;
+			hudFadeEff = eff;
+			for (int i = 0; i < HUD_CW * HUD_CH; ++i) hudCanvas[i] = eff == 2 ? 0xFFFFFFFF : 0xFF000000;
+			fade = 0;
+		} else if (hudFadeIn > 0) {
+			/* a new backdrop, faded in over 16 frames from how the last
+			 * scene faded out, or less if the game's own fade is less */
+			int in = hudFadeIn-- * 4;
+			if (in > fade || eff != hudFadeEff) eff = hudFadeEff, fade = in;
+		}
+		if (fade) {
+			for (int i = 0; i < HUD_CW * HUD_CH; ++i) {
+				uint32_t c = hudCanvas[i], o = 0xFF000000;
+				for (int k = 0; k < 24; k += 8) {
+					int v = (c >> k) & 0xFF;
+					v = eff == 3 ? v - v * fade / 64 : v + (255 - v) * fade / 64;
+					o |= (uint32_t) v << k;
+				}
+				hudCanvas[i] = o;
+			}
+		}
 	} else {
-		uint32_t plain = h->mapCnt ? 0xFF000000 : 0xFF1A1010;
+		uint32_t plain = h->mapCnt ? (hudFadeEff == 2 ? 0xFFFFFFFF : 0xFF000000) : 0xFF1A1010;
 		for (int i = 0; i < HUD_CW * HUD_CH; ++i) hudCanvas[i] = plain;
 	}
 	/* moved pieces (the scene's, or racing's): how far each goes this frame */
@@ -1199,7 +1275,10 @@ static void update_hud(void) {
 	/* menus: the logo (or the map), once it's been gone for a third of a
 	 * second (not for a moment between rooms); no keep probes: never kept */
 	static int goneFor;
-	bool gone = !race && hudShown && !(h->keep[0].addr && memprobes_match(h->keep, 4, &emu));
+	/* (not while the game screen is blank between scenes: the second
+	 * screen stays as dark, or as white, as the fade left it) */
+	bool gone = !race && hudShown && !(h->keep[0].addr && memprobes_match(h->keep, 4, &emu)) &&
+	            !(h->mapCnt && frame_is_flat(emu.fb));
 	goneFor = gone ? goneFor + 1 : 0;
 	if (goneFor >= 20) {
 		hudShown = false;
@@ -2136,6 +2215,8 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		hudOn = false;
 		hudShown = false;
 		hudScene = false;
+		hudFadeEff = hudFadeIn = 0;
+		memset(hudPalRef, 0, sizeof(hudPalRef));
 		hudWorld = false;
 		hudLogoDone = false;
 		hudLogoBelowDone = false;
