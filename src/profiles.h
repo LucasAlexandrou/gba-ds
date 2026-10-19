@@ -194,15 +194,15 @@ typedef struct MapProfile {
 		 * Fantasy Tactics Advance). */
 		bool logoBehind;
 		/* Instead of bgMask: the BG layers drawn at a priority below this
-		 * (BGxCNT bits 0-1), taken again each frame. Final Fantasy Tactics
+		 * (BGxCNT bits 0-1), picked line by line as they're drawn. Final Fantasy Tactics
 		 * Advance moves its map and menus between layers, but its menus,
 		 * text and boxes are always priority 0-1, the map 2-3. */
 		int bgPrioBelow;
 		/* The map layer, by its BGxCNT value (Final Fantasy Tactics
 		 * Advance's battle maps, on whichever BG the game has it): the HUD
 		 * is on only while a layer has it, and the backdrop is that layer,
-		 * grabbed once as the HUD comes on, in grey with
-		 * backdropGrey. */
+		 * grabbed as the HUD comes on, in grey with backdropGrey; again
+		 * only for another map (its tile graphics differ). */
 		uint16_t mapCnt;
 		bool backdropGrey;
 	} hud;

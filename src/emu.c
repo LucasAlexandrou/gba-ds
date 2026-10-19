@@ -486,6 +486,10 @@ typedef struct {
 	/* one frame of other layers instead (emu_hud_grab) */
 	uint32_t* grabBuf;
 	unsigned grabMask;
+	uint16_t grabCnt; /* instead of grabMask: the BG with this BGxCNT then */
+	/* the HUD's layers by priority, taken as each frame starts (0: bgMask) */
+	int prioBelow;
+	struct GBA* gba;
 	bool grabbing, grabbed;
 	uint32_t* hudBuf;
 	uint16_t (*writeVideoRegister)(struct GBAVideoRenderer*, uint32_t, uint16_t);
@@ -530,9 +534,34 @@ static void split_layers(unsigned bgMask, bool obj) {
 	for (int i = 0; i < 4; ++i) split.hud.d.disableBG[i] = !((bgMask >> i) & 1);
 	split.hud.d.disableOBJ = !obj;
 }
+/* The BG layers with this BGxCNT value / at a priority below p, as the
+ * registers are now. */
+static unsigned bgs_with_cnt(uint16_t cnt) {
+	unsigned m = 0;
+	for (int i = 0; i < 4; ++i) m |= (unsigned) (split.gba->memory.io[(0x08 >> 1) + i] == cnt) << i;
+	return m;
+}
+static unsigned bgs_below(int p) {
+	unsigned m = 0;
+	for (int i = 0; i < 4; ++i) m |= (unsigned) ((split.gba->memory.io[(0x08 >> 1) + i] & 3) < p) << i;
+	return m;
+}
+
 static void split_draw(struct GBAVideoRenderer* r, int y) {
 	if (split.active) {
+		if (split.prioBelow) {
+			/* the game moves its map and menus between layers (between
+			 * frames and, as a panel slides, between lines): pick them for
+			 * each line as it's drawn */
+			unsigned m = bgs_below(split.prioBelow);
+			if (m != split.bgMask) {
+				split.bgMask = m;
+				for (int i = 0; i < 4; ++i) r->disableBG[i] = (m >> i) & 1;
+				if (!split.grabbing) split_layers(m, split.nObjs > 0);
+			}
+		}
 		if (y == 0 && split.grabBuf) {
+			if (split.grabCnt) split.grabMask = bgs_with_cnt(split.grabCnt);
 			/* this frame: the grab layers into grabBuf, no sprites */
 			split.grabbing = true;
 			split.hud.outputBuffer = (mColor*) split.grabBuf;
@@ -599,6 +628,7 @@ bool emu_hud_split(Emu* e, bool on, unsigned bgMask, const SpriteRule* objs, int
 		h->cache = NULL;
 		h->init(h);
 		split.main = r;
+		split.gba = gba;
 		split.writeVideoRegister = r->writeVideoRegister, r->writeVideoRegister = split_reg;
 		split.writeVRAM = r->writeVRAM, r->writeVRAM = split_vram;
 		split.writePalette = r->writePalette, r->writePalette = split_palette;
@@ -645,12 +675,22 @@ uint32_t emu_hud_clear(void) {
 	return split.installed ? (uint32_t) split.hud.normalPalette[0] & 0xFFFFFF : 0xFF00FF;
 }
 
+void emu_hud_by_priority(int prioBelow) {
+	split.prioBelow = prioBelow;
+}
+
 void emu_hud_grab(Emu* e, unsigned bgMask, uint32_t* buf) {
 	(void) e;
 	if (!split.installed || !split.active) return;
 	split.grabMask = bgMask;
+	split.grabCnt = 0;
 	split.grabBuf = buf;
 	split.grabbed = false;
+}
+
+void emu_hud_grab_cnt(Emu* e, uint16_t cnt, uint32_t* buf) {
+	emu_hud_grab(e, 0, buf);
+	split.grabCnt = cnt;
 }
 
 bool emu_hud_grabbed(void) {

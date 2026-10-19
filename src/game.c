@@ -784,6 +784,16 @@ static void snapshot_hiding_sprites(uint32_t* out) {
 /* The grabbed sky and scenery (the rows above the horizon), scaled up to
  * cover the canvas (centred), and dimmed well back. */
 static int hudRegrab; /* hudFrames at which to grab the map layer again (0: kept) */
+static uint32_t hudMapSum; /* the grabbed map's tiles (map_tiles_sum) */
+
+/* A checksum of a BG layer's tile graphics (its char block, the first 8 KB):
+ * the same through a battle however the camera moves, another map's differ. */
+static uint32_t map_tiles_sum(int bg) {
+	uint16_t cnt = emu_read16(&emu, 0x04000008 + bg * 2);
+	uint32_t base = 0x06000000 + ((cnt >> 2) & 3) * 0x4000, sum = 2166136261u;
+	for (uint32_t a = 0; a < 0x2000; a += 4) sum = (sum ^ emu_read32(&emu, base + a)) * 16777619u;
+	return sum;
+}
 
 static void hud_make_backdrop(void) {
 	int h = SDL_clamp(hudProf->hud.backdropRows ? hudProf->hud.backdropRows : GBA_H, 1, GBA_H);
@@ -1068,20 +1078,11 @@ static void update_hud(void) {
 		hudShown = true;
 	}
 	bool scene = race && h->scene.when[0].addr && memprobes_match(h->scene.when, 2, &emu);
-	/* the layers: fixed, or by priority as the game has them now */
-	static unsigned lastMask;
-	unsigned mask = h->bgMask;
-	if (h->bgPrioBelow) {
-		mask = 0;
-		for (int i = 0; i < 4; ++i) {
-			if ((emu_read16(&emu, 0x04000008 + i * 2) & 3) < h->bgPrioBelow) mask |= 1u << i;
-		}
-	}
-	if (race != hudOn || scene != hudScene || (race && mask != lastMask)) {
+	if (race != hudOn || scene != hudScene) {
 		const SpriteRule* objs = scene ? h->scene.objs : h->objs;
-		emu_hud_split(&emu, race, mask, objs, rule_count(objs, 4), hudPx);
-		if (debug && race && mask != lastMask) fprintf(stderr, "frame %llu: HUD layers %x\n", (unsigned long long) frameCount, mask);
-		lastMask = mask;
+		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, 4), hudPx);
+		/* (by priority: the renderer picks the layers line by line) */
+		emu_hud_by_priority(h->bgPrioBelow);
 		if (debug && race && scene != hudScene) fprintf(stderr, "frame %llu: HUD scene %s\n", (unsigned long long) frameCount, scene ? "on" : "off");
 		hudOn = race;
 		hudScene = scene;
@@ -1091,8 +1092,15 @@ static void update_hud(void) {
 	}
 	/* the course's backdrop, as each race starts (not for the scene) */
 	if (hudOn && ++hudFrames == 2 && h->backdrop && !hudScene) emu_hud_grab(&emu, h->backdrop, hudGrab);
-	/* the map layer as the backdrop, once as the HUD comes on */
-	if (hudOn && h->mapCnt && mapBg >= 0 && (hudFrames == 2 || hudFrames == hudRegrab)) emu_hud_grab(&emu, 1u << mapBg, hudGrab);
+	/* the map layer as the backdrop: once per map (its tiles' checksum),
+	 * when the HUD comes on, not again as it comes and goes in a battle */
+	if (hudOn && h->mapCnt && mapBg >= 0 && (hudFrames == 2 || hudFrames == hudRegrab)) {
+		uint32_t sum = map_tiles_sum(mapBg);
+		if (hudFrames == hudRegrab || !hudBackValid || sum != hudMapSum) {
+			hudMapSum = sum;
+			emu_hud_grab_cnt(&emu, h->mapCnt, hudGrab);
+		}
+	}
 	/* menus: the logo (or the map), once it's been gone for a third of a
 	 * second (not for a moment between rooms); no keep probes: never kept */
 	static int goneFor;

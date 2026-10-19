@@ -106,6 +106,11 @@ uint32_t emu_hud_clear(void);
  * into buf instead of the HUD (the HUD buffer keeps the last frame).
  * emu_hud_grabbed says, once, that it's done. */
 void emu_hud_grab(Emu* e, unsigned bgMask, uint32_t* buf);
+/* the same, the BG layer whose BGxCNT is cnt as that frame starts */
+void emu_hud_grab_cnt(Emu* e, uint16_t cnt, uint32_t* buf);
+/* While split: the HUD is the BG layers at a priority below p as each frame
+ * starts, instead of bgMask (0: bgMask again). */
+void emu_hud_by_priority(int prioBelow);
 bool emu_hud_grabbed(void);
 
 /* Cheats. emu_cheats_clear removes them all; emu_cheats_add adds one set
