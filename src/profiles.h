@@ -90,6 +90,11 @@ typedef struct MapProfile {
 		/* sprites left out of the copy (the frame is rendered again
 		 * without them): THPS2's CAREER / CASH counters and button prompts */
 		SpriteRule hide[4];
+		/* also left out, moved down as far as the show probes were */
+		SpriteRule hideDy[2];
+		/* the copy shows only these BG layers (bit 0 = BG0), over black
+		 * (0: the whole screen) */
+		unsigned bgMask;
 	} snap;
 	/* A second button layout for games ported from four-face-button
 	 * consoles (Tony Hawk's: GBA L / R stand in for two face buttons). The

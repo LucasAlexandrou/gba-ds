@@ -10,7 +10,7 @@ The USA, European and Japanese releases are all supported. Any other GBA game al
 | The Legend of Zelda: A Link to the Past & Four Swords | `AZLE` `AZLP` `AZLJ` | world and dungeon maps | L |
 | Tony Hawk's Pro Skater 2 (SK8 in Japan) | `ATHE` (USA and Europe) `ATHF` `ATHD` `ATHJ` | the goal sheet for the current run | — |
 | Mario Kart: Super Circuit (Mario Kart Advance in Japan) | `AMKE` `AMKP` `AMKJ` | the race HUD, results and podium | — |
-| Tony Hawk's Pro Skater 3 | `AT3E` (USA and Europe) `AT3F` `AT3D` | the goal list (English release); optional four-button layout | — |
+| Tony Hawk's Pro Skater 3 | `AT3E` (USA and Europe) `AT3F` `AT3D` | the goal list; optional four-button layout | — |
 | Super Mario Advance 2: Super Mario World | `AA2E` `AA2P` `AA2J` | the SELECT menu on the world map; the status bar in levels; optional SNES layout | — |
 | Final Fantasy Tactics Advance | `AFXE` `AFXP` `AFXJ` | in battles and the scenes on the battle maps: dialogue, menus, unit details | — |
 
@@ -65,7 +65,7 @@ You see the game's own map, with everything it shows (explored rooms, save and w
 
 ## Tony Hawk's Pro Skater 3
 
-- **View Goals** (in the pause menu, or after a run): the goal list is copied to the second screen and stays there for the rest of the run, without the score and timer. Back at the menus, the second screen shows the logo again. For now this is the USA/Europe (English) release only; the French and German ones keep the logo.
+- **View Goals** (in the pause menu, or after a run): the goal list is copied to the second screen on black and stays there for the rest of the run. Back at the menus, the second screen shows the logo again.
 - The four-button layout under **Controls**: GBA, Four buttons, or Auto (four buttons while skating), as for Tony Hawk's Pro Skater 2.
 
 ## Mario Kart: Super Circuit

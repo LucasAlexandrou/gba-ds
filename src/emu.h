@@ -82,6 +82,7 @@ uint8_t emu_read8(Emu* e, uint32_t addr);
 uint16_t emu_read16(Emu* e, uint32_t addr);
 uint32_t emu_read32(Emu* e, uint32_t addr);
 void emu_write8(Emu* e, uint32_t addr, uint8_t value);
+void emu_write16(Emu* e, uint32_t addr, uint16_t value);
 
 /* Pull up to maxFrames stereo frames of audio; returns frames read. */
 size_t emu_audio_read(Emu* e, int16_t* out, size_t maxFrames);

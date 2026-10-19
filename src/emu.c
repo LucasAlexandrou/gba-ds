@@ -299,6 +299,9 @@ uint8_t emu_read8(Emu* e, uint32_t a) {
 void emu_write8(Emu* e, uint32_t a, uint8_t v) {
 	e->core->rawWrite8(e->core, a, -1, v);
 }
+void emu_write16(Emu* e, uint32_t a, uint16_t v) {
+	e->core->rawWrite16(e->core, a, -1, v);
+}
 uint16_t emu_read16(Emu* e, uint32_t a) {
 	return e->core->rawRead16(e->core, a, -1);
 }

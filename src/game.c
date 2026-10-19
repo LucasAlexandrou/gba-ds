@@ -756,7 +756,14 @@ static int probes_hit(const uint32_t* fb, const Probe* p, int tol) {
 /* Renders the current frame again without these sprites (on top of the
  * ones already hidden: `kept`, put back afterwards) into out, then puts the
  * game back exactly as it was (state, picture, sound). */
+static void snapshot_layers(const SpriteRule* hide, int n, const SpriteRule* kept, int nKept, unsigned bgMask, uint32_t* out);
 static void snapshot_hiding_sprites(const SpriteRule* hide, int n, const SpriteRule* kept, int nKept, uint32_t* out) {
+	snapshot_layers(hide, n, kept, nKept, 0, out);
+}
+
+/* The same, with only the BG layers in bgMask (0: all) over a black
+ * backdrop (the copy of THPS3's goal list without the scene) */
+static void snapshot_layers(const SpriteRule* hide, int n, const SpriteRule* kept, int nKept, unsigned bgMask, uint32_t* out) {
 	static void* st;
 	static size_t stSize;
 	static uint32_t raw[GBA_W * GBA_H];
@@ -777,8 +784,13 @@ static void snapshot_hiding_sprites(const SpriteRule* hide, int n, const SpriteR
 	for (int i = 0; i < n && na < 8; ++i) all[na++] = hide[i];
 	emu_hide_sprites(&emu, all, na);
 	emu_state_load(&emu, st);
+	if (bgMask) {
+		emu_layers(&emu, (bgMask & 0xF) | 0x10);
+		emu_write16(&emu, 0x05000000, 0); /* the backdrop: black */
+	}
 	emu_frame(&emu, 0);
 	memcpy(out, emu.fb, sizeof(raw));
+	if (bgMask) emu_layers(&emu, 0x1F);
 	emu_hide_sprites(&emu, nKept ? kept : NULL, nKept);
 	emu_state_load(&emu, st);
 	int16_t drop[2048];
@@ -1301,6 +1313,7 @@ static void update_hud(void) {
 	}
 }
 
+static int snapDy; /* how much lower the show probes matched */
 static void update_snapshot(void) {
 	const typeof(snapProf->snap)* sn = &snapProf->snap;
 	int tol = sn->tol ? sn->tol : 12;
@@ -1312,6 +1325,7 @@ static void update_snapshot(void) {
 			if (sh[i].x || sh[i].y || sh[i].rgb) sh[i].y = SDL_min(sh[i].y + dy, GBA_H - 1);
 		}
 		shown = probes_hit(emu.fb, sh, tol) >= sn->showMin;
+		if (shown) snapDy = dy;
 	}
 	if (shown) {
 		snapRevert = 0;
@@ -1322,9 +1336,17 @@ static void update_snapshot(void) {
 				static uint32_t last[GBA_W * GBA_H], clean[GBA_W * GBA_H];
 				if (mapShownIdx < 0 || memcmp(last, emu.fb, sizeof(last))) {
 					memcpy(last, emu.fb, sizeof(last));
+					SpriteRule hide[6];
 					int n = 0;
-					while (n < 4 && sn->hide[n].x1) ++n;
-					snapshot_hiding_sprites(sn->hide, n, NULL, 0, clean);
+					while (n < 4 && sn->hide[n].x1) hide[n] = sn->hide[n], ++n;
+					/* and the ones that move with the probes (THPS3: the
+					 * heading above VIEW GOALS) */
+					for (int k = 0; k < 2 && sn->hideDy[k].x1; ++k) {
+						hide[n] = sn->hideDy[k];
+						hide[n].y0 += snapDy, hide[n].y1 += snapDy;
+						++n;
+					}
+					snapshot_layers(hide, n, NULL, 0, sn->bgMask, clean);
 					for (int i = 0; i < nViews; ++i) ui_update_texture(mapTex[i], clean, GBA_W * 4);
 				}
 				px = NULL;
