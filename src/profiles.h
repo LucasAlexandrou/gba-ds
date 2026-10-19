@@ -81,6 +81,12 @@ typedef struct MapProfile {
 		Probe revert[2][8];
 		int revertMin[2];
 		int stable, tol;
+		/* the show probes also match this many rows lower (THPS3: the goal
+		 * list sits lower after a run than in the pause menu) */
+		int showDy;
+		/* instead of revert: the copy stays while these match, and goes
+		 * back to the logo after they haven't for a second */
+		MemProbe keep[2];
 		/* sprites left out of the copy (the frame is rendered again
 		 * without them): THPS2's CAREER / CASH counters and button prompts */
 		SpriteRule hide[4];
@@ -97,6 +103,9 @@ typedef struct MapProfile {
 		bool fourFace;
 		int mode;
 		struct { int x, y; } hud[4];
+		/* Auto, instead of mode and hud: the player is skating while these
+		 * match (THPS3: the display with no menu layer) */
+		MemProbe playing[2];
 		/* Games ported from the SNES (Super Mario Advance 2): an "SNES"
 		 * layout instead of the four-face one. Face buttons by position give
 		 * these GBA keys, and both shoulders give GBA L. The game pans the

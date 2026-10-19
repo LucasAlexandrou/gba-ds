@@ -1304,7 +1304,16 @@ static void update_hud(void) {
 static void update_snapshot(void) {
 	const typeof(snapProf->snap)* sn = &snapProf->snap;
 	int tol = sn->tol ? sn->tol : 12;
-	if (probes_hit(emu.fb, sn->show, tol) >= sn->showMin) {
+	bool shown = false;
+	for (int dy = 0; dy <= sn->showDy && !shown; ++dy) {
+		Probe sh[8];
+		for (int i = 0; i < 8; ++i) {
+			sh[i] = sn->show[i];
+			if (sh[i].x || sh[i].y || sh[i].rgb) sh[i].y = SDL_min(sh[i].y + dy, GBA_H - 1);
+		}
+		shown = probes_hit(emu.fb, sh, tol) >= sn->showMin;
+	}
+	if (shown) {
 		snapRevert = 0;
 		if (++snapShow >= SDL_max(1, sn->stable)) {
 			const uint32_t* px = emu.fb;
@@ -1328,6 +1337,16 @@ static void update_snapshot(void) {
 	}
 	snapShow = 0;
 	if (mapShownIdx < 0) return;
+	if (sn->keep[0].addr) {
+		static int away;
+		away = memprobes_match(sn->keep, 2, &emu) ? 0 : away + 1;
+		if (away >= 60) {
+			mapShownIdx = -1;
+			away = 0;
+			if (debug) fprintf(stderr, "frame %llu: left the run, logo\n", (unsigned long long) frameCount);
+		}
+		return;
+	}
 	bool menu = false;
 	for (int k = 0; k < 2; ++k) {
 		if (sn->revertMin[k] && probes_hit(emu.fb, sn->revert[k], tol) >= sn->revertMin[k]) menu = true;
@@ -1357,6 +1376,7 @@ static char ctlPath[1400];
 /* The game's own HUD is up (display mode and a sprite at each position). */
 static bool ctl_playing_now(void) {
 	const typeof(ctlProf->controls)* c = &ctlProf->controls;
+	if (c->playing[0].addr) return memprobes_match(c->playing, 2, &emu);
 	if ((emu_read16(&emu, 0x04000000) & 7) != c->mode) return false;
 	int want = 0, found = 0;
 	while (want < 4 && (c->hud[want].x || c->hud[want].y)) ++want;
@@ -1374,7 +1394,7 @@ static bool ctl_playing_now(void) {
 /* tiles in the picker: Auto only where the profile can tell when the player
  * is skating (its display mode and HUD sprites) */
 static int ctl_tiles(void) {
-	return ctlProf && (ctlProf->controls.hud[0].x || ctlProf->controls.hud[0].y) ? 3 : 2;
+	return ctlProf && (ctlProf->controls.hud[0].x || ctlProf->controls.hud[0].y || ctlProf->controls.playing[0].addr) ? 3 : 2;
 }
 
 static bool ctl_four(void) {

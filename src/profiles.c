@@ -311,14 +311,32 @@ static const MapProfile profiles[] = {
 	{
 		.codes = { "AT3E", "AT3F", "AT3D" },
 		.title = "Tony Hawk's Pro Skater 3",
-		/* no second screen yet: listed, logo on the second screen */
+		/* no map: the logo on the second screen, or the goal list */
 		.logoOnly = true,
 		/* like THPS2's: one full-screen picture with the badge painted in
 		 * (the same in all three releases), steady from frame 540 to 640 */
 		.logo = { .wait = 590, .mask = &logoMaskTHPS3 },
-		/* the console layout as for THPS2 (no Auto yet: no mode / HUD to tell
-		 * skating from the menus) */
-		.controls = { .fourFace = true },
+		/* View Goals (the pause menu's, or after a run 12 rows lower): its
+		 * VIEW GOALS heading, cyan sprite text, copied to the second screen
+		 * for the rest of the run, without the score and timer along the
+		 * top and the button prompts along the bottom; back to the logo
+		 * once the run's display (DISPCNT 0x1C40 skating, 0x1D40 with a
+		 * menu) has been gone a second. (English only: the heading is
+		 * spelled differently in the French and German releases.) */
+		.snap = {
+			.show = { { 86, 32, 0x00D6FF }, { 90, 32, 0x00D6FF }, { 98, 32, 0x00D6FF }, { 108, 34, 0x00D6FF },
+			          { 118, 30, 0x00D6FF }, { 128, 30, 0x00D6FF }, { 141, 32, 0x00D6FF }, { 152, 32, 0x00D6FF } },
+			.showMin = 8,
+			.showDy = 12,
+			.stable = 3,
+			.tol = 8,
+			.keep = { { 0x04000000, 0xFEFF, 0x1C40, 2 } },
+			.hide = { { -64, -64, 255, 16, 0, 1023, -1 }, { -64, 140, 255, 159, 0, 1023, -1 } },
+		},
+		/* the console layout as for THPS2; Auto: skating is the display
+		 * with BG2, BG3 and sprites and no menu layer (0x1C40; menus and
+		 * the pause menu add BG0) */
+		.controls = { .fourFace = true, .playing = { { 0x04000000, 0xFFFF, 0x1C40, 2 } } },
 	},
 	{
 		.codes = { "AA2E", "AA2P" },

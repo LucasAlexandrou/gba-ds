@@ -1,7 +1,7 @@
 # Changelog
 
 ## v1.1.7 (not yet released)
-
+- **Tony Hawk's Pro Skater 3:** open **View Goals** during a run and the goal list goes to the second screen for the rest of the run (USA/Europe release). **Controls** now has **Auto**: the four-button layout while you're skating, the GBA layout in the menus.
 - **Three more games in the list:** Tony Hawk's Pro Skater 3 (USA/Europe, France, Germany), Super Mario Advance 2: Super Mario World (USA, Europe, Japan) and Final Fantasy Tactics Advance (USA, Europe, Japan), with their logos on the second screen. Tony Hawk's Pro Skater 3 also gets the four-button layout under **Controls** (GBA or Four buttons for now).
 - **Rewind:** hold **L2** to go back in time, up to 30 seconds, at double speed; let go to play on from there. On by default; **Rewind** in the pause menu (Performance) switches it off, and `rewind_seconds` in gba-ds.cfg sets how far back it goes.
 - **Super Mario Advance 2: Super Mario World** gets its second screen. On the world map it shows the SELECT menu (the island's levels with your time and score), kept up to date as you move; in a level, the status bar moves to the top of the second screen with a smaller logo below it, and the blue item box stays on the game screen.
