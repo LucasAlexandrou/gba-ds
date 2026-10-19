@@ -315,19 +315,20 @@ static const MapProfile profiles[] = {
 		 * map and its menus between layers, so the HUD layers are the ones
 		 * at priority 0-1 (the map is 2-3). Sprites: units use tiles below
 		 * 288, the markers on the map (shadows, the tile under a unit, the
-		 * one over it) 296-319, the height readout ("2h") 428-447: they
-		 * stay; the speech balloon's tail and the hand cursor (288-295),
-		 * portraits and panels (320 and up) move, but from 448 to 699 only
-		 * in palettes 0 and 9-15: an attack's effects there use the units'
-		 * palettes (a snowball: tile 481, palette 1); the name entry's tabs
-		 * and name box (740-851, palettes 5 and 9) all move. */
+		 * one over it) 296-319, scene objects and weather (snow) 320-427, the
+		 * height readout ("2h") 428-447: they stay; the speech balloon's
+		 * tail and the hand cursor (288-295) and portraits, panels and
+		 * banners (448 and up) move, but from 448 to 699 only in palettes 0
+		 * and 9-15: an attack's effects there use the units' palettes (a
+		 * snowball: tile 481, palette 1); the name entry's tabs and name
+		 * box (740-851, palettes 5 and 9) all move. */
 		.hud = {
 			/* (mode 0 with sprites: attacks turn layers off for a moment) */
 			.on = { { 0x04000000, 0x1007, 0x1000, 2 } },
 			.mapCnt = 0x4C03,
 			.bgPrioBelow = 2,
-			.objs = { { -512, -256, 511, 255, 288, 295, -1 }, { -512, -256, 511, 255, 320, 427, -1 },
-			          { -512, -256, 511, 255, 448, 699, -1, 0xFE01 }, { -512, -256, 511, 255, 700, 1023, -1 } },
+			.objs = { { -512, -256, 511, 255, 288, 295, -1 }, { -512, -256, 511, 255, 448, 699, -1, 0xFE01 },
+			          { -512, -256, 511, 255, 700, 1023, -1 } },
 			.backdropGrey = true,
 			/* the height readout stays on the game screen, not in the still */
 			.backdropHide = { { -512, -256, 511, 255, 428, 447, -1 } },
