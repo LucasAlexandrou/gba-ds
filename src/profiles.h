@@ -94,15 +94,11 @@ typedef struct MapProfile {
 		 * camera with L toward where the player faces; the SNES panned left
 		 * with L and right with R. So while a shoulder is held where `when`
 		 * matches (in a level, not paused; elsewhere the GBA layout), the
-		 * player's facing at `pan` (0 left, 1 right) is set the way to pan,
-		 * and put back when it's let go. The sprite would turn with it, so
-		 * meanwhile the ROM literal at `spriteLit` (the facing's offset from
-		 * `spriteBase`, in the code that draws the player) points at a ROM
-		 * byte holding the real facing instead. If the literal isn't what's
-		 * expected (another revision), shoulders are plain GBA L. */
+		 * byte at `pan` (the way the camera pans while L is held: 1 right,
+		 * 2 left) is set before each frame. */
 		struct {
 			uint32_t right, bottom, top, left;
-			uint32_t pan, spriteLit, spriteBase;
+			uint32_t pan;
 			MemProbe when[3];
 		} snes;
 	} controls;
