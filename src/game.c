@@ -1103,7 +1103,7 @@ static void update_hud(void) {
 	bool scene = race && h->scene.when[0].addr && memprobes_match(h->scene.when, 2, &emu);
 	if (race != hudOn || scene != hudScene) {
 		const SpriteRule* objs = scene ? h->scene.objs : h->objs;
-		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, 4), hudPx);
+		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, scene ? 4 : 6), hudPx);
 		/* (by priority: the renderer picks the layers line by line) */
 		emu_hud_by_priority(h->bgPrioBelow);
 		if (debug && race && scene != hudScene) fprintf(stderr, "frame %llu: HUD scene %s\n", (unsigned long long) frameCount, scene ? "on" : "off");
@@ -1124,7 +1124,7 @@ static void update_hud(void) {
 			/* the game screen as it is now: the scene, without the HUD (nor
 			 * the sprites the profile leaves out of it, rendered again) */
 			int nh = rule_count(h->backdropHide, 2);
-			if (nh) snapshot_hiding_sprites(h->backdropHide, nh, h->objs, rule_count(h->objs, 4), hudGrab);
+			if (nh) snapshot_hiding_sprites(h->backdropHide, nh, h->objs, rule_count(h->objs, 6), hudGrab);
 			else memcpy(hudGrab, emu.fb, sizeof(hudGrab));
 			hud_make_backdrop();
 		}
