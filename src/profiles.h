@@ -207,10 +207,12 @@ typedef struct MapProfile {
 		 * Advance moves its map and menus between layers, but its menus,
 		 * text and boxes are always priority 0-1, the map 2-3. */
 		int bgPrioBelow;
-		/* While these match, no BG layer moves (Final Fantasy Tactics
-		 * Advance: its animation engine is running, and a spell's effects
-		 * are drawn on the layers its text boxes use). */
+		/* While these match (Final Fantasy Tactics Advance: its animation
+		 * engine is running), a layer whose tiles mostly use palettes below
+		 * effectsPal stays on the game screen: a spell's effects are drawn
+		 * on the layers its text boxes use, in other palettes. */
 		MemProbe effects[2];
+		int effectsPal;
 		/* The map layer, by its BGxCNT value (Final Fantasy Tactics
 		 * Advance's battle maps, on whichever BG the game has it): the HUD
 		 * is on only while a layer has it. The backdrop is then a still of

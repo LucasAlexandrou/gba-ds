@@ -114,6 +114,11 @@ void emu_hud_grab_cnt(Emu* e, uint16_t cnt, uint32_t* buf);
 /* While split: the HUD is the BG layers at a priority below p as each frame
  * is drawn, instead of bgMask (0: bgMask again; -1: no layer). */
 void emu_hud_by_priority(int prioBelow);
+/* While split by priority: these BG layers (bit 0 = BG0) stay out of the
+ * HUD whatever their priority (from the next frame). */
+void emu_hud_keep_bgs(unsigned mask);
+/* VRAM (96 KB), for reading tile maps. */
+const uint16_t* emu_vram(Emu* e);
 bool emu_hud_grabbed(void);
 
 /* Cheats. emu_cheats_clear removes them all; emu_cheats_add adds one set

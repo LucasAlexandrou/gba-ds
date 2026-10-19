@@ -494,6 +494,7 @@ typedef struct {
 	uint16_t grabCnt; /* instead of grabMask: the BG with this BGxCNT then */
 	/* the HUD's layers by priority, taken as each frame starts (0: bgMask) */
 	int prioBelow;
+	unsigned keepBgs; /* never in the HUD (emu_hud_keep_bgs) */
 	struct GBA* gba;
 	bool grabbing, grabbed;
 	uint32_t* hudBuf;
@@ -555,7 +556,7 @@ static void split_draw(struct GBAVideoRenderer* r, int y) {
 			/* the game moves its map and menus between layers (between
 			 * frames and, as a panel slides, between lines): pick them for
 			 * each line as it's drawn */
-			unsigned m = bgs_below(split.prioBelow);
+			unsigned m = bgs_below(split.prioBelow) & ~split.keepBgs;
 			if (m != split.bgMask) {
 				split.bgMask = m;
 				for (int i = 0; i < 4; ++i) r->disableBG[i] = (m >> i) & 1;
@@ -679,6 +680,14 @@ uint32_t emu_hud_clear(void) {
 
 void emu_hud_by_priority(int prioBelow) {
 	split.prioBelow = prioBelow;
+}
+
+void emu_hud_keep_bgs(unsigned mask) {
+	split.keepBgs = mask;
+}
+
+const uint16_t* emu_vram(Emu* e) {
+	return ((struct GBA*) e->core->board)->video.vram;
 }
 
 void emu_hud_grab(Emu* e, unsigned bgMask, uint32_t* buf) {

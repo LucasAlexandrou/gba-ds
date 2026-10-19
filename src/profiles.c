@@ -368,8 +368,9 @@ static const MapProfile profiles[] = {
 		 * screen, over a still of the game screen (map and units, no HUD)
 		 * in grey, dimmed, taken as the HUD comes on. The game moves its
 		 * map and its menus between layers, so the HUD layers are the ones
-		 * at priority 0-1 (the map is 2-3), except while the animation
-		 * engine runs (`effects`): spells draw on those layers. Sprites: a
+		 * at priority 0-1 (the map is 2-3), except, while the animation
+		 * engine runs (`effects`), layers in palettes 0-8: spells draw on
+		 * those layers too. Sprites: a
 		 * ROM patch tags what the game's UI code draws (not its spells and
 		 * other animations, weapon swings, damage numbers, units or thrown
 		 * objects); of those, the speech balloon's tail and the hand cursor
@@ -386,6 +387,8 @@ static const MapProfile profiles[] = {
 			.bgPrioBelow = 2,
 			/* the animation engine's work area (0 when it's not running) */
 			.effects = { { 0x020159C0, 0xFFFFFFFF, 0x02000000, 4, true, 0x0203FFFF, true } },
+			/* (spells: palettes 0 and 6; text boxes and banners 11-14) */
+			.effectsPal = 9,
 			.objs = { { -512, -256, 511, 255, 288, 295, -1, 0, 0x0400 }, { -512, -256, 511, 255, 448, 1023, -1, 0, 0x0400 } },
 			.backdropGrey = true,
 			/* the height readout stays on the game screen, not in the still */

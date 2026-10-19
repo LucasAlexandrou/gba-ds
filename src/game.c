@@ -221,7 +221,7 @@ static int hudFrames; /* split frames since the race (re)started */
 static int mapX0, mapY0, mapX1, mapY1; /* the map's box on the HUD, measured over the first frames */
 static bool mapFound;
 static SpriteRule hudObjs[6]; /* hudProf's hud.objs, as used (see romPatch) */
-static bool hudFx; /* FFTA's animation engine is running: no BG layer moves */
+static unsigned hudKeep; /* BG layers kept on the game screen (FFTA's spells) */
 static bool hudScene; /* the profile's other scene (Mario Kart's podium): logo backdrop, its own sprites */
 static uint32_t hudLogoBack[HUD_CW * HUD_CH];
 static bool hudLogoDone;
@@ -1083,6 +1083,26 @@ static void hud_compose(void) {
 	}
 }
 
+/* The BG layers whose tile maps mostly use palettes below pal (shown or
+ * not: one turned on next frame is filled already) */
+static unsigned effect_bgs(int pal) {
+	const uint16_t* vram = emu_vram(&emu);
+	unsigned m = 0;
+	for (int i = 0; i < 4; ++i) {
+		uint16_t cnt = emu_read16(&emu, 0x04000008 + i * 2);
+		int n = 1024 * ((cnt >> 14) == 0 ? 1 : (cnt >> 14) == 3 ? 4 : 2);
+		const uint16_t* map = vram + ((cnt >> 8) & 31) * 1024;
+		int low = 0, high = 0;
+		for (int j = 0; j < n && ((cnt >> 8) & 31) * 1024 + j < 0x8000; ++j) {
+			if (!(map[j] & 0x3FF)) continue;
+			if ((map[j] >> 12) < pal) ++low;
+			else ++high;
+		}
+		if (low > high) m |= 1u << i;
+	}
+	return m;
+}
+
 /* After each frame: show the HUD it drew, and decide whether the next
  * one is split. A frame is shown only if it was split and still looks like
  * racing (the first pause-menu frame is split too, and is dropped). */
@@ -1108,7 +1128,7 @@ static void update_hud(void) {
 		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, scene ? 4 : 6), hudPx);
 		/* (by priority: the renderer picks the layers line by line) */
 		emu_hud_by_priority(h->bgPrioBelow);
-		hudFx = false;
+		hudKeep = 0;
 		if (debug && race && scene != hudScene) fprintf(stderr, "frame %llu: HUD scene %s\n", (unsigned long long) frameCount, scene ? "on" : "off");
 		hudOn = race;
 		hudScene = scene;
@@ -1117,12 +1137,14 @@ static void update_hud(void) {
 		mapFound = false;
 	}
 	/* a spell or other animation: its effects are on the text box layers,
-	 * so they stay (from the next frame: the layers are picked as it starts) */
-	bool fx = hudOn && h->effects[0].addr && memprobes_match(h->effects, 2, &emu);
-	if (fx != hudFx) {
-		emu_hud_by_priority(fx ? -1 : h->bgPrioBelow); /* (-1: none) */
-		if (debug) fprintf(stderr, "frame %llu: animation %s\n", (unsigned long long) frameCount, fx ? "on: layers stay" : "off");
-		hudFx = fx;
+	 * in other palettes than the text boxes; those layers stay (from the
+	 * next frame) */
+	unsigned keep = 0;
+	if (hudOn && h->effects[0].addr && memprobes_match(h->effects, 2, &emu)) keep = effect_bgs(h->effectsPal);
+	if (keep != hudKeep) {
+		emu_hud_keep_bgs(keep);
+		if (debug) fprintf(stderr, "frame %llu: effect layers %X\n", (unsigned long long) frameCount, keep);
+		hudKeep = keep;
 	}
 	/* the course's backdrop, as each race starts (not for the scene) */
 	if (hudOn && ++hudFrames == 2 && h->backdrop && !hudScene) emu_hud_grab(&emu, h->backdrop, hudGrab);
