@@ -175,6 +175,9 @@ static void run_frame(uint32_t keys) {
 				if (hold) {
 					write32(spriteLit, hold - sn->spriteBase);
 					pan.on = true;
+					static bool told;
+					if (!told) told = true, fprintf(stderr, "camera pan: first pan (%s, Mario faces %s, game mode %02x)\n",
+					                                  want & KX_PAN_L ? "left" : "right", pan.facing ? "right" : "left", emu_read8(&emu, sn->when[0].addr));
 					if (debug) fprintf(stderr, "camera pan %s (Mario faces %s)\n", want & KX_PAN_L ? "left" : "right", pan.facing ? "right" : "left");
 				}
 			}
@@ -2025,7 +2028,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (spriteLit) fprintf(stderr, "camera pan: Mario's sprite code at %08x%s\n", spriteLit, spriteLit == cp->controls.snes.spriteLit ? "" : " (found by searching)");
 			else fprintf(stderr, "camera pan: Mario's sprite code not found in this ROM: L and R both pan the way he faces\n");
 		}
-		if (ctlProf) ctl_load();
+		if (ctlProf) {
+			ctl_load();
+			fprintf(stderr, "controls: %s\n", ctl_name(ctlMode));
+		}
 	}
 	if (cfg->map) {
 #ifdef __ANDROID__
@@ -2429,6 +2435,12 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			} else {
 				if (HELD(B_L)) keys |= K_L;
 				if (HELD(B_R)) keys |= K_R;
+				static bool told;
+				if (!told && ctl_four() && ctl_snes() && (HELD(B_L) || HELD(B_R))) {
+					told = true; /* (for reports: once) */
+					fprintf(stderr, "controls: SNES chosen, but the GBA layout here (game mode %02x, paused %02x)\n",
+					        emu_read8(&emu, ctlProf->controls.snes.when[0].addr), emu_read8(&emu, ctlProf->controls.snes.when[2].addr));
+				}
 			}
 			if (HELD(B_UP)) keys |= K_UP;
 			if (HELD(B_DOWN)) keys |= K_DOWN;
