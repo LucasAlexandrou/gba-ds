@@ -383,6 +383,11 @@ static const MapProfile profiles[] = {
 			/* to the world map (0x1B, 0x1D) or the title it goes */
 			.keep = { { 0x03002BC6, 0xFF, 0x1F, 1, true, 0x23, true } },
 			.bgMask = 8,
+			/* the boss rooms (display mode 1, BG2 rotating): the status bar
+			 * is BG0 (0xD044), the lava BG1 */
+			.alt = { .on = { { 0x03002BC6, 0xFF, 0x24, 1 }, { 0x04000000, 0x0107, 0x0101, 2 },
+			                 { 0x04000008, 0xFFFC, 0xD044, 2 } },
+			         .bgMask = 1 },
 			.moves = { { 104, 0, 135, 15, 0, 0, 0, 0, true }, { 0, 16, 239, 159, 0, 0, 0, 0, true } },
 			.logoBelow = true,
 		},

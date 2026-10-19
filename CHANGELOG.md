@@ -1,7 +1,7 @@
 # Changelog
 
 ## v1.2.1 (not yet released)
-- **Super Mario Advance 2:** the status bar stays on the second screen in castle rooms behind doors (it switched to the logo and stayed there), and the SNES layout keeps working there.
+- **Super Mario Advance 2:** the status bar stays on the second screen in castle rooms behind doors and in the boss fights (it switched to the logo and stayed there), and the SNES layout keeps working in those rooms.
 
 ## v1.2 (2026-10-19)
 - **Three more games in the list:** Final Fantasy Tactics Advance (USA, Europe, Japan), Super Mario Advance 2: Super Mario World (USA, Europe, Japan) and Tony Hawk's Pro Skater 3 (USA/Europe, France, Germany), each with its own second screen and its logo when there's nothing else to show.

@@ -175,6 +175,13 @@ typedef struct MapProfile {
 		 * pipe, which the world map does too on the way into a level. */
 		MemProbe stay[2];
 		unsigned bgMask;
+		/* The HUD on another layer where every alt.on probe matches (`on`
+		 * not matching): Super Mario Advance 2's boss rooms, in display
+		 * mode 1, have the status bar on BG0. Same sprites and moves. */
+		struct {
+			MemProbe on[4];
+			unsigned bgMask;
+		} alt;
 		SpriteRule objs[6]; /* the sprites that move with it */
 		/* While every `layout` probe matches (racing, not the results):
 		 * HUD pixels in `sign` stay on the game screen when the HUD has

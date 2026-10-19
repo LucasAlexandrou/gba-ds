@@ -227,6 +227,7 @@ static long hudPalRef[8]; /* bg_pal_levels() as the backdrop was taken */
 static unsigned hudKeep; /* BG layers kept on the game screen (FFTA's spells) */
 static bool hudWorld; /* FFTA's world map (hud.world) */
 static bool hudScene; /* the profile's other scene (Mario Kart's podium): logo backdrop, its own sprites */
+static bool hudAlt; /* the HUD on its other layer (hud.alt: SMA2's boss rooms) */
 static uint32_t hudLogoBack[HUD_CW * HUD_CH];
 static bool hudLogoDone;
 static bool hudShown; /* the second screen shows the HUD picture (hudTex) */
@@ -1257,7 +1258,11 @@ static unsigned effect_bgs(int pal) {
  * racing (the first pause-menu frame is split too, and is dropped). */
 static void update_hud(void) {
 	const typeof(hudProf->hud)* h = &hudProf->hud;
-	bool race = memprobes_match(h->on, 4, &emu) || (hudOn && h->stay[0].addr && memprobes_match(h->stay, 2, &emu));
+	bool main = memprobes_match(h->on, 4, &emu);
+	bool altOn = !main && h->alt.on[0].addr && memprobes_match(h->alt.on, 4, &emu);
+	bool race = main || altOn || (hudOn && h->stay[0].addr && memprobes_match(h->stay, 2, &emu));
+	/* the HUD's other layer (alt): kept while it stays on through a fade */
+	bool alt = main ? false : altOn ? true : hudAlt;
 	/* the map layer: which BG has it (none: not on a map) */
 	int mapBg = -1;
 	bool world = false;
@@ -1275,9 +1280,11 @@ static void update_hud(void) {
 		hudShown = true;
 	}
 	bool scene = race && h->scene.when[0].addr && memprobes_match(h->scene.when, 2, &emu);
-	if (race != hudOn || scene != hudScene || world != hudWorld) {
+	if (race != hudOn || scene != hudScene || world != hudWorld || alt != hudAlt) {
 		const SpriteRule* objs = scene ? h->scene.objs : world ? hudWorldObjs : hudObjs;
-		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, scene ? 4 : world ? 4 : 6), hudPx);
+		emu_hud_split(&emu, race, alt ? h->alt.bgMask : h->bgMask, objs, rule_count(objs, scene ? 4 : world ? 4 : 6), hudPx);
+		if (debug && race && alt != hudAlt) fprintf(stderr, "frame %llu: HUD on its other layer%s\n", (unsigned long long) frameCount, alt ? "" : ": off");
+		hudAlt = alt;
 		/* (by priority: the renderer picks the layers line by line) */
 		emu_hud_by_priority(h->bgPrioBelow);
 		hudKeep = 0;
@@ -2295,6 +2302,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		hudFadeEff = hudFadeIn = 0;
 		memset(hudPalRef, 0, sizeof(hudPalRef));
 		hudWorld = false;
+		hudAlt = false;
 		hudLogoDone = false;
 		hudLogoBelowDone = false;
 		hudBackValid = false;
