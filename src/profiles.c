@@ -333,7 +333,7 @@ static const MapProfile profiles[] = {
 		.live = { { 0x04000000, 0xFFFF, 0x1C40, 2 } },
 		.menu = { { 0x04000000, 0x0400, 0x0000, 2 } },
 		.captureLayers = 0x1,
-		.captureHide = { { -64, -64, 255, 24, 0, 1023, -1 }, { -64, 140, 255, 159, 0, 1023, -1 },
+		.captureHide = { { -64, -64, 255, 24, 0, 1023, -1 }, { -64, 126, 255, 159, 0, 1023, -1 },
 		                 { -512, -256, 511, 255, 0, 1023, 1 }, { -512, -256, 511, 255, 0, 1023, 2 },
 		                 { -512, -256, 511, 255, 0, 1023, 3 } },
 		/* the console layout as for THPS2; Auto: skating is the display
