@@ -1,6 +1,6 @@
 @ Final Fantasy Tactics Advance: tags the sprites the game's UI code draws
-@ (attr1 bit 10, unused on sprites that aren't rotated), so GBA DS's HUD
-@ split moves those and nothing else. Every sprite list the game builds
+@ (attr1 bit 10, unused on sprites that aren't rotated; bit 9 too for its
+@ overlay list), so GBA DS's HUD split moves those and nothing else. Every sprite list the game builds
 @ goes through one routine (the core, 0x080014C8 in the USA release); its
 @ first 12 bytes are replaced by a Thumb->ARM long jump to this code, put
 @ in the ROM's 0xFF padding at 0x08FFFF00. It runs the core, then tags the
@@ -58,6 +58,19 @@ t:
 	bl reloc
 	cmp r7, #0
 	beq 6f
+	@ r6: the tag, bit 10, and bit 9 too on the overlay list (0x03002C58,
+	@ two buffers of 48: the notices' arrow, the world map's date)
+	movs r6, #4
+	lsls r6, r6, #8
+	ldr r3, =0x03002C58
+	cmp r4, r3
+	blo 4f
+	ldr r3, =0x03002F58
+	cmp r4, r3
+	bhs 4f
+	movs r3, #2
+	lsls r3, r3, #8
+	orrs r6, r3
 	@ tag entries START..r0 (the count the core returns)
 4:	cmp r5, r0
 	bge 6f
@@ -67,9 +80,7 @@ t:
 	lsls r3, r2, #23
 	bmi 5f
 	ldrh r2, [r1, #2]
-	movs r3, #4
-	lsls r3, r3, #8
-	orrs r2, r3
+	orrs r2, r6
 	strh r2, [r1, #2]
 5:	adds r5, #1
 	b 4b

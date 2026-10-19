@@ -220,6 +220,7 @@ static bool hudBackValid;
 static int hudFrames; /* split frames since the race (re)started */
 static int mapX0, mapY0, mapX1, mapY1; /* the map's box on the HUD, measured over the first frames */
 static bool mapFound;
+static SpriteRule hudWorldObjs[2]; /* hud.world.objs, the same way */
 static SpriteRule hudObjs[6]; /* hudProf's hud.objs, as used (see romPatch) */
 static unsigned hudKeep; /* BG layers kept on the game screen (FFTA's spells) */
 static bool hudWorld; /* FFTA's world map (hud.world) */
@@ -1128,7 +1129,7 @@ static void update_hud(void) {
 	}
 	bool scene = race && h->scene.when[0].addr && memprobes_match(h->scene.when, 2, &emu);
 	if (race != hudOn || scene != hudScene || world != hudWorld) {
-		const SpriteRule* objs = scene ? h->scene.objs : world ? h->world.objs : hudObjs;
+		const SpriteRule* objs = scene ? h->scene.objs : world ? hudWorldObjs : hudObjs;
 		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, scene ? 4 : world ? 2 : 6), hudPx);
 		/* (by priority: the renderer picks the layers line by line) */
 		emu_hud_by_priority(h->bgPrioBelow);
@@ -2129,6 +2130,10 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			bool patched = profile_patch_rom(hudProf, &emu);
 			if (patched) fprintf(stderr, "HUD split: ROM patched\n");
 			for (int i = 0; !patched && i < 6; ++i) hudObjs[i].tagged = 0;
+			memcpy(hudWorldObjs, hudProf->hud.world.objs, sizeof(hudWorldObjs));
+			for (int i = 0; !patched && i < 2; ++i) {
+				if (hudWorldObjs[i].tagged) hudWorldObjs[i].tagged = 0, hudWorldObjs[i].prio = 0;
+			}
 		}
 		hudOn = false;
 		hudShown = false;

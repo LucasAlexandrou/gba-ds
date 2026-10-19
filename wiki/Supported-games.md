@@ -60,7 +60,7 @@ You see the game's own map, with everything it shows (explored rooms, save and w
 
 - **In battles and the scenes played on the battle maps** (the opening snowball fight included), everything the game draws over the map moves to the second screen: dialogue with its portraits, the name entry, banners such as GET READY!, the unit's details and the command menus. Behind them is the scene itself (the map and the units, without the menus or the tile height), in grey and dimmed, as it looked when it began: it doesn't follow the camera, and is taken again only when the game fades to black or white and back (a new scene). The game screen keeps the map, the units, the markers on the map (the move and target ranges, the arrow over the active unit, the target cursor) and the tile height. Spells, weapon swings, explosions, damage numbers and other effects also stay on the game screen.
 - A unit's **Status** screen stays whole on the game screen.
-- **On the world map,** the notices, your clan funds and the date move to the second screen, over the map in grey; the game screen keeps the map, Marche and the towns.
+- **On the world map,** the notices, your clan funds and the date move to the second screen, over the map in grey; the game screen keeps the map, Marche and the towns, and a new area you're placing with its name.
 - Everywhere else (the title, menus), the second screen shows the logo.
 
 ## Tony Hawk's Pro Skater 3
