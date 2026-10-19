@@ -221,6 +221,13 @@ typedef struct MapProfile {
 		 * after the game fades to black and back, once the brightness
 		 * settles; in grey with backdropGrey. */
 		uint16_t mapCnt;
+		/* Another map layer (Final Fantasy Tactics Advance's world map):
+		 * while a layer has it, these sprites move instead of objs, and
+		 * the backdrop is that layer alone. */
+		struct {
+			uint16_t mapCnt;
+			SpriteRule objs[2];
+		} world;
 		bool backdropGrey;
 		SpriteRule backdropHide[2]; /* sprites left out of that still (rendered again) */
 	} hud;

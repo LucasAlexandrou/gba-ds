@@ -384,6 +384,11 @@ static const MapProfile profiles[] = {
 			/* (mode 0 with sprites: attacks turn layers off for a moment) */
 			.on = { { 0x04000000, 0x1007, 0x1000, 2 } },
 			.mapCnt = 0x4C03,
+			/* the world map (BG0: the land, BG1: the map, BG2-3: the
+			 * notices, clan funds and date): the priority-0 sprites (the
+			 * notice's arrow, the month's name) move, the map's markers
+			 * and Marche (priority 2) stay; the backdrop is the land */
+			.world = { 0x8A03, { { -512, -256, 511, 255, 0, 1023, 0 } } },
 			.bgPrioBelow = 2,
 			/* the animation engine's work area (0 when it's not running) */
 			.effects = { { 0x020159C0, 0xFFFFFFFF, 0x02000000, 4, true, 0x0203FFFF, true } },

@@ -222,6 +222,7 @@ static int mapX0, mapY0, mapX1, mapY1; /* the map's box on the HUD, measured ove
 static bool mapFound;
 static SpriteRule hudObjs[6]; /* hudProf's hud.objs, as used (see romPatch) */
 static unsigned hudKeep; /* BG layers kept on the game screen (FFTA's spells) */
+static bool hudWorld; /* FFTA's world map (hud.world) */
 static bool hudScene; /* the profile's other scene (Mario Kart's podium): logo backdrop, its own sprites */
 static uint32_t hudLogoBack[HUD_CW * HUD_CH];
 static bool hudLogoDone;
@@ -1111,8 +1112,11 @@ static void update_hud(void) {
 	bool race = memprobes_match(h->on, 4, &emu);
 	/* the map layer: which BG has it (none: not on a map) */
 	int mapBg = -1;
+	bool world = false;
 	for (int i = 0; h->mapCnt && i < 4; ++i) {
-		if (emu_read16(&emu, 0x04000008 + i * 2) == h->mapCnt) mapBg = i;
+		uint16_t cnt = emu_read16(&emu, 0x04000008 + i * 2);
+		if (cnt == h->mapCnt) mapBg = i;
+		else if (h->world.mapCnt && cnt == h->world.mapCnt) mapBg = i, world = true;
 	}
 	if (h->mapCnt && mapBg < 0) race = false;
 	if (hudOn && race) {
@@ -1123,15 +1127,16 @@ static void update_hud(void) {
 		hudShown = true;
 	}
 	bool scene = race && h->scene.when[0].addr && memprobes_match(h->scene.when, 2, &emu);
-	if (race != hudOn || scene != hudScene) {
-		const SpriteRule* objs = scene ? h->scene.objs : hudObjs;
-		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, scene ? 4 : 6), hudPx);
+	if (race != hudOn || scene != hudScene || world != hudWorld) {
+		const SpriteRule* objs = scene ? h->scene.objs : world ? h->world.objs : hudObjs;
+		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, scene ? 4 : world ? 2 : 6), hudPx);
 		/* (by priority: the renderer picks the layers line by line) */
 		emu_hud_by_priority(h->bgPrioBelow);
 		hudKeep = 0;
 		if (debug && race && scene != hudScene) fprintf(stderr, "frame %llu: HUD scene %s\n", (unsigned long long) frameCount, scene ? "on" : "off");
 		hudOn = race;
 		hudScene = scene;
+		hudWorld = world;
 		hudFrames = 0;
 		hudRegrab = 0;
 		mapFound = false;
@@ -1157,9 +1162,14 @@ static void update_hud(void) {
 			/* the game screen as it is now: the scene, without the HUD (nor
 			 * the sprites the profile leaves out of it, rendered again) */
 			int nh = rule_count(h->backdropHide, 2);
-			if (nh) snapshot_hiding_sprites(h->backdropHide, nh, hudObjs, rule_count(hudObjs, 6), hudGrab);
-			else memcpy(hudGrab, emu.fb, sizeof(hudGrab));
-			hud_make_backdrop();
+			if (world) {
+				/* the world map: its bottom layer alone, drawn next frame */
+				emu_hud_grab(&emu, 1u << mapBg, hudGrab);
+			} else {
+				if (nh) snapshot_hiding_sprites(h->backdropHide, nh, hudObjs, rule_count(hudObjs, 6), hudGrab);
+				else memcpy(hudGrab, emu.fb, sizeof(hudGrab));
+				hud_make_backdrop();
+			}
 		}
 	}
 	/* a scene change: the game fades to black (or white) and back (to
@@ -2118,6 +2128,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		hudOn = false;
 		hudShown = false;
 		hudScene = false;
+		hudWorld = false;
 		hudLogoDone = false;
 		hudLogoBelowDone = false;
 		hudBackValid = false;
