@@ -1,5 +1,7 @@
 # Changelog
 
+## v1.2.1 (not yet released)
+
 ## v1.2 (2026-10-19)
 - **Three more games in the list:** Final Fantasy Tactics Advance (USA, Europe, Japan), Super Mario Advance 2: Super Mario World (USA, Europe, Japan) and Tony Hawk's Pro Skater 3 (USA/Europe, France, Germany), each with its own second screen and its logo when there's nothing else to show.
 - **Final Fantasy Tactics Advance:** in battles and the scenes on the battle maps, the dialogue, name entry, banners (GET READY!, BATTLE WON!), unit details and command menus move to the second screen, over a still of the scene in grey, leaving the map, the units, the tile height, and every spell, weapon and ability effect on the game screen. On the world map, the notices, clan funds, date and button prompts move there too, over the land and its roads and towns. The still fades to black or white with the game.
