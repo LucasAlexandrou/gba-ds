@@ -65,7 +65,7 @@ You see the game's own map, with everything it shows (explored rooms, save and w
 
 ## Tony Hawk's Pro Skater 3
 
-- **View Goals** (in the pause menu, or after a run): the goal list is copied to the second screen on black and stays there for the rest of the run. Back at the menus, the second screen shows the logo again.
+- **During a run** the second screen shows the level's goal list (the pause menu's View Goals), on black, brought up in the background like the other games' maps and kept up to date as you go; the game is never paused. Back at the menus, it shows the logo again.
 - The four-button layout under **Controls**: GBA, Four buttons, or Auto (four buttons while skating), as for Tony Hawk's Pro Skater 2.
 
 ## Mario Kart: Super Circuit

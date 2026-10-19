@@ -81,20 +81,9 @@ typedef struct MapProfile {
 		Probe revert[2][8];
 		int revertMin[2];
 		int stable, tol;
-		/* the show probes also match this many rows lower (THPS3: the goal
-		 * list sits lower after a run than in the pause menu) */
-		int showDy;
-		/* instead of revert: the copy stays while these match, and goes
-		 * back to the logo after they haven't for a second */
-		MemProbe keep[2];
 		/* sprites left out of the copy (the frame is rendered again
 		 * without them): THPS2's CAREER / CASH counters and button prompts */
 		SpriteRule hide[4];
-		/* also left out, moved down as far as the show probes were */
-		SpriteRule hideDy[2];
-		/* the copy shows only these BG layers (bit 0 = BG0), over black
-		 * (0: the whole screen) */
-		unsigned bgMask;
 	} snap;
 	/* A second button layout for games ported from four-face-button
 	 * consoles (Tony Hawk's: GBA L / R stand in for two face buttons). The
@@ -297,7 +286,12 @@ typedef struct MapProfile {
 	/* Sprites left out of the map capture (when map_crop is on): prompts the
 	 * game draws over the map as sprites (Fusion's "A OBJECTIVE"), so the map
 	 * underneath shows instead. */
-	SpriteRule captureHide[4];
+	SpriteRule captureHide[6];
+	/* The capture shows only these BG layers (bit i: BG i) and sprites, over
+	 * black, with captureHide always applied (0: the whole screen, sprites
+	 * hidden only with map_crop): Tony Hawk's Pro Skater 3's goal list,
+	 * its panel without the scene behind. */
+	unsigned captureLayers;
 	/* Parts of the map capture (screen rects, inclusive) taken from a render
 	 * of only `underLayers` (bits 0-3 BG0-3, bit 4 sprites), made once per
 	 * capture: bezel pieces drawn over the map, like Zero Mission's corner

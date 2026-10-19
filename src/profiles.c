@@ -311,34 +311,31 @@ static const MapProfile profiles[] = {
 	{
 		.codes = { "AT3E" },
 		.title = "Tony Hawk's Pro Skater 3",
-		/* no map: the logo on the second screen, or the goal list */
-		.logoOnly = true,
 		/* like THPS2's: one full-screen picture with the badge painted in
 		 * (the same in all three releases), steady from frame 540 to 640 */
 		.logo = { .wait = 590, .mask = &logoMaskTHPS3 },
-		/* View Goals (the pause menu's, or after a run 12 rows lower): its
-		 * VIEW GOALS heading, cyan sprite text, copied to the second screen
-		 * for the rest of the run, without the score and timer along the
-		 * top and the button prompts along the bottom; back to the logo
-		 * once the run's display (DISPCNT 0x1C40 skating, 0x1D40 with a
-		 * menu) has been gone a second. The French and German headings
-		 * (VOIR OBJ., ZIELE ZEIGEN) have their own probes (variants). */
-		.snap = {
-			.show = { { 86, 32, 0x00D6FF }, { 90, 32, 0x00D6FF }, { 98, 32, 0x00D6FF }, { 108, 34, 0x00D6FF },
-			          { 118, 30, 0x00D6FF }, { 128, 30, 0x00D6FF }, { 141, 32, 0x00D6FF }, { 152, 32, 0x00D6FF } },
-			/* the panel (BG0) and its text alone, on black, without the
-			 * PAUSE / POST SKATE heading (the row above VIEW GOALS) */
-			.bgMask = 0x1,
-			.showMin = 8,
-			.showDy = 12,
-			.stable = 3,
-			.tol = 8,
-			.keep = { { 0x04000000, 0xFEFF, 0x1C40, 2 } },
-			.hide = { { -64, -64, 255, 16, 0, 1023, -1 }, { -64, 140, 255, 159, 0, 1023, -1 },
-			          /* the skater and the scene's sprites (behind: priority 1-3) */
-			          { -512, -256, 511, 255, 0, 1023, 1 }, { -512, -256, 511, 255, 0, 1023, 2 } },
-			.hideDy = { { -64, 16, 255, 24, 0, 1023, -1 }, { -512, -256, 511, 255, 0, 1023, 3 } },
-		},
+		/* The "map" is the goal list (pause, View Goals), captured while
+		 * skating (DISPCNT 0x1C40: BG2, BG3, sprites; menus add BG0),
+		 * recognised by its VIEW GOALS heading (cyan sprite text). Only the
+		 * panel (BG0) and its text are kept, on black: not the scene
+		 * behind, the skater and the scene's sprites (priority 1-3), the
+		 * score and timer along the top, the PAUSE heading (row 20) and
+		 * the prompts along the bottom. The logo again at the menus (no
+		 * BG2). The French and German headings (VOIR OBJ., ZIELE ZEIGEN)
+		 * have their own probes (variants). */
+		.open = { { K_START, 3 }, { 0, 25 }, { K_DOWN, 3 }, { 0, 9 }, { K_DOWN, 3 }, { 0, 9 }, { K_A, 3 } },
+		.settleMax = 90, .openWithin = 60, .stableFrames = 3, .maxDiff = 40,
+		.crop_x = 0, .crop_y = 0, .crop_w = 240, .crop_h = 160,
+		.probes = { { 86, 32, 0x00D6FF }, { 90, 32, 0x00D6FF }, { 98, 32, 0x00D6FF }, { 108, 34, 0x00D6FF },
+		            { 118, 30, 0x00D6FF }, { 128, 30, 0x00D6FF }, { 141, 32, 0x00D6FF }, { 152, 32, 0x00D6FF } },
+		.tolerance = 8,
+		.mem = { { 0x04000000, 0xFFFF, 0x1D40, 2 } },
+		.live = { { 0x04000000, 0xFFFF, 0x1C40, 2 } },
+		.menu = { { 0x04000000, 0x0400, 0x0000, 2 } },
+		.captureLayers = 0x1,
+		.captureHide = { { -64, -64, 255, 24, 0, 1023, -1 }, { -64, 140, 255, 159, 0, 1023, -1 },
+		                 { -512, -256, 511, 255, 0, 1023, 1 }, { -512, -256, 511, 255, 0, 1023, 2 },
+		                 { -512, -256, 511, 255, 0, 1023, 3 } },
 		/* the console layout as for THPS2; Auto: skating is the display
 		 * with BG2, BG3 and sprites and no menu layer (0x1C40; menus and
 		 * the pause menu add BG0) */
@@ -611,13 +608,13 @@ static void ffta_jpn(MapProfile* p) {
 static void thps3_fra(MapProfile* p) {
 	static const Probe show[8] = { { 93, 32, 0x00D6FF }, { 101, 30, 0x00D6FF }, { 108, 32, 0x00D6FF }, { 116, 31, 0x00D6FF },
 	                               { 124, 32, 0x00D6FF }, { 132, 32, 0x00D6FF }, { 140, 34, 0x00D6FF }, { 147, 34, 0x00D6FF } };
-	memcpy(p->snap.show, show, sizeof(show));
+	memcpy(p->probes, show, sizeof(show));
 }
 
 static void thps3_ger(MapProfile* p) {
 	static const Probe show[8] = { { 80, 30, 0x00D6FF }, { 91, 32, 0x00D6FF }, { 103, 34, 0x00D6FF }, { 111, 30, 0x00D6FF },
 	                               { 124, 30, 0x00D6FF }, { 135, 32, 0x00D6FF }, { 148, 32, 0x00D6FF }, { 159, 32, 0x00D6FF } };
-	memcpy(p->snap.show, show, sizeof(show));
+	memcpy(p->probes, show, sizeof(show));
 }
 
 static const Variant variants[] = {

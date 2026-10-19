@@ -403,9 +403,9 @@ static void patch_under(MapCapture* mc, uint32_t* out) {
 static void grab_under(MapCapture* mc, Emu* s) {
 	const MapProfile* p = mc->prof;
 	if (!emu_state_save(s, mc->underState)) return;
-	SpriteRule rules[6];
+	SpriteRule rules[8];
 	int n = 0, base;
-	while (n < 4 && p->captureHide[n].x1) rules[n] = p->captureHide[n], ++n;
+	while (n < 6 && p->captureHide[n].x1) rules[n] = p->captureHide[n], ++n;
 	base = n;
 	for (int i = 0; i < 2 && p->underHide[i].x1; ++i) rules[n++] = p->underHide[i];
 	if (n > base) emu_hide_sprites(s, rules, n);
@@ -509,6 +509,7 @@ static const char* do_capture(MapCapture* mc, const void* state) {
 	bool everUp = false;
 	int f;
 	for (f = 0; f < p->settleMax; ++f) {
+		if (p->captureLayers) emu_write16(s, 0x05000000, 0); /* black behind the layers shown */
 		emu_frame(s, 0);
 		if (!everUp && p->openWithin && f >= p->openWithin) {
 			return "map button did nothing"; /* quick: no map available here */
@@ -725,11 +726,12 @@ MapCapture* mapcap_create(const char* romPath, const char* gameCode, bool tight)
 	mc->snapshot = malloc(mc->stateSize);
 	mc->tight = tight && p->tight_w > 0;
 	mc->clean = tight;
-	if (mc->clean && p->captureHide[0].x1) {
+	if ((mc->clean || p->captureLayers) && p->captureHide[0].x1) {
 		int n = 0;
-		while (n < 4 && p->captureHide[n].x1) ++n;
+		while (n < 6 && p->captureHide[n].x1) ++n;
 		emu_hide_sprites(&mc->shadow, p->captureHide, n);
 	}
+	if (p->captureLayers) emu_layers(&mc->shadow, (p->captureLayers & 0xF) | 0x10);
 	if (mc->tight) {
 		mc->cx = p->tight_x, mc->cy = p->tight_y, mc->cw = p->tight_w, mc->ch = p->tight_h;
 	} else {

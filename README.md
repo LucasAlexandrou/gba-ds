@@ -23,7 +23,7 @@ The idea here is "what if the Game Boy Advance had a second screen" -- part of w
 | The Legend of Zelda: A Link to the Past | world and dungeon maps |
 | Tony Hawk's Pro Skater 2 (incl. SK8, Japan) | the goal sheet for the current run; optional four-button layout |
 | Mario Kart: Super Circuit (incl. Mario Kart Advance, Japan) | the race HUD, with a large course map; results and the cup podium |
-| Tony Hawk's Pro Skater 3 | the goal list from View Goals; optional four-button layout |
+| Tony Hawk's Pro Skater 3 | the goal list during a run; optional four-button layout |
 | Super Mario Advance 2: Super Mario World | the SELECT menu's level list on the world map; the status bar in levels; optional SNES layout |
 | Final Fantasy Tactics Advance | in battles and the scenes around them: dialogue, menus and unit details |
 
