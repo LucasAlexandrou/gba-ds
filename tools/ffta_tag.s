@@ -5,8 +5,9 @@
 @ first 12 bytes are replaced by a Thumb->ARM long jump to this code, put
 @ in the ROM's 0xFF padding at 0x08FFFF00. It runs the core, then tags the
 @ entries it added, unless the core was called through the main list's
-@ append (W2) by one of the game's world-drawing systems (the table:
-@ animations, weapon swings, damage numbers). Units and thrown objects are
+@ append (W2) or the overlay list's (W1) by one of the game's world-drawing
+@ systems (the table: animations, weapon swings, damage numbers, the world
+@ map's cursor). Units and thrown objects are
 @ written to the lists by other code (in IWRAM) and are never tagged.
 @
 @ Built for each release by tools/make_ffta_tag.sh (needs llvm-mc and
@@ -15,10 +16,12 @@
 @   CONT      the core after its first 12 bytes (Thumb: +1)
 @   NARGS     the core's stack arguments; BASE / START: the offsets of the
 @             list's entries and the first index among them
-@   W2RET     the return address (+1) of W2's call to the core
-@   W2LR      where W2 keeps its own return address, from sp at that call
-@   ANIM, WEAPON, DAMAGE   return addresses (+1) of the world systems'
-@             calls to W2
+@   W2RET     the return address (+1) of W2's call to the core; W1RET the
+@             same for W1, the overlay list's append
+@   W2LR      where W2 (and W1: the same frame) keeps its own return
+@             address, from sp at that call
+@   ANIM, WEAPON, DAMAGE, CURSOR   return addresses (+1) of the world
+@             systems' calls to W2 (W1 for the cursor)
 	.syntax unified
 	.arm
 entry:
@@ -43,8 +46,11 @@ t:
 	ldr r4, [sp, #(NARGS * 4 + 16)]
 	ldr r5, =W2RET
 	cmp r4, r5
+	beq 7f
+	ldr r5, =W1RET
+	cmp r4, r5
 	bne 3f
-	ldr r4, [sp, #(NARGS * 4 + 20 + W2LR)]
+7:	ldr r4, [sp, #(NARGS * 4 + 20 + W2LR)]
 	adr r5, callers
 2:	ldr r6, [r5]
 	cmp r6, #0
@@ -103,5 +109,6 @@ callers:
 	.word ANIM   @ animations: spells, abilities, explosions, weather
 	.word WEAPON @ weapon swings
 	.word DAMAGE @ damage numbers
+	.word CURSOR @ the world map's cursor (the feather pen), through W1
 	.word 0
 	.ltorg
