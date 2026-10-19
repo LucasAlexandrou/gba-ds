@@ -198,6 +198,13 @@ typedef struct MapProfile {
 		 * Advance moves its map and menus between layers, but its menus,
 		 * text and boxes are always priority 0-1, the map 2-3. */
 		int bgPrioBelow;
+		/* The map layer, by its BGxCNT value (Final Fantasy Tactics
+		 * Advance's battle maps, on whichever BG the game has it): the HUD
+		 * is on only while a layer has it, and the backdrop is that layer,
+		 * grabbed as the HUD comes on and every second, in grey with
+		 * backdropGrey. */
+		uint16_t mapCnt;
+		bool backdropGrey;
 	} hud;
 
 	/* Title-screen logo, pulled out of the running game: boot, wait, optionally

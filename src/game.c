@@ -794,6 +794,12 @@ static void hud_make_backdrop(void) {
 		fprintf(stderr, "frame %llu: backdrop from %d rows (%s)\n", (unsigned long long) frameCount, h, path);
 	}
 	if (!hudBackValid) return;
+	/* where the layers drew nothing: black, not the 'nothing here' colour */
+	uint32_t clear = emu_hud_clear();
+	for (int i = 0; i < GBA_W * GBA_H; ++i) {
+		if ((hudGrab[i] & 0xFFFFFF) == clear) hudGrab[i] = 0xFF000000;
+	}
+	bool grey = hudProf->hud.backdropGrey;
 	float sc = SDL_max((float) HUD_CW / GBA_W, (float) HUD_CH / h);
 	float ox = (GBA_W - HUD_CW / sc) / 2, oy = (h - HUD_CH / sc) / 2;
 	for (int y = 0; y < HUD_CH; ++y) {
@@ -812,6 +818,11 @@ static void hud_make_backdrop(void) {
 				float bot = ((c >> sh) & 0xFF) * (1 - wx) + ((d >> sh) & 0xFF) * wx;
 				float v = (top * (1 - wy) + bot * wy) * 0.32f; /* dimmed */
 				out |= (uint32_t) v << sh;
+			}
+			if (grey) {
+				unsigned r = out & 0xFF, g = (out >> 8) & 0xFF, b = (out >> 16) & 0xFF;
+				unsigned l = (r * 77 + g * 150 + b * 29) >> 8;
+				out = 0xFF000000u | l << 16 | l << 8 | l;
 			}
 			hudBack[y * HUD_CW + x] = out;
 		}
@@ -950,7 +961,8 @@ static void hud_compose(void) {
 	} else if (hudBackValid) {
 		memcpy(hudCanvas, hudBack, sizeof(hudCanvas));
 	} else {
-		for (int i = 0; i < HUD_CW * HUD_CH; ++i) hudCanvas[i] = 0xFF1A1010;
+		uint32_t plain = h->mapCnt ? 0xFF000000 : 0xFF1A1010;
+		for (int i = 0; i < HUD_CW * HUD_CH; ++i) hudCanvas[i] = plain;
 	}
 	/* moved pieces (the scene's, or racing's): how far each goes this frame */
 	const HudMove* moves = hudScene ? h->scene.moves : racing ? h->moves : NULL;
@@ -1022,6 +1034,12 @@ static void hud_compose(void) {
 static void update_hud(void) {
 	const typeof(hudProf->hud)* h = &hudProf->hud;
 	bool race = memprobes_match(h->on, 4, &emu);
+	/* the map layer: which BG has it (none: not on a map) */
+	int mapBg = -1;
+	for (int i = 0; h->mapCnt && i < 4; ++i) {
+		if (emu_read16(&emu, 0x04000008 + i * 2) == h->mapCnt) mapBg = i;
+	}
+	if (h->mapCnt && mapBg < 0) race = false;
 	if (hudOn && race) {
 		if (emu_hud_grabbed()) hud_make_backdrop(); /* (that frame drew no HUD: the last one is reused) */
 		hud_compose();
@@ -1052,6 +1070,8 @@ static void update_hud(void) {
 	}
 	/* the course's backdrop, as each race starts (not for the scene) */
 	if (hudOn && ++hudFrames == 2 && h->backdrop && !hudScene) emu_hud_grab(&emu, h->backdrop, hudGrab);
+	/* the map layer as the backdrop, now and then (the camera moves) */
+	if (hudOn && h->mapCnt && mapBg >= 0 && hudFrames % 60 == 2) emu_hud_grab(&emu, 1u << mapBg, hudGrab);
 	/* menus: the logo (or the map), once it's been gone for a third of a
 	 * second (not for a moment between rooms); no keep probes: never kept */
 	static int goneFor;

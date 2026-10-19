@@ -306,20 +306,24 @@ static const MapProfile profiles[] = {
 		/* Start during the intro: the logo on BG2 with its shadow on BG1 (the
 		 * copyright line below it is cut off by maxY) */
 		.logo = { .wait = 400, .pressStart = true, .wait2 = 200, .layers = 0x6, .maxY = 72 },
-		/* Battles and the scenes on the battle maps (display 0x1F40): the
-		 * dialogue, name entry, menus, unit details and banners go to the
-		 * second screen, over the logo, dimmed. The game moves its map and
-		 * its menus between layers, so the HUD layers are the ones at
-		 * priority 0-1 (the map is 2-3). Sprites: units use tiles below
+		/* Battles and the scenes on the battle maps: display 0x1F40 with
+		 * the map on a BG layer (BGxCNT 0x4C03; a unit's Status screen has
+		 * the same display but not the map, and stays whole). The dialogue,
+		 * name entry, menus, unit details and banners go to the second
+		 * screen, over the map layer in grey, dimmed. The game moves its
+		 * map and its menus between layers, so the HUD layers are the ones
+		 * at priority 0-1 (the map is 2-3). Sprites: units use tiles below
 		 * 288, the markers on the map (shadows, the tile under a unit, the
-		 * one over it) 296-319; the speech balloon's tail and the hand
-		 * cursor are 288-295, portraits, panels and the height readout 320
-		 * and up. */
+		 * one over it) 296-319, the height readout ("2h") 428-447: they
+		 * stay; the speech balloon's tail and the hand cursor (288-295),
+		 * portraits and panels (320 and up) move. */
 		.hud = {
 			.on = { { 0x04000000, 0xFFFF, 0x1F40, 2 } },
+			.mapCnt = 0x4C03,
 			.bgPrioBelow = 2,
-			.objs = { { -512, -256, 511, 255, 288, 295, -1 }, { -512, -256, 511, 255, 320, 1023, -1 } },
-			.logoBehind = true,
+			.objs = { { -512, -256, 511, 255, 288, 295, -1 }, { -512, -256, 511, 255, 320, 427, -1 },
+			          { -512, -256, 511, 255, 448, 1023, -1 } },
+			.backdropGrey = true,
 		},
 	},
 	{

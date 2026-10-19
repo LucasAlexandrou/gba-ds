@@ -58,7 +58,8 @@ You see the game's own map, with everything it shows (explored rooms, save and w
 
 ## Final Fantasy Tactics Advance
 
-- **In battles and the scenes played on the battle maps** (the opening snowball fight included), everything the game draws over the map moves to the second screen: dialogue with its portraits, the name entry, banners such as GET READY!, the unit's details, the command menus and the tile height. It's drawn on black over the logo, dimmed. The game screen keeps the map, the units and the markers on the map (the move and target ranges, the arrow over the active unit, the target cursor).
+- **In battles and the scenes played on the battle maps** (the opening snowball fight included), everything the game draws over the map moves to the second screen: dialogue with its portraits, the name entry, banners such as GET READY!, the unit's details and the command menus. Behind them is the battle map itself, in grey and dimmed, taken again every second as the camera moves. The game screen keeps the map, the units, the markers on the map (the move and target ranges, the arrow over the active unit, the target cursor) and the tile height.
+- A unit's **Status** screen stays whole on the game screen.
 - Everywhere else (the title, the world map, menus), the second screen shows the logo.
 
 ## Tony Hawk's Pro Skater 3
