@@ -1,9 +1,12 @@
-@ Final Fantasy Tactics Advance (USA): tags the sprites the game draws in the
+@ Final Fantasy Tactics Advance: tags the sprites the game draws in the
 @ world (spells, weapon swings, damage numbers) so the HUD split leaves them
 @ on the game screen. Placed at 0x08FFFF00 (the ROM's 0xFF padding); the
-@ bytes are in src/profiles.c (ffta_tag). Rebuild:
-@   llvm-mc -triple=armv4t-none-eabi -filetype=obj tools/ffta_tag.s -o t.o
-@   llvm-objcopy -O binary -j .text t.o t.bin
+@ bytes are in src/profiles.c (ffta_tag_us / _eu / _jp), built for each
+@ release by tools/make_ffta_tag.sh (needs llvm-mc and llvm-objcopy) with:
+@   SUBSP   the append's stack frame (its 'sub sp' after the pushes)
+@   CONT    the append's code after its first 12 bytes (Thumb: +1)
+@   ANIM, WEAPON, DAMAGE   return addresses (+1) of its calls from the
+@           animation engine, weapon swings and damage numbers
 	.syntax unified
 @ FFTA: the sprite list append (0x08001F34) jumps here (its first 12 bytes
 @ replaced by a Thumb->ARM long jump). Append as usual; when the caller is
@@ -72,13 +75,13 @@ reloc:
 	mov r6, r9
 	mov r5, r8
 	push {r5-r7}
-	sub sp, #32
-	ldr r4, =0x08001F41
+	sub sp, #SUBSP
+	ldr r4, =CONT
 	bx r4
 	.align 2
 callers:
-	.word 0x080D3119 @ animations: spells, abilities, explosions, weather
-	.word 0x0808F3A7 @ weapon swings
-	.word 0x080A8EB3 @ damage numbers
+	.word ANIM   @ animations: spells, abilities, explosions, weather
+	.word WEAPON @ weapon swings
+	.word DAMAGE @ damage numbers
 	.word 0
 	.ltorg

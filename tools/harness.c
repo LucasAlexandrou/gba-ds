@@ -19,6 +19,7 @@
  */
 #include "../src/emu.h"
 #include "../src/mapcap.h"
+#include "../src/profiles.h"
 #include "../src/logo.h"
 
 #include <mgba/flags.h>
@@ -88,6 +89,8 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 	fprintf(stderr, "game code %s\n", emu.gameCode);
+	/* the profile's ROM patches, as the app applies them (HUD split games) */
+	if (profile_patch_rom(profile_find(emu.gameCode), &emu)) fprintf(stderr, "ROM patched\n");
 	MapCapture* mc = mapcap_create(argv[1], emu.gameCode, getenv("FULLMAP") == NULL);
 
 	char line[512];
