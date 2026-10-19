@@ -343,18 +343,21 @@ static const MapProfile profiles[] = {
 		/* the title, game select and file screens: modes 0x00-0x17 (title
 		 * 0x05, game select 0x09, Super Mario World's title 0x13, files 0x15) */
 		.menu = { { 0x03002BC6, 0xFF, 0x00, 1, true, 0x17, true } },
-		/* Peach's HELP! blinks */
-		.animFrames = 8, .animStep = 8,
+		/* Peach's HELP! and the selected level's name in the list blink:
+		 * recorded, but shown still, with both (the state that covers more:
+		 * they're dark text on light) */
+		.animFrames = 8, .animStep = 8, .mapStill = true, .stillPick = STILL_COVER,
 		/* In a level (game mode 0x24, also paused) the status bar is BG3 (0xDC44), rows
 		 * 0-15: it goes to the top of the second screen, except the blue
 		 * item box (104-135; the item in it is a sprite and stays). The rest
 		 * of BG3 (message and pause boxes) stays on the game picture. */
 		.hud = {
-			.on = { { 0x03002BC6, 0xFF, 0x24, 1 }, { 0x0400000E, 0xFFFF, 0xDC44, 2 },
+			/* (and through doors and pipes: the fade out, 0x1F, then the
+			 * level loading again, 0x20-0x23) */
+			.on = { { 0x03002BC6, 0xFF, 0x1F, 1, true, 0x24, true }, { 0x0400000E, 0xFFFF, 0xDC44, 2 },
 			        { 0x04000000, 0x0800, 0x0800, 2 } },
-			/* through doors and pipes (the level loading again, modes
-			 * 0x20-0x23); to the world map (0x1B, 0x1D) or the title it goes */
-			.keep = { { 0x03002BC6, 0xFC, 0x20, 1 } },
+			/* to the world map (0x1B, 0x1D) or the title it goes */
+			.keep = { { 0x03002BC6, 0xFF, 0x1F, 1, true, 0x23, true } },
 			.bgMask = 8,
 			.moves = { { 104, 0, 135, 15, 0, 0, 0, 0, true }, { 0, 16, 239, 159, 0, 0, 0, 0, true } },
 			.logoBelow = true,

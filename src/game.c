@@ -1675,6 +1675,11 @@ static void compose_still(const MapResult* r, int pick, uint32_t* out, unsigned 
  * another point of its loop) keeps the old still, so it doesn't jump around
  * every time the map is refreshed. Returns true if the still changed. */
 static bool stillStale; /* stillPx is from an older map (built only when it's shown) */
+/* The map animates (Map Animations: On), unless the game's is always still */
+static bool map_anim(void) {
+	const MapProfile* p = mc ? mapcap_profile(mc) : NULL;
+	return cfg->mapAnim && !(p && p->mapStill);
+}
 
 static bool update_still(void) {
 	int w = mapRes.w, h = mapRes.h, wh = w * h;
@@ -2095,15 +2100,15 @@ static bool activate(int item, enum GameExit* exitTo) {
 		break;
 	case M_MAPANIM:
 		cfg->mapAnim = !cfg->mapAnim;
-		if (!cfg->mapAnim && stillStale && mapRes.nFrames > 0) {
+		if (!map_anim() && stillStale && mapRes.nFrames > 0) {
 			update_still(); /* skipped while animations were on */
 			stillStale = false;
 		}
 		if (mc && mapShownIdx >= 0) {
 			mapAnimStart = frameCount;
-			upload_map_frame(cfg->mapAnim ? 0 : STILL_IDX);
+			upload_map_frame(map_anim() ? 0 : STILL_IDX);
 		}
-		if (mc) mapcap_set_still(mc, !cfg->mapAnim);
+		if (mc) mapcap_set_still(mc, !map_anim());
 		save_prefs();
 		break;
 	case M_RESTART:
@@ -2223,7 +2228,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		hudBackValid = false;
 		hudRegrab = 0;
 		snapShow = snapRevert = 0;
-		if (mc) mapcap_set_still(mc, !cfg->mapAnim);
+		if (mc) mapcap_set_still(mc, !map_anim());
 		if (logoOnly) fprintf(stderr, "logo only: %s\n", lp->title);
 		if (mc) {
 			fprintf(stderr, "map profile: %s\n", mapcap_title(mc));
@@ -2819,12 +2824,12 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 				/* the still (each marker frozen) is only shown with map animations
 				 * off, and building it is real work: only then */
 				bool stillChanged = false;
-				stillStale = cfg->mapAnim;
+				stillStale = map_anim();
 				if (!stillStale) stillChanged = update_still();
-				upload_map_frame(cfg->mapAnim ? 0 : STILL_IDX);
+				upload_map_frame(map_anim() ? 0 : STILL_IDX);
 				if (debug) fprintf(stderr, "frame %llu: map updated (%d frame(s) %d apart%s)\n", (unsigned long long) frameCount,
 				                   mapRes.nFrames, mapRes.frameStep, stillStale ? "" : stillChanged ? ", still changed" : ", still unchanged");
-			} else if (cfg->mapAnim && mapRes.nFrames > 1 && mapShownIdx >= 0) {
+			} else if (map_anim() && mapRes.nFrames > 1 && mapShownIdx >= 0) {
 				int idx = (int) ((frameCount - mapAnimStart) / SDL_max(1, mapRes.frameStep)) % mapRes.nFrames;
 				upload_map_frame(idx);
 			}

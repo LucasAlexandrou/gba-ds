@@ -298,6 +298,9 @@ typedef struct MapProfile {
 	struct { int x0, x1, top, base, n0, n1, bottom, n; uint32_t colors[12]; } tab;
 
 	int animFrames; /* frames to record for the blinking/pulsing marker loop */
+	/* Shown still even with Map Animations on (the still frame, stillPick:
+	 * Super Mario Advance 2's HELP! and the selected level) */
+	bool mapStill;
 	int animStep;   /* emulated frames between recorded frames */
 	/* "Map Animations: Off": a marker loop longer than animFrames * animStep
 	 * (the Castlevania glows) is recorded over this many frames instead, so
