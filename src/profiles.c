@@ -402,8 +402,10 @@ static const MapProfile profiles[] = {
 			 * overlay list (tagged bit 9: the notice's arrow, the month's
 			 * name) move; Marche, the towns and a new area with its name
 			 * (the main list) stay; the backdrop is the land and the map,
-			 * without sprites. Without the patch: priority 0. */
-			.world = { 0x8A03, { { -512, -256, 511, 255, 0, 1023, -1, 0, 0x0200 } } },
+			 * without sprites. Without the patch: priority 0. The L Law
+			 * prompt in the top left corner (tiles 64-71, priority 0) is
+			 * drawn with Marche and the towns: it moves by its place. */
+			.world = { 0x8A03, { { -512, -256, 511, 255, 0, 1023, -1, 0, 0x0200 }, { 0, 0, 40, 24, 64, 71, 0 } } },
 			.bgPrioBelow = 2,
 			/* the animation engine's work area (0 when it's not running) */
 			.effects = { { 0x020159C0, 0xFFFFFFFF, 0x02000000, 4, true, 0x0203FFFF, true } },
