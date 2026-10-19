@@ -320,6 +320,68 @@ static Cheats cheats;
 static SDL_Rect tab_rect(int scr, int t);
 static SDL_Rect ach_area(int scr);
 
+/* Every label a pause-menu button can show, for sizing the text so the
+ * widest fits (item_label gives the current one). */
+static const char* const allLabels[] = {
+	"Resume", "Restart Game", "Tap Again to Restart", "Save State", "Load State", "Cheats", "Achievements",
+	"Take Screenshot", "Close Game", "Close GBA DS", "Swap Screens", "Scale: Pixel Perfect", "Scale: Full Width",
+	"Scale: Zoom", "Scale: Stretch", "LCD Grid: On", "LCD Grid: Off", "Overlays: None", "Overlays: Primary",
+	"Overlays: Secondary", "Overlays: Both", "No Second Screen: Show Logo", "No Second Screen: Keep Blank",
+	"Map Animations: On", "Map Animations: Off", "Map Refresh: Every 3 s", "Map Refresh: Every 1.5 s",
+	"Map Refresh: Every 1 s", "Map Refresh: Every 0.5 s", "Map Refresh: Custom", "Frame Buffer: On",
+	"Frame Buffer: Off", "Match Display Rate: On", "Match Display Rate: Off", "Rewind: On (Hold L2)", "Rewind: Off",
+	"Show FPS: On", "Show FPS: Off",
+};
+
+/* The pause menu's layout: buttons across the whole screen (a small margin
+ * at the edges), all the same size on every page, as tall as the page with
+ * the most buttons allows (with the page tabs above and a line for notes
+ * below), and the text as big as the button height and the widest label
+ * allow. */
+typedef struct {
+	int margin, w, h, gap; /* buttons: x = margin, width w, height h, gap between them */
+	int tabY, top;         /* the tab row's y; the first button's y */
+	int cap, tabCap, noteCap, pad, rad;
+	int prompt;            /* L1 / R1 prompt width, beside the tabs */
+} MenuGeom;
+
+static MenuGeom menu_geom(int scr) {
+	static MenuGeom cache;
+	static int cw = -1, ch = -1, cn = -1;
+	SDL_Rect r = screens[scr].rect;
+	int n = 1;
+	for (int p = 0; p < N_PAGES; ++p) n = SDL_max(n, pageLen[p]);
+	if (r.w == cw && r.h == ch && n == cn) return cache;
+	MenuGeom g;
+	float px = ui_px(scr);
+	g.margin = px * 4;
+	g.w = r.w - g.margin * 2;
+	/* margin, tab row (h), gap (h * 0.4), n rows (h) with gaps (h * 0.2),
+	 * the note line (h * 0.7), margin */
+	g.h = (int) ((r.h - g.margin * 2) / (1.0 + 0.4 + n + 0.2 * (n - 1) + 0.7));
+	g.gap = g.h / 5;
+	g.tabY = g.margin;
+	g.top = g.tabY + g.h + g.h * 2 / 5;
+	g.pad = g.h / 3;
+	g.rad = SDL_max(2, g.h / 5);
+	/* text: capitals at most 40% of the button, and the widest label fits */
+	int ref = 100, widest = 1;
+	for (size_t i = 0; i < sizeof(allLabels) / sizeof(*allLabels); ++i)
+		widest = SDL_max(widest, ui_label_width(scr, ref, allLabels[i]));
+	g.cap = SDL_min(g.h * 2 / 5, (g.w - g.pad * 2) * ref / widest);
+	g.noteCap = g.cap * 4 / 5;
+	/* the tabs share the row between the L1 / R1 prompts, each as wide as its name needs */
+	g.prompt = g.h * 9 / 10;
+	int tabsW = g.w - (g.prompt + g.gap) * 2 - g.gap * (N_PAGES - 1), names = 0;
+	for (int t = 0; t < N_PAGES; ++t) names += ui_label_width(scr, ref, pageNames[t]);
+	/* each tab: its name plus pad on both sides */
+	g.tabCap = SDL_min(g.cap, (tabsW - g.pad * 2 * N_PAGES) * ref / SDL_max(1, names));
+	g.rad = SDL_max(2, g.h / 5);
+	cache = g, cw = r.w, ch = r.h, cn = n;
+	return g;
+}
+
+
 static bool item_enabled(int item) {
 	if (item == M_CHEATS) return cheats.n > 0;
 	if (item == M_MAPRATE) return mc != NULL; /* games with a live map */
@@ -366,8 +428,8 @@ static CheatGeom cheat_geom(int scr) {
 	g.top = g.px * 26;
 	g.rowH = g.tpx * 7 + g.px * 5;
 	g.gap = g.px * 2;
-	g.x = g.px * 6;
-	g.w = r.w - g.px * 12;
+	g.x = g.px * 4; /* the pause menu's margin */
+	g.w = r.w - g.px * 8;
 	g.footY = r.h - g.tpx * 9 * 2 - g.px * 5;
 	g.listH = g.footY - g.px * 6 - g.top;
 	return g;
@@ -442,7 +504,7 @@ static void draw_cheats(int scr) {
 	CheatGeom g = cheat_geom(scr);
 	SDL_Rect r = screens[scr].rect;
 	float px = g.px;
-	int rad = px * 3, cap = px * 11 / 2;
+	int rad = menu_geom(scr).rad, cap = menu_geom(scr).cap;
 	/* top: Back box (where the Game tab is) and the title */
 	SDL_Rect b = tab_rect(scr, 0), t = tab_rect(scr, 1);
 	ui_fill_round(scr, b, C_BTN, rad);
@@ -496,39 +558,27 @@ static void draw_cheats(int scr) {
 	ui_font_text(scr, TF_BODY, r.w - px * 4, r.h - g.tpx * 5, tcap, count, C_DIS, 1);
 }
 
-static int menu_width(int scr) {
-	float px = ui_px(scr);
-	return SDL_min(screens[scr].rect.w - px * 16, px * (17 * 6 - 1) /* menu width: 17 characters of the old pixel font */ + px * 48);
-}
-
 static SDL_Rect item_rect(int scr, int i) {
-	SDL_Rect r = screens[scr].rect;
-	float px = ui_px(scr);
-	int h = px * 14, gap = px * 3;
-	int w = menu_width(scr);
-	int top = px * 28; /* below the page tabs; same on both pages */
-	(void) r;
-	return (SDL_Rect) { (r.w - w) / 2, top + i * (h + gap), w, h };
+	MenuGeom g = menu_geom(scr);
+	return (SDL_Rect) { g.margin, g.top + i * (g.h + g.gap), g.w, g.h };
 }
 
 /* box t of n across the top of the menu: the page tabs (n = N_PAGES), or
  * Back and the title on the cheats / achievements screens (n = 2) */
 static SDL_Rect top_box(int scr, int t, int n) {
-	SDL_Rect r = screens[scr].rect;
-	float px = ui_px(scr);
-	int w = menu_width(scr);
-	int gap = px * 3, avail = w - gap * (n - 1);
+	MenuGeom g = menu_geom(scr);
 	if (n == N_PAGES) {
-		/* the page tabs: each as wide as its name needs, sharing the width */
-		int cap = px * 11 / 2, need[N_PAGES], sum = 0;
-		for (int i = 0; i < n; ++i) sum += need[i] = ui_font_width(TF_BOLD, cap, pageNames[i]) + (int) (px * 6);
-		int x = (r.w - w) / 2, used = 0;
+		/* the page tabs between the L1 / R1 prompts: each as wide as its name needs, sharing the width */
+		int x = g.margin + g.prompt + g.gap, avail = g.w - (g.prompt + g.gap) * 2 - g.gap * (n - 1);
+		int need[N_PAGES], sum = 0;
+		for (int i = 0; i < n; ++i) sum += need[i] = ui_label_width(scr, g.tabCap, pageNames[i]) + g.pad * 2;
+		int used = 0;
 		for (int i = 0; i < t; ++i) used += need[i];
-		int x0 = x + used * avail / sum + t * gap, x1 = x + (used + need[t]) * avail / sum + t * gap;
-		return (SDL_Rect) { x0, px * 7, x1 - x0, px * 14 };
+		int x0 = x + used * avail / sum + t * g.gap, x1 = x + (used + need[t]) * avail / sum + t * g.gap;
+		return (SDL_Rect) { x0, g.tabY, x1 - x0, g.h };
 	}
-	int tw = avail / n;
-	return (SDL_Rect) { (r.w - w) / 2 + t * (tw + gap), px * 7, tw, px * 14 };
+	int tw = (g.w - g.gap * (n - 1)) / n;
+	return (SDL_Rect) { g.margin + t * (tw + g.gap), g.tabY, tw, g.h };
 }
 
 static SDL_Rect tab_rect(int scr, int t) {
@@ -668,6 +718,8 @@ static void draw_menu(void) {
 	int cap = px * 11 / 2;   /* Futura capital height */
 	int rad = px * 3;        /* box corner radius */
 	if (achOpen) {
+		cap = menu_geom(scr).cap;
+		rad = menu_geom(scr).rad;
 		SDL_Rect b = tab_rect(scr, 0), t = tab_rect(scr, 1);
 		ui_fill_round(scr, b, C_BTN, rad);
 		ui_label(scr, b.x + b.w / 2, b.y + b.h / 2, cap, "Back", C_TEXT);
@@ -688,17 +740,20 @@ static void draw_menu(void) {
 		}
 		return;
 	}
+	MenuGeom mg = menu_geom(scr);
+	cap = mg.cap;
+	rad = mg.rad;
 	for (int t = 0; t < N_PAGES; ++t) {
 		SDL_Rect r = top_box(scr, t, N_PAGES);
 		bool on = t == curPage;
 		ui_fill_round(scr, r, on ? C_BTN_EDGE : C_BTN, rad);
-		ui_label(scr, r.x + r.w / 2, r.y + r.h / 2, cap, pageNames[t], on ? (SDL_Color) { 20, 16, 36, 255 } : C_DIS);
+		ui_label(scr, r.x + r.w / 2, r.y + r.h / 2, mg.tabCap, pageNames[t], on ? (SDL_Color) { 20, 16, 36, 255 } : C_DIS);
 	}
 	SDL_Rect t0 = top_box(scr, 0, N_PAGES), t1 = top_box(scr, N_PAGES - 1, N_PAGES);
-	/* L1 / R1 button prompts beside the tabs */
-	int gw = px * 25 / 2, gh = px * 8;
-	SDL_Rect g0 = { t0.x - px * 9 - gw / 2, t0.y + (t0.h - gh) / 2, gw, gh };
-	SDL_Rect g1 = { t1.x + t1.w + px * 9 - gw / 2, t1.y + (t1.h - gh) / 2, gw, gh };
+	/* L1 / R1 button prompts beside the tabs (the prompt art is 25:16) */
+	int gw = mg.prompt, gh = gw * 16 / 25;
+	SDL_Rect g0 = { mg.margin, t0.y + (t0.h - gh) / 2, gw, gh };
+	SDL_Rect g1 = { mg.margin + mg.w - gw, t1.y + (t1.h - gh) / 2, gw, gh };
 	if (shoulderTex[0][0] || shoulderTex[0][1]) {
 		ui_image(scr, shoulderTex[0], shoulderW, shoulderH, "stretch", &g0);
 		ui_image(scr, shoulderTex[1], shoulderW, shoulderH, "stretch", &g1);
@@ -709,7 +764,8 @@ static void draw_menu(void) {
 	for (int i = 0; i < nMenuItems; ++i) {
 		SDL_Rect r = item_rect(scr, i);
 		bool sel = i == menuSel;
-		if (sel) ui_fill_round(scr, (SDL_Rect) { r.x - px / 2, r.y - px / 2, r.w + px, r.h + px }, C_BTN_EDGE, rad + px / 2);
+		int e = SDL_max(1, mg.h / 28); /* the selected button's edge */
+		if (sel) ui_fill_round(scr, (SDL_Rect) { r.x - e, r.y - e, r.w + e * 2, r.h + e * 2 }, C_BTN_EDGE, rad + e);
 		ui_fill_round(scr, r, sel ? C_BTN_SEL : C_BTN, rad);
 		bool en = item_enabled(menuItems[i]);
 		const char* label = menuLabels[menuItems[i]];
@@ -731,7 +787,8 @@ static void draw_menu(void) {
 	}
 	if (menuNote[0]) {
 		SDL_Rect last = item_rect(scr, nMenuItems - 1);
-		ui_font_text(scr, TF_BOLD, screens[scr].rect.w / 2, last.y + last.h + px * 9, px * 5, menuNote, C_GOLD, 0);
+		int nc = SDL_min(mg.noteCap, mg.noteCap * mg.w / SDL_max(1, ui_font_width(TF_BOLD, mg.noteCap, menuNote)));
+		ui_font_text(scr, TF_BOLD, screens[scr].rect.w / 2, last.y + last.h + mg.h * 3 / 5, nc, menuNote, C_GOLD, 0);
 	}
 	if (nScreens > 1) {
 		int o = ui_other_screen();
@@ -1983,7 +2040,7 @@ static void draw_game(void) {
 		if (!hudShown && mapShownIdx >= 0 && mapInactive) {
 			ui_dim(s, 120);
 		}
-		if (ctl_shown(s)) ctl_draw(s);
+		if (ctl_shown(s) && !menuOpen) ctl_draw(s); /* the pause menu covers that screen */
 	}
 	draw_osd();
 }
@@ -1997,7 +2054,7 @@ static void close_ach(void) {
 static SDL_Rect ach_area(int scr) {
 	SDL_Rect r = screens[scr].rect;
 	float px = ui_px(scr);
-	return (SDL_Rect) { px * 6, px * 25, r.w - px * 12, r.h - px * 27 };
+	return (SDL_Rect) { px * 4, px * 25, r.w - px * 8, r.h - px * 27 };
 }
 
 static void open_menu(void) {

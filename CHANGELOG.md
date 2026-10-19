@@ -7,6 +7,7 @@
 - **Super Mario Advance 2: Super Mario World** gets its second screen. On the world map it shows the SELECT menu (the island's levels with your time and score), kept up to date as you move; in a level, the status bar moves to the top of the second screen with a smaller logo below it, and the blue item box stays on the game screen.
 - **Super Mario Advance 2: SNES layout** under **Controls** on the second screen: in levels, B jumps, Y runs, A and X spin-jump, and L / R pan the camera left / right as on the Super Nintendo, without moving or turning Mario. The pause box, menus and the world map keep the GBA buttons.
 - **Final Fantasy Tactics Advance** gets its second screen: in battles and the scenes on the battle maps, the dialogue, name entry, banners (GET READY!, BATTLE WON!), unit details and command menus move there, over a still of the scene in grey, leaving the map, the units, the tile height, and every spell, weapon and ability effect on the game screen. On the world map, the notices, clan funds and date move there too. The still fades to black or white with the game. Elsewhere it shows the logo.
+- **Bigger pause menu:** the buttons span the whole screen, with larger text, the same size on every page (as big as the longest page allows).
 - **Swap Screens moved to L3** (press the left stick), since L2 now rewinds. HOME + Y still swaps too.
 ## v1.1.6 (2026-10-17)
 
