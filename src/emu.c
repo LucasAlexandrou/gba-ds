@@ -686,6 +686,10 @@ void emu_hud_keep_bgs(unsigned mask) {
 	split.keepBgs = mask;
 }
 
+uint16_t emu_io16(Emu* e, uint32_t offset) {
+	return ((struct GBA*) e->core->board)->memory.io[(offset & 0x3FE) >> 1];
+}
+
 const uint16_t* emu_vram(Emu* e) {
 	return ((struct GBA*) e->core->board)->video.vram;
 }

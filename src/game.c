@@ -1098,7 +1098,21 @@ static void hud_compose(void) {
 		for (int i = 0; i < HUD_CW * HUD_CH; ++i) hudCanvas[i] = plain;
 	}
 	/* moved pieces (the scene's, or racing's): how far each goes this frame */
-	const HudMove* moves = hudScene ? h->scene.moves : racing ? h->moves : NULL;
+	const HudMove* movesIn = hudScene ? h->scene.moves : racing ? h->moves : NULL;
+	/* with a BG mosaic on (fading out through a pipe), the boxes' top and
+	 * bottom go to the blocks' edges: a block across a box's edge is drawn
+	 * from its first row, so it goes with the box above */
+	HudMove movesM[4];
+	const HudMove* moves = movesIn;
+	int mosV = ((emu_io16(&emu, 0x4C) >> 4) & 15) + 1;
+	if (movesIn && mosV > 1) {
+		for (int m = 0; m < 4; ++m) {
+			movesM[m] = movesIn[m];
+			if (movesM[m].y0 > 0) movesM[m].y0 = (movesM[m].y0 + mosV - 1) / mosV * mosV;
+			if (movesM[m].y1 < GBA_H - 1) movesM[m].y1 = (movesM[m].y1 + mosV) / mosV * mosV - 1;
+		}
+		moves = movesM;
+	}
 	int moveDx[4] = { 0 }, moveDy[4] = { 0 };
 	bool moving[4] = { false };
 	for (int m = 0; moves && m < 4; ++m) {

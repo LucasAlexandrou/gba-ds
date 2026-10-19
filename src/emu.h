@@ -117,6 +117,8 @@ void emu_hud_by_priority(int prioBelow);
 /* While split by priority: these BG layers (bit 0 = BG0) stay out of the
  * HUD whatever their priority (from the next frame). */
 void emu_hud_keep_bgs(unsigned mask);
+/* An I/O register as last written (also the write-only ones: MOSAIC). */
+uint16_t emu_io16(Emu* e, uint32_t offset);
 /* VRAM (96 KB), for reading tile maps. */
 const uint16_t* emu_vram(Emu* e);
 bool emu_hud_grabbed(void);
