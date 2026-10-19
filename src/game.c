@@ -820,7 +820,7 @@ static void hud_make_backdrop(void) {
 		lastLevel = level;
 		if (good) hudSettle = false;
 		hudRegrab = good ? 0 : hudFrames + (hudSettle ? 15 : 30);
-		if (debug) fprintf(stderr, "frame %llu: map layer grabbed: %ld%% drawn, brightness %ld%s\n", (unsigned long long) frameCount,
+		if (debug) fprintf(stderr, "frame %llu: backdrop taken: %ld%% drawn, brightness %ld%s\n", (unsigned long long) frameCount,
 		                   drawn * 100 / (GBA_W * GBA_H), luma / SDL_max(drawn, 1) / 3, good ? "" : " (again later)");
 		if (!good && hudBackValid) return; /* keep the last good one meanwhile */
 	}
@@ -1101,13 +1101,15 @@ static void update_hud(void) {
 	}
 	/* the course's backdrop, as each race starts (not for the scene) */
 	if (hudOn && ++hudFrames == 2 && h->backdrop && !hudScene) emu_hud_grab(&emu, h->backdrop, hudGrab);
-	/* the map layer as the backdrop: once per map (its tiles' checksum),
+	/* the backdrop, the game screen (map, units, no HUD): once per map (its tiles' checksum),
 	 * when the HUD comes on, not again as it comes and goes in a battle */
 	if (hudOn && h->mapCnt && mapBg >= 0 && (hudFrames == 2 || hudFrames == hudRegrab)) {
 		uint32_t sum = map_tiles_sum(mapBg);
 		if (hudFrames == hudRegrab || !hudBackValid || sum != hudMapSum) {
 			hudMapSum = sum;
-			emu_hud_grab_cnt(&emu, h->mapCnt, hudGrab);
+			/* the game screen as it is now: the scene, without the HUD */
+			memcpy(hudGrab, emu.fb, sizeof(hudGrab));
+			hud_make_backdrop();
 		}
 	}
 	/* a scene change: the game fades to black and back (to another map, or

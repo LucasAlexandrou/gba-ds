@@ -310,8 +310,8 @@ static const MapProfile profiles[] = {
 		 * the map on a BG layer (BGxCNT 0x4C03; a unit's Status screen has
 		 * the same display but not the map, and stays whole). The dialogue,
 		 * name entry, menus, unit details and banners go to the second
-		 * screen, over the map layer in grey, dimmed, as it was when the
-		 * HUD came on. The game moves its
+		 * screen, over a still of the game screen (map and units, no HUD)
+		 * in grey, dimmed, taken as the HUD comes on. The game moves its
 		 * map and its menus between layers, so the HUD layers are the ones
 		 * at priority 0-1 (the map is 2-3). Sprites: units use tiles below
 		 * 288, the markers on the map (shadows, the tile under a unit, the

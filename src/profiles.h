@@ -200,10 +200,11 @@ typedef struct MapProfile {
 		int bgPrioBelow;
 		/* The map layer, by its BGxCNT value (Final Fantasy Tactics
 		 * Advance's battle maps, on whichever BG the game has it): the HUD
-		 * is on only while a layer has it, and the backdrop is that layer,
-		 * grabbed as the HUD comes on (unless the map's tile graphics are
-		 * the ones grabbed last) and after the game fades to black and
-		 * back, once the brightness settles; in grey with backdropGrey. */
+		 * is on only while a layer has it. The backdrop is then a still of
+		 * the game screen without the HUD, taken as the HUD comes on
+		 * (unless the map's tile graphics are the ones taken last) and
+		 * after the game fades to black and back, once the brightness
+		 * settles; in grey with backdropGrey. */
 		uint16_t mapCnt;
 		bool backdropGrey;
 	} hud;
