@@ -1,5 +1,7 @@
 #include "profiles.h"
 
+#include <mgba/core/core.h>
+
 #include <pthread.h>
 #include <string.h>
 
@@ -13,6 +15,28 @@
                      0x10FF84, 0x31FFAD, 0x52FFD6, 0x7BFFFF, 0x21214A }
 #define PLATE_TO   { 0xADC6BD, 0xADC6BD, 0xADC6BD, 0xADC6BD, 0xC6DED6, 0xC6DED6, 0xC6DED6, 0xC6DED6, \
                      0xDEF7EF, 0xDEF7EF, 0xDEF7EF, 0xDEF7EF, 0x5A5A5A }
+
+/* FFTA (USA): the sprite list append (0x08001F34) jumps to ffta_tag (tools/
+ * ffta_tag.s) at 0x08FFFF00, which tags (attr1 bit 11) the sprites the
+ * game's world-drawing code adds: spells and other animations, weapon
+ * swings, damage numbers. */
+static const uint8_t ffta_append_orig[12] = { 0xF0, 0xB5, 0x57, 0x46, 0x4E, 0x46, 0x45, 0x46, 0xE0, 0xB4, 0x88, 0xB0 };
+static const uint8_t ffta_append_jump[12] = { 0x78, 0x47, 0xC0, 0x46, 0x04, 0xF0, 0x1F, 0xE5, 0x00, 0xFF, 0xFF, 0x08 };
+static const uint8_t ffta_tag[156] = {
+	0x01, 0xC0, 0x8F, 0xE2, 0x1C, 0xFF, 0x2F, 0xE1, 0xF0, 0xB5, 0x87, 0xB0,
+	0x00, 0x24, 0x0C, 0xAD, 0x2E, 0x59, 0x6D, 0x46, 0x2E, 0x51, 0x04, 0x34,
+	0x1C, 0x2C, 0xF8, 0xDB, 0x1B, 0x4F, 0x3C, 0x78, 0xA4, 0x00, 0x1B, 0x4D,
+	0x2C, 0x59, 0x00, 0xF0, 0x21, 0xF8, 0x0B, 0x9B, 0x13, 0xA2, 0x11, 0x68,
+	0x00, 0x29, 0x17, 0xD0, 0x04, 0x32, 0x99, 0x42, 0xF9, 0xD1, 0x3D, 0x78,
+	0xAE, 0x00, 0x14, 0x49, 0x8E, 0x59, 0xAD, 0x02, 0x13, 0x49, 0x6D, 0x18,
+	0xB4, 0x42, 0x0B, 0xDA, 0xE1, 0x00, 0x49, 0x19, 0x0A, 0x88, 0xD3, 0x05,
+	0x04, 0xD4, 0x4A, 0x88, 0x08, 0x23, 0x1B, 0x02, 0x1A, 0x43, 0x4A, 0x80,
+	0x01, 0x34, 0xF1, 0xE7, 0x07, 0xB0, 0xF0, 0xBC, 0x02, 0xBC, 0x08, 0x47,
+	0xF0, 0xB5, 0x57, 0x46, 0x4E, 0x46, 0x45, 0x46, 0xE0, 0xB4, 0x88, 0xB0,
+	0x07, 0x4C, 0x20, 0x47, 0x19, 0x31, 0x0D, 0x08, 0xA7, 0xF3, 0x08, 0x08,
+	0xB3, 0x8E, 0x0A, 0x08, 0x00, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x03,
+	0x20, 0x00, 0x00, 0x03, 0x30, 0x00, 0x00, 0x03, 0x41, 0x1F, 0x00, 0x08
+};
 
 static const MapProfile profiles[] = {
 	{
@@ -313,27 +337,29 @@ static const MapProfile profiles[] = {
 		 * screen, over a still of the game screen (map and units, no HUD)
 		 * in grey, dimmed, taken as the HUD comes on. The game moves its
 		 * map and its menus between layers, so the HUD layers are the ones
-		 * at priority 0-1 (the map is 2-3). Sprites: units use tiles below
-		 * 288, the markers on the map (shadows, the tile under a unit, the
-		 * one over it) 296-319, scene objects and weather (snow) 320-427, the
-		 * height readout ("2h") 428-447: they stay; the speech balloon's
-		 * tail and the hand cursor (288-295) and portraits, panels and
-		 * banners (448 and up) move, but from 448 to 575 only in palettes
-		 * 9-15 (the battle panels: 11 and 12) and from 576 to 699 in 0 and
-		 * 9-15 (portraits: 0): an attack's weapons and effects use the
-		 * other palettes (a sword: tile 508, palette 0; a snowball: 481,
-		 * palette 1); the name entry's tabs and name
-		 * box (740-851, palettes 5 and 9) and the banners (802-818,
-		 * palette 6) move whatever the palette; from 900 again only in 0
-		 * and 9-15 (explosions and dust: 949-983, palette 6). */
+		 * at priority 0-1 (the map is 2-3), except while the animation
+		 * engine runs (`effects`): spells draw on those layers. Sprites: what
+		 * the game draws in the world (animations: spells, explosions,
+		 * weather; weapon swings; damage numbers) is tagged by a ROM patch
+		 * and stays, whatever its tiles. Of the rest, units (tiles below
+		 * 288), the markers on the map (296-319), scene objects (320-427)
+		 * and the height readout ("2h", 428-447) stay; the speech balloon's
+		 * tail and the hand cursor (288-295), portraits, panels, the name
+		 * entry and banners (448 and up) move. The palette limits (448-575
+		 * in 9-15, 576-699 and 900 up in 0 and 9-15) are from before the
+		 * tags, kept as a fallback for other releases. */
+		.romPatch = { { 0x08001F34, 12, ffta_append_orig, ffta_append_jump },
+		              { 0x08FFFF00, sizeof(ffta_tag), NULL, ffta_tag } },
 		.hud = {
 			/* (mode 0 with sprites: attacks turn layers off for a moment) */
 			.on = { { 0x04000000, 0x1007, 0x1000, 2 } },
 			.mapCnt = 0x4C03,
 			.bgPrioBelow = 2,
-			.objs = { { -512, -256, 511, 255, 288, 295, -1 }, { -512, -256, 511, 255, 448, 575, -1, 0xFE00 },
-			          { -512, -256, 511, 255, 576, 699, -1, 0xFE01 }, { -512, -256, 511, 255, 700, 899, -1 },
-			          { -512, -256, 511, 255, 900, 1023, -1, 0xFE01 } },
+			/* the animation engine's work area (0 when it's not running) */
+			.effects = { { 0x020159C0, 0xFFFFFFFF, 0x02000000, 4, true, 0x0203FFFF, true } },
+			.objs = { { -512, -256, 511, 255, 288, 295, -1, 0, 0x0800 }, { -512, -256, 511, 255, 448, 575, -1, 0xFE00, 0x0800 },
+			          { -512, -256, 511, 255, 576, 699, -1, 0xFE01, 0x0800 }, { -512, -256, 511, 255, 700, 899, -1, 0, 0x0800 },
+			          { -512, -256, 511, 255, 900, 1023, -1, 0xFE01, 0x0800 } },
 			.backdropGrey = true,
 			/* the height readout stays on the game screen, not in the still */
 			.backdropHide = { { -512, -256, 511, 255, 428, 447, -1 } },
@@ -534,4 +560,17 @@ const MapProfile* profile_find(const char* gameCode) {
 		if (!strncmp(variants[i].code, gameCode, 4) && variantProfiles[i].codes[0]) return &variantProfiles[i];
 	}
 	return NULL;
+}
+
+bool profile_patch_rom(const MapProfile* p, Emu* e) {
+	if (!p || !p->romPatch[0].addr) return false;
+	for (int pass = 0; pass < 2; ++pass) {
+		for (const RomPatch* r = p->romPatch; r < p->romPatch + 3 && r->addr; ++r) {
+			for (int i = 0; i < r->len; ++i) {
+				if (pass == 0 && emu_read8(e, r->addr + i) != (r->orig ? r->orig[i] : 0xFF)) return false;
+				if (pass == 1) e->core->rawWrite8(e->core, r->addr + i, -1, r->bytes[i]);
+			}
+		}
+	}
+	return true;
 }

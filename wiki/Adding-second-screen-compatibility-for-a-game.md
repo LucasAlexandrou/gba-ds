@@ -6,7 +6,7 @@ There are three kinds of second screen, and a profile can use the parts it needs
 |---|---|---|
 | **Map capture** | Castlevanias, Metroids, A Link to the Past | Opens the game's own map on a hidden copy of the game and shows it. |
 | **Screen snapshot** (`logoOnly` + `snap`) | Tony Hawk's Pro Skater 2 | Copies a screen the game shows (the goal sheet) to the second screen while it's useful. |
-| **HUD split** (`hud`) | Mario Kart: Super Circuit; Super Mario Advance 2 (with a map capture) | Draws some layers and sprites on the second screen instead of the game screen. |
+| **HUD split** (`hud`) | Mario Kart: Super Circuit; Super Mario Advance 2 (with a map capture); Final Fantasy Tactics Advance | Draws some layers and sprites on the second screen instead of the game screen. |
 
 Every profile also gets a **logo** for the game list and the second screen.
 
@@ -64,6 +64,8 @@ For games whose HUD is better on the second screen, logo-only or alongside a map
 - `hud.bgMask` (bit 0 = BG0) and `hud.objs`: what moves.
 - `hud.layout`: while these also match (racing, not results; no probes: always), `sign` (a box left on the game screen when nothing else of the HUD is beside it), `map` (scaled up 2× or 1.5×), the `backdrop` (BG layers grabbed above row `backdropRows`, dimmed) and `moves` apply.
 - `hud.moves`: `HudMove` boxes measured each frame and placed by an edge or centre (`'L' 'C' 'R'` at `x`, `'T' 'M' 'B'` at `y`), on the second screen or with `toGame` back on the game screen (Mario Kart's item box and place). With `toGame` and no `how` / `vhow`, the box goes back where it was (Super Mario Advance 2's item box, and BG3 below the status bar: message and pause boxes).
+- `hud.bgPrioBelow`: instead of `bgMask`, the BG layers below this priority, picked line by line (Final Fantasy Tactics Advance moves its menus between layers). `hud.effects`: while these match, no layer moves (its spells are drawn on the menu layers).
+- `SpriteRule.tagged` and `romPatch`: when the game draws world and HUD sprites from the same tiles and palettes, a ROM patch can mark the world ones (attr1 bits 9-11, unused on sprites that aren't rotated) and the HUD rules skip them. Final Fantasy Tactics Advance hooks its sprite list (`tools/ffta_tag.s`) and marks what its animation engine, weapon swings and damage numbers add, found by tracing which code drew each sprite. Each patch is checked against the ROM's bytes first, so another release is left alone.
 - `hud.logoBelow`: the second screen is the HUD on black with the logo at half size below it, instead of a backdrop.
 - `hud.scene`: another scene with its own sprites and moves, with the logo as the backdrop (Mario Kart's podium).
 

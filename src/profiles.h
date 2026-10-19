@@ -39,6 +39,15 @@ typedef struct {
 	bool toGame;
 } HudMove;
 
+/* Bytes written into the ROM when the game starts, if the ROM holds `orig`
+ * there (NULL: the ROM's 0xFF padding), so another revision is left alone. */
+typedef struct {
+	uint32_t addr; /* 0 terminates the list */
+	int len;
+	const uint8_t* orig;
+	const uint8_t* bytes;
+} RomPatch;
+
 typedef struct MapProfile {
 	const char* codes[4]; /* 4-char game codes this profile handles */
 	const char* title;
@@ -198,6 +207,10 @@ typedef struct MapProfile {
 		 * Advance moves its map and menus between layers, but its menus,
 		 * text and boxes are always priority 0-1, the map 2-3. */
 		int bgPrioBelow;
+		/* While these match, no BG layer moves (Final Fantasy Tactics
+		 * Advance: its animation engine is running, and a spell's effects
+		 * are drawn on the layers its text boxes use). */
+		MemProbe effects[2];
 		/* The map layer, by its BGxCNT value (Final Fantasy Tactics
 		 * Advance's battle maps, on whichever BG the game has it): the HUD
 		 * is on only while a layer has it. The backdrop is then a still of
@@ -284,9 +297,15 @@ typedef struct MapProfile {
 	 * state (default), or the state that covers the most pixels (ties: the
 	 * most contrast) for markers whose brightest state isn't the marker. */
 	enum { STILL_BRIGHT, STILL_COVER } stillPick;
+	/* ROM patches applied at the start (all or none), for the HUD split:
+	 * FFTA tags its world sprites (SpriteRule.tagged). */
+	RomPatch romPatch[3];
 } MapProfile;
 
 const MapProfile* profile_find(const char* gameCode);
+/* Applies p's romPatch list (all of it, or nothing if any part doesn't
+ * match); true if there was one and it went in. */
+bool profile_patch_rom(const MapProfile* p, Emu* e);
 /* True for a regional release whose RAM layout differs from the USA one
  * (cheat codes made for other regions would write the wrong addresses). */
 bool profile_ram_moved(const char* gameCode);

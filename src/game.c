@@ -220,6 +220,7 @@ static bool hudBackValid;
 static int hudFrames; /* split frames since the race (re)started */
 static int mapX0, mapY0, mapX1, mapY1; /* the map's box on the HUD, measured over the first frames */
 static bool mapFound;
+static bool hudFx; /* FFTA's animation engine is running: no BG layer moves */
 static bool hudScene; /* the profile's other scene (Mario Kart's podium): logo backdrop, its own sprites */
 static uint32_t hudLogoBack[HUD_CW * HUD_CH];
 static bool hudLogoDone;
@@ -1106,12 +1107,21 @@ static void update_hud(void) {
 		emu_hud_split(&emu, race, h->bgMask, objs, rule_count(objs, scene ? 4 : 6), hudPx);
 		/* (by priority: the renderer picks the layers line by line) */
 		emu_hud_by_priority(h->bgPrioBelow);
+		hudFx = false;
 		if (debug && race && scene != hudScene) fprintf(stderr, "frame %llu: HUD scene %s\n", (unsigned long long) frameCount, scene ? "on" : "off");
 		hudOn = race;
 		hudScene = scene;
 		hudFrames = 0;
 		hudRegrab = 0;
 		mapFound = false;
+	}
+	/* a spell or other animation: its effects are on the text box layers,
+	 * so they stay (from the next frame: the layers are picked as it starts) */
+	bool fx = hudOn && h->effects[0].addr && memprobes_match(h->effects, 2, &emu);
+	if (fx != hudFx) {
+		emu_hud_by_priority(fx ? 0 : h->bgPrioBelow);
+		if (debug) fprintf(stderr, "frame %llu: animation %s\n", (unsigned long long) frameCount, fx ? "on: layers stay" : "off");
+		hudFx = fx;
 	}
 	/* the course's backdrop, as each race starts (not for the scene) */
 	if (hudOn && ++hudFrames == 2 && h->backdrop && !hudScene) emu_hud_grab(&emu, h->backdrop, hudGrab);
@@ -2075,6 +2085,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		snapProf = logoOnly && lp->snap.showMin ? lp : NULL;
 		/* the HUD moves only when there's another screen to put it on */
 		hudProf = lp && lp->hud.on[0].addr && nScreens > 1 ? lp : NULL;
+		if (hudProf && profile_patch_rom(hudProf, &emu)) fprintf(stderr, "HUD split: ROM patched\n");
 		hudOn = false;
 		hudShown = false;
 		hudScene = false;

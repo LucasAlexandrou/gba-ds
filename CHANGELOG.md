@@ -6,7 +6,7 @@
 - **Rewind:** hold **L2** to go back in time, up to 30 seconds, at double speed; let go to play on from there. On by default; **Rewind** in the pause menu (Performance) switches it off, and `rewind_seconds` in gba-ds.cfg sets how far back it goes.
 - **Super Mario Advance 2: Super Mario World** gets its second screen. On the world map it shows the SELECT menu (the island's levels with your time and score), kept up to date as you move; in a level, the status bar moves to the top of the second screen with a smaller logo below it, and the blue item box stays on the game screen.
 - **Super Mario Advance 2: SNES layout** under **Controls** on the second screen: in levels, B jumps, Y runs, A and X spin-jump, and L / R pan the camera left / right as on the Super Nintendo, without moving or turning Mario. The pause box, menus and the world map keep the GBA buttons.
-- **Final Fantasy Tactics Advance** gets its second screen: in battles and the scenes on the battle maps, the dialogue, name entry, banners, unit details and command menus move there, over a still of the scene in grey, leaving the map, the units and the tile height on the game screen. Elsewhere it shows the logo.
+- **Final Fantasy Tactics Advance** gets its second screen: in battles and the scenes on the battle maps, the dialogue, name entry, banners, unit details and command menus move there, over a still of the scene in grey, leaving the map, the units, the tile height, and every spell, weapon and ability effect on the game screen. Elsewhere it shows the logo.
 - **Swap Screens moved to L3** (press the left stick), since L2 now rewinds. HOME + Y still swaps too.
 ## v1.1.6 (2026-10-17)
 
