@@ -32,6 +32,7 @@ typedef struct SpriteRule {
 	int x0, y0, x1, y1;
 	int tileMin, tileMax;
 	int prio; /* -1: any */
+	unsigned palMask; /* the palettes it applies to (bit n: palette n); 0: any */
 } SpriteRule;
 
 typedef struct Emu {

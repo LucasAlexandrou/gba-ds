@@ -783,8 +783,28 @@ static void snapshot_hiding_sprites(uint32_t* out) {
  * screen; back to the logo at the menus. */
 /* The grabbed sky and scenery (the rows above the horizon), scaled up to
  * cover the canvas (centred), and dimmed well back. */
+static int hudRegrab; /* hudFrames at which to grab the map layer again (0: kept) */
+
 static void hud_make_backdrop(void) {
 	int h = SDL_clamp(hudProf->hud.backdropRows ? hudProf->hud.backdropRows : GBA_H, 1, GBA_H);
+	if (hudProf->hud.mapCnt) {
+		/* a map layer taken mid-fade, or with the camera on the sky, makes
+		 * a poor picture: try again in half a second, until it's mostly
+		 * there and not dark (then it stays) */
+		uint32_t clear = emu_hud_clear();
+		long drawn = 0, luma = 0;
+		for (int i = 0; i < GBA_W * GBA_H; ++i) {
+			uint32_t c = hudGrab[i];
+			if ((c & 0xFFFFFF) == clear) continue;
+			++drawn;
+			luma += (c & 0xFF) + ((c >> 8) & 0xFF) + ((c >> 16) & 0xFF);
+		}
+		bool good = drawn > GBA_W * GBA_H / 2 && luma / SDL_max(drawn, 1) > 3 * 60;
+		hudRegrab = good ? 0 : hudFrames + 30;
+		if (debug) fprintf(stderr, "frame %llu: map layer grabbed: %ld%% drawn, brightness %ld%s\n", (unsigned long long) frameCount,
+		                   drawn * 100 / (GBA_W * GBA_H), luma / SDL_max(drawn, 1) / 3, good ? "" : " (again later)");
+		if (!good && hudBackValid) return; /* keep the last good one meanwhile */
+	}
 	hudBackValid = true;
 	if (debug) {
 		char path[1200];
@@ -1066,12 +1086,13 @@ static void update_hud(void) {
 		hudOn = race;
 		hudScene = scene;
 		hudFrames = 0;
+		hudRegrab = 0;
 		mapFound = false;
 	}
 	/* the course's backdrop, as each race starts (not for the scene) */
 	if (hudOn && ++hudFrames == 2 && h->backdrop && !hudScene) emu_hud_grab(&emu, h->backdrop, hudGrab);
-	/* the map layer as the backdrop, now and then (the camera moves) */
-	if (hudOn && h->mapCnt && mapBg >= 0 && hudFrames % 60 == 2) emu_hud_grab(&emu, 1u << mapBg, hudGrab);
+	/* the map layer as the backdrop, once as the HUD comes on */
+	if (hudOn && h->mapCnt && mapBg >= 0 && (hudFrames == 2 || hudFrames == hudRegrab)) emu_hud_grab(&emu, 1u << mapBg, hudGrab);
 	/* menus: the logo (or the map), once it's been gone for a third of a
 	 * second (not for a moment between rooms); no keep probes: never kept */
 	static int goneFor;
@@ -2004,6 +2025,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 		hudLogoDone = false;
 		hudLogoBelowDone = false;
 		hudBackValid = false;
+		hudRegrab = 0;
 		snapShow = snapRevert = 0;
 		if (mc) mapcap_set_still(mc, !cfg->mapAnim);
 		if (logoOnly) fprintf(stderr, "logo only: %s\n", lp->title);

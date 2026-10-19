@@ -201,7 +201,7 @@ typedef struct MapProfile {
 		/* The map layer, by its BGxCNT value (Final Fantasy Tactics
 		 * Advance's battle maps, on whichever BG the game has it): the HUD
 		 * is on only while a layer has it, and the backdrop is that layer,
-		 * grabbed as the HUD comes on and every second, in grey with
+		 * grabbed once as the HUD comes on, in grey with
 		 * backdropGrey. */
 		uint16_t mapCnt;
 		bool backdropGrey;

@@ -404,10 +404,11 @@ static bool hidden(const HideSlot* s, const struct GBAObj* obj) {
 	if (y >= 160) y -= 256;
 	int tile = GBAObjAttributesCGetTile(obj->c);
 	int prio = GBAObjAttributesCGetPriority(obj->c);
+	int pal = GBAObjAttributesCGetPalette(obj->c);
 	for (int i = 0; i < s->n; ++i) {
 		const SpriteRule* r = &s->rules[i];
 		if (x >= r->x0 && x <= r->x1 && y >= r->y0 && y <= r->y1 && tile >= r->tileMin && tile <= r->tileMax &&
-		    (r->prio < 0 || prio == r->prio)) {
+		    (r->prio < 0 || prio == r->prio) && (!r->palMask || (r->palMask >> pal & 1))) {
 			return !s->keepOnly;
 		}
 	}
