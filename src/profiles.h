@@ -93,11 +93,11 @@ typedef struct MapProfile {
 		 * camera with L toward where the player faces; the SNES panned left
 		 * with L and right with R. So while a shoulder is held where `when`
 		 * matches, the byte at `pan` (the direction L pans: 0 left, 1 right)
-		 * is set to match, and back to the player's facing (`facing`) when
-		 * it's let go. */
+		 * is set to match (the game sets it again from the player's facing
+		 * when they move). */
 		struct {
 			uint32_t right, bottom, top, left;
-			uint32_t pan, facing;
+			uint32_t pan;
 			MemProbe when[2];
 		} snes;
 	} controls;

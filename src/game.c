@@ -93,22 +93,28 @@ static bool aheadReady;    /* it has: that frame is emulated but not yet used */
 static uint32_t aheadFb[GBA_W * GBA_H]; /* the frame on screen, while the worker writes the next */
 
 /* Bits above the GBA keys, for run_frame: the SNES layout's camera pan
- * (profile controls.snes) left / right while a shoulder is held, and back to
- * the player's facing on the frame after. */
+ * (profile controls.snes) left / right while a shoulder is held. */
 #define KX_PAN_L (1u << 20)
 #define KX_PAN_R (1u << 21)
-#define KX_PAN_END (1u << 22)
+static bool debug; /* GBADS_DEBUG (declared again below) */
 static const struct MapProfile* ctlProf; /* NULL: no alternate layout for this game */
 
 /* One frame of the game with these keys (on the worker too, while the main
- * thread leaves the core alone). */
+ * thread leaves the core alone). The pan direction is left as set when the
+ * shoulder is let go: the game sets it again from Mario's facing as soon as
+ * he moves. */
 static void run_frame(uint32_t keys) {
-	if (keys & (KX_PAN_L | KX_PAN_R | KX_PAN_END) && ctlProf && ctlProf->controls.snes.pan) {
+	uint32_t pan = keys & (KX_PAN_L | KX_PAN_R);
+	if (ctlProf && ctlProf->controls.snes.pan) {
+		static uint32_t lastPan;
 		const typeof(ctlProf->controls.snes)* sn = &ctlProf->controls.snes;
-		if (memprobes_match(sn->when, 2, &emu)) {
-			uint8_t dir = keys & KX_PAN_L ? 0 : keys & KX_PAN_R ? 1 : emu_read8(&emu, sn->facing) ? 1 : 0;
-			emu_write8(&emu, sn->pan, dir);
+		bool here = pan && memprobes_match(sn->when, 2, &emu);
+		if (debug && pan != lastPan) {
+			fprintf(stderr, "camera pan %s%s (pan byte %02x)\n", !pan ? "released" : pan & KX_PAN_L ? "left" : "right",
+			        pan && !here ? ": not in a level, left alone" : "", emu_read8(&emu, sn->pan));
 		}
+		lastPan = pan;
+		if (here) emu_write8(&emu, sn->pan, pan & KX_PAN_L ? 0 : 1);
 	}
 	emu_frame(&emu, keys & 0x3FF);
 }
@@ -1087,7 +1093,6 @@ static void update_snapshot(void) {
 static int game_screen(void);
 enum { CTL_GBA, CTL_FOUR, CTL_AUTO };
 static const char* const ctlNames[] = { "gba", "four", "auto" };
-static bool panHeld; /* SNES layout: a shoulder was panning the camera last frame */
 static bool snesHere; /* SNES layout: the game is where it applies (controls.snes.when: in a level) */
 static int ctlMode;
 static bool ctlPlaying; /* Auto: the player is controlling the character */
@@ -1940,7 +1945,7 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 	{
 		const MapProfile* cp = profile_find(emu.gameCode);
 		ctlProf = cp && (cp->controls.fourFace || cp->controls.snes.bottom) ? cp : NULL;
-		panHeld = snesHere = false;
+		snesHere = false;
 		if (ctlProf) ctl_load();
 	}
 	if (cfg->map) {
@@ -2351,11 +2356,6 @@ enum GameExit game_run(Config* c, const char* rom, bool fromLibrary) {
 			if (HELD(B_LEFT)) keys |= K_LEFT;
 			if (HELD(B_RIGHT)) keys |= K_RIGHT;
 			if (hotkeyBack && btnNow[B_SELECT]) keys &= ~(K_L | K_R | K_START | KX_PAN_L | KX_PAN_R);
-		}
-		{
-			bool pan = keys & (KX_PAN_L | KX_PAN_R);
-			if (!pan && panHeld) keys |= KX_PAN_END; /* let go: L pans the way Mario faces again */
-			panHeld = pan;
 		}
 		if (selectPulse > 0) keys |= K_SELECT, --selectPulse;
 		if (comboPulse[0] > 0) keys |= K_SELECT, --comboPulse[0];
