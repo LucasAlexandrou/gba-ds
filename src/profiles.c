@@ -398,14 +398,14 @@ static const MapProfile profiles[] = {
 			.on = { { 0x04000000, 0x1007, 0x1000, 2 } },
 			.mapCnt = 0x4C03,
 			/* the world map (BG0: the land, BG1: the map, BG2-3: the
-			 * notices, clan funds and date): the sprites on the game's
-			 * overlay list (tagged bit 9: the notice's arrow, the month's
-			 * name) move; Marche, the towns and a new area with its name
-			 * (the main list) stay; the backdrop is the land and the map,
-			 * without sprites. Without the patch: priority 0. The L Law
-			 * prompt in the top left corner (tiles 64-71, priority 0) is
-			 * drawn with Marche and the towns: it moves by its place. */
-			.world = { 0x8A03, { { -512, -256, 511, 255, 0, 1023, -1, 0, 0x0200 }, { 0, 0, 40, 24, 64, 71, 0 } } },
+			 * notices, info box, clan funds and date): the priority-0
+			 * sprites move (the notice's arrow 2, the info box's sword 0
+			 * and town 266, the L / R prompts 64-75, the month 94-110),
+			 * but not the feather pen (40-47) and a new area's name
+			 * (76-93), which stay with Marche and the towns (priority 2);
+			 * the backdrop is the land and the map, without sprites. */
+			.world = { 0x8A03, { { -512, -256, 511, 255, 0, 39, 0 }, { -512, -256, 511, 255, 48, 75, 0 },
+			                     { -512, -256, 511, 255, 94, 1023, 0 } } },
 			.bgPrioBelow = 2,
 			/* the animation engine's work area (0 when it's not running) */
 			.effects = { { 0x020159C0, 0xFFFFFFFF, 0x02000000, 4, true, 0x0203FFFF, true } },

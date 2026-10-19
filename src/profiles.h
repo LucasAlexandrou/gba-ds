@@ -227,7 +227,7 @@ typedef struct MapProfile {
 		 * without sprites. */
 		struct {
 			uint16_t mapCnt;
-			SpriteRule objs[2];
+			SpriteRule objs[4];
 		} world;
 		bool backdropGrey;
 		SpriteRule backdropHide[2]; /* sprites left out of that still (rendered again) */
