@@ -49,13 +49,6 @@ static int pqHead, pqTail;
 static char osdText[96];
 static uint64_t osdUntil;
 
-/* menu canvas (see ui_canvas) */
-static bool canvasOn;
-static int canvasW, canvasH;
-static SDL_Rect devRect[2];         /* the screens' real rectangles while canvasOn */
-static SDL_Texture* canvasTex[2];   /* per screen */
-static SDL_Texture* curTarget[2];   /* per view: the render target last set */
-
 /* ------------------------------------------------------------- script */
 
 typedef struct {
@@ -296,22 +289,7 @@ void ui_shutdown(void) {
 	SDL_Quit();
 }
 
-static void layout(void);
-
 void ui_layout(void) {
-	bool canvas = canvasOn;
-	canvasOn = false; /* layout() sets screens[] afresh */
-	layout();
-	if (canvas) {
-		for (int i = 0; i < nScreens; ++i) {
-			devRect[i] = screens[i].rect;
-			screens[i].rect = (SDL_Rect) { 0, 0, canvasW, canvasH };
-		}
-		canvasOn = true;
-	}
-}
-
-static void layout(void) {
 	if (nViews == 2) {
 		nScreens = 2;
 		for (int i = 0; i < 2; ++i) {
@@ -391,20 +369,14 @@ static int view_of_window(Uint32 id) {
 	return -1;
 }
 
-/* A screen's real rectangle in its view (screens[].rect is a menu canvas's
- * while one is in use). */
-static SDL_Rect real_rect(int i) {
-	return canvasOn ? devRect[i] : screens[i].rect;
-}
-
 static void queue_pointer(int kind, int view, float px, float py, bool normalized) {
 	Pointer p = { kind, 0, 0, 0 };
 	int ts = ui_touch_screen();
 	if (normalized && !strcmp(cfg->touchMap, "screen")) {
 		/* touch panel coordinates cover just the touch screen */
 		p.screen = ts;
-		p.x = (int) (px * real_rect(ts).w);
-		p.y = (int) (py * real_rect(ts).h);
+		p.x = (int) (px * screens[ts].rect.w);
+		p.y = (int) (py * screens[ts].rect.h);
 	} else {
 		if (view < 0) view = screens[ts].view;
 		int w, h;
@@ -421,7 +393,7 @@ static void queue_pointer(int kind, int view, float px, float py, bool normalize
 		}
 		p.screen = -1;
 		for (int i = 0; i < nScreens; ++i) {
-			SDL_Rect rr = real_rect(i), *r = &rr;
+			SDL_Rect* r = &screens[i].rect;
 			if (screens[i].view == view && x >= r->x && x < r->x + r->w && y >= r->y && y < r->y + r->h) {
 				p.screen = i;
 				p.x = x - r->x;
@@ -429,13 +401,6 @@ static void queue_pointer(int kind, int view, float px, float py, bool normalize
 			}
 		}
 		if (p.screen < 0) return;
-	}
-	if (canvasOn) {
-		/* into the canvas's coordinates (it's enlarged by k, centred) */
-		SDL_Rect r = devRect[p.screen];
-		int k = SDL_max(1, SDL_min(r.w / canvasW, r.h / canvasH));
-		p.x = SDL_max(0, SDL_min((p.x - (r.w - canvasW * k) / 2) / k, canvasW - 1));
-		p.y = SDL_max(0, SDL_min((p.y - (r.h - canvasH * k) / 2) / k, canvasH - 1));
 	}
 	if (debug) fprintf(stderr, "pointer kind %d screen %d at %d,%d\n", p.kind, p.screen, p.x, p.y);
 #ifdef __ANDROID__
@@ -809,123 +774,15 @@ static bool sw_render(int v) {
  * (the block fills in the op) and return instead of drawing. */
 #define RECORD(screen, kind) DrawOp* o = rec(screen, kind); if (o)
 
-/* ------------------------------------------------------------- menu canvas */
-
-/* Menus at a low resolution (menu_pixels = gba: 240x160, ds: 256x192):
- * while ui_canvas(true) is in effect, each screen is drawn into its own
- * small texture, and screens[].rect is that texture's size (so layouts and
- * ui_px follow it); ui_present enlarges each by a whole number into the
- * screen's real rectangle, without smoothing. Pointers are mapped to
- * canvas coordinates. Not on Android (its second screen is drawn
- * differently). */
-
-static void canvas_size(int* w, int* h) {
-	*w = *h = 0;
-#ifndef __ANDROID__
-	if (!strcmp(cfg->menuPixels, "gba")) *w = 240, *h = 160;
-	else if (!strcmp(cfg->menuPixels, "ds")) *w = 256, *h = 192;
-#endif
-}
-
-/* The renderer to draw a screen with, its target set to the screen's canvas
- * (or the window). */
-static SDL_Renderer* ren_of(int screen) {
-	int v = screens[screen].view;
-	SDL_Texture* want = canvasOn ? canvasTex[screen] : NULL;
-	if (curTarget[v] != want) {
-		SDL_SetRenderTarget(views[v].ren, want);
-		curTarget[v] = want;
-	}
-	return views[v].ren;
-}
-
-/* Where a canvas goes on its screen: enlarged by a whole number, centred. */
-static SDL_Rect canvas_dst(int i) {
-	SDL_Rect r = devRect[i];
-	int k = SDL_max(1, SDL_min(r.w / canvasW, r.h / canvasH));
-	return (SDL_Rect) { r.x + (r.w - canvasW * k) / 2, r.y + (r.h - canvasH * k) / 2, canvasW * k, canvasH * k };
-}
-
-static void canvas_free(void) {
-	for (int i = 0; i < 2; ++i) {
-		if (canvasTex[i]) SDL_DestroyTexture(canvasTex[i]);
-		canvasTex[i] = NULL;
-	}
-}
-
-static void canvas_leave(void) {
-	if (!canvasOn) return;
-	for (int v = 0; v < nViews; ++v) {
-		if (curTarget[v]) SDL_SetRenderTarget(views[v].ren, NULL);
-		curTarget[v] = NULL;
-	}
-	for (int i = 0; i < nScreens; ++i) screens[i].rect = devRect[i];
-	canvasOn = false;
-}
-
-void ui_canvas(bool on) {
-	int w, h;
-	canvas_size(&w, &h);
-	if (!on || !w || nViews < 1) {
-		canvas_leave();
-		return;
-	}
-	if (canvasOn && w == canvasW && h == canvasH) return;
-	canvas_leave();
-	if (w != canvasW || h != canvasH) canvas_free();
-	canvasW = w, canvasH = h;
-	for (int i = 0; i < nScreens; ++i) {
-		if (!canvasTex[i]) {
-			canvasTex[i] = SDL_CreateTexture(views[screens[i].view].ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, w, h);
-			if (!canvasTex[i]) {
-				fprintf(stderr, "menu canvas: %s\n", SDL_GetError());
-				canvas_free();
-				return;
-			}
-			SDL_SetTextureScaleMode(canvasTex[i], SDL_ScaleModeNearest);
-		}
-	}
-	for (int i = 0; i < nScreens; ++i) {
-		devRect[i] = screens[i].rect;
-		screens[i].rect = (SDL_Rect) { 0, 0, w, h };
-	}
-	canvasOn = true;
-}
-
-/* The canvases onto the windows (ui_present, before anything reads them). */
-static void canvas_compose(void) {
-	if (!canvasOn) return;
-	for (int v = 0; v < nViews; ++v) {
-		if (curTarget[v]) SDL_SetRenderTarget(views[v].ren, NULL);
-		curTarget[v] = NULL;
-		SDL_RenderSetClipRect(views[v].ren, NULL);
-		SDL_SetRenderDrawColor(views[v].ren, 0, 0, 0, 255);
-		SDL_RenderClear(views[v].ren);
-	}
-	for (int i = 0; i < nScreens; ++i) {
-		SDL_Rect dst = canvas_dst(i);
-		SDL_RenderCopy(views[screens[i].view].ren, canvasTex[i], NULL, &dst);
-	}
-}
-
 void ui_clip(int screen, const SDL_Rect* clip) {
 	RECORD(screen, clip ? OP_CLIP : OP_NOCLIP) {
 		if (clip) o->r = *clip;
 		return;
 	}
-	SDL_RenderSetClipRect(ren_of(screen), clip);
+	SDL_RenderSetClipRect(views[screens[screen].view].ren, clip);
 }
 
 void ui_clear(void) {
-	if (canvasOn) {
-		for (int i = 0; i < nScreens; ++i) {
-			SDL_Renderer* ren = ren_of(i);
-			SDL_RenderSetClipRect(ren, NULL);
-			SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
-			SDL_RenderClear(ren);
-		}
-		return;
-	}
 	for (int i = 0; i < nViews; ++i) {
 		if (views[i].retained) continue; /* keeps its last picture; see sw_render */
 		SDL_SetRenderDrawColor(views[i].ren, 0, 0, 0, 255);
@@ -1029,7 +886,6 @@ double ui_display_hz(int view) {
 }
 
 void ui_present(void) {
-	canvas_compose();
 	if (pendingShot[0]) {
 		ui_screenshot(pendingShot);
 		pendingShot[0] = 0;
@@ -1111,7 +967,7 @@ void ui_present(void) {
 }
 
 SDL_Renderer* ui_ren(int screen) {
-	return ren_of(screen);
+	return views[screens[screen].view].ren;
 }
 
 static void fit_rect(const SDL_Rect* area, int w, int h, const char* mode, SDL_Rect* out) {
@@ -1144,7 +1000,7 @@ void ui_image(int screen, SDL_Texture* const* texPerView, int w, int h, const ch
 	area.y += s->rect.y;
 	SDL_Rect dst;
 	fit_rect(&area, w, h, mode, &dst);
-	SDL_RenderCopy(ren_of(screen), texPerView[s->view], NULL, &dst);
+	SDL_RenderCopy(views[s->view].ren, texPerView[s->view], NULL, &dst);
 }
 
 
@@ -1266,7 +1122,7 @@ void ui_image_pixels(int screen, SDL_Texture* const* texPerView, int w, int h, c
 	}
 	Screen* s = &screens[screen];
 	int v = s->view;
-	SDL_Renderer* ren = ren_of(screen);
+	SDL_Renderer* ren = views[v].ren;
 	SDL_Texture* src = texPerView[v];
 	SDL_Rect dst;
 	fit_rect(&s->rect, w, h, mode, &dst);
@@ -1337,7 +1193,7 @@ static void draw_pixels(SDL_Renderer* ren, int v, SDL_Texture* src, int w, int h
 		SDL_Texture* grid = pipe_grid(v, gw, gh, k * c, cfg->lcdStrength);
 		if (grid) SDL_RenderCopy(ren, grid, NULL, NULL);
 	}
-	SDL_SetRenderTarget(ren, curTarget[v]); /* the window, or a menu canvas */
+	SDL_SetRenderTarget(ren, NULL);
 	if (clipped) SDL_RenderSetClipRect(ren, &clipRect);
 	SDL_SetTextureScaleMode(target, exact ? SDL_ScaleModeNearest : SDL_ScaleModeLinear);
 	SDL_RenderCopy(ren, target, NULL, &dst);
@@ -1357,7 +1213,7 @@ void ui_fill(int screen, SDL_Rect r, SDL_Color c) {
 	Screen* s = &screens[screen];
 	r.x += s->rect.x;
 	r.y += s->rect.y;
-	SDL_Renderer* ren = ren_of(screen);
+	SDL_Renderer* ren = views[s->view].ren;
 	SDL_SetRenderDrawColor(ren, c.r, c.g, c.b, c.a);
 	SDL_RenderFillRect(ren, &r);
 }
@@ -1367,12 +1223,10 @@ void ui_dim(int screen, Uint8 alpha) {
 }
 
 float ui_px(int screen) {
-	if (canvasOn) return SDL_max(1.0f, screens[screen].rect.h / 192.0f);
 	return SDL_max(2.0f, screens[screen].rect.h / 192.0f);
 }
 
 int ui_text_width(const char* s, int px) {
-	px = SDL_max(1, px);
 	int n = (int) strlen(s);
 	return n ? n * 6 * px - px : 0;
 }
@@ -1386,8 +1240,7 @@ void ui_text(int screen, int x, int y, int px, const char* str, SDL_Color c) {
 	Screen* s = &screens[screen];
 	x += s->rect.x;
 	y += s->rect.y;
-	px = SDL_max(1, px);
-	SDL_Renderer* ren = ren_of(screen);
+	SDL_Renderer* ren = views[s->view].ren;
 	SDL_SetRenderDrawColor(ren, c.r, c.g, c.b, c.a);
 	SDL_Rect rects[256];
 	int n = 0;
@@ -1541,7 +1394,7 @@ bool ui_screenshot_stacked(const char* pngPath) {
 			continue;
 		}
 #endif
-		ok = SDL_RenderReadPixels(ren_of(i), &r, SDL_PIXELFORMAT_ABGR8888, dst, W * 4) == 0; /* a menu canvas: its pixels */
+		ok = SDL_RenderReadPixels(views[screens[i].view].ren, &r, SDL_PIXELFORMAT_ABGR8888, dst, W * 4) == 0;
 		y += r.h;
 	}
 	for (size_t p = 0; ok && p < (size_t) W * H; ++p) img[p * 4 + 3] = 255;
@@ -1618,8 +1471,7 @@ void ui_fill_round(int screen, SDL_Rect r, SDL_Color c, int radius) {
 	int ox = s->rect.x + r.x, oy = s->rect.y + r.y;
 	SDL_Rect dst[4] = { { ox, oy, radius, radius }, { ox + r.w - radius, oy, radius, radius },
 		                { ox, oy + r.h - radius, radius, radius }, { ox + r.w - radius, oy + r.h - radius, radius, radius } };
-	SDL_Renderer* ren = ren_of(screen);
-	for (int i = 0; i < 4; ++i) SDL_RenderCopy(ren, t, &src[i], &dst[i]);
+	for (int i = 0; i < 4; ++i) SDL_RenderCopy(views[s->view].ren, t, &src[i], &dst[i]);
 }
 
 /* ---------------------------------------------------------- text in Jost
@@ -1721,7 +1573,7 @@ void ui_font_text(int screen, int font, int x, int cy, int capPx, const char* te
 	SDL_Rect dst = { s->rect.x + left - e->left, s->rect.y + cy + capPx / 2 - e->baseline, e->w, e->h };
 	SDL_SetTextureColorMod(e->tex, c.r, c.g, c.b);
 	SDL_SetTextureAlphaMod(e->tex, c.a);
-	SDL_RenderCopy(ren_of(screen), e->tex, NULL, &dst);
+	SDL_RenderCopy(views[s->view].ren, e->tex, NULL, &dst);
 }
 
 int ui_label_width(int screen, int capPx, const char* text) {

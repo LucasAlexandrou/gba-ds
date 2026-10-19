@@ -16,7 +16,6 @@ typedef struct Config {
 	bool smooth;       /* plain linear filtering when scaling (blurry) */
 	char borderColor[16]; /* RRGGBB behind the map screen (outside the map image) */
 	int overlays;      /* OVL_PRIMARY | OVL_SECONDARY: game-screen / map-screen overlays */
-	char menuPixels[8]; /* menus drawn at off (full resolution) | gba (240x160) | ds (256x192) */
 	bool lcdGrid;      /* draw an LCD pixel grid over game and map */
 	int lcdStrength;   /* grid darkness, 0..100 */
 	bool vsync;

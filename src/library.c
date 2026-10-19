@@ -869,7 +869,6 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 			while (ui_next_pointer(&p)) {
 			}
 			if (btn_pressed(B_B) || btn_released(B_HOME)) waiting = -1;
-			ui_canvas(true);
 			ui_clear();
 			draw_list(cfg, ls, sel, scroll);
 			if (nScreens > 1) draw_preview(cfg, ui_other_screen(), sel);
@@ -910,7 +909,6 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 				else if (SDL_PointInRect(&pt, &sg.back) || !SDL_PointInRect(&pt, &sg.panel)) settingsSel = SETTINGS_ROWS, settingsOpen = false;
 			}
 			pressed = false;
-			ui_canvas(true);
 			ui_clear();
 			draw_list(cfg, ls, sel, scroll);
 			if (settingsOpen) draw_settings(cfg, ls, settingsSel);
@@ -1001,7 +999,6 @@ bool library_run(Config* cfg, char* outPath, size_t outSize) {
 			if (done < total) waiting = chosen, chosen = -1;
 		}
 
-		ui_canvas(true);
 		ui_clear();
 		draw_list(cfg, ls, sel, scroll);
 		if (nScreens > 1) draw_preview(cfg, ui_other_screen(), sel);
