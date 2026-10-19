@@ -783,11 +783,14 @@ static void snapshot_hiding_sprites(uint32_t* out) {
  * screen; back to the logo at the menus. */
 /* The grabbed sky and scenery (the rows above the horizon), scaled up to
  * cover the canvas (centred), and dimmed well back. */
+static bool frame_is_dark(const uint32_t* fb);
 static int hudRegrab; /* hudFrames at which to grab the map layer again (0: kept) */
+static bool hudSettle; /* after a fade: wait for the brightness to settle */
 static uint32_t hudMapSum; /* the grabbed map's tiles (map_tiles_sum) */
 
 /* A checksum of a BG layer's tile graphics (its char block, the first 8 KB):
- * the same through a battle however the camera moves, another map's differ. */
+ * the same through a battle however the camera moves (its tile map, though,
+ * is rewritten as the camera goes), another map's differ. */
 static uint32_t map_tiles_sum(int bg) {
 	uint16_t cnt = emu_read16(&emu, 0x04000008 + bg * 2);
 	uint32_t base = 0x06000000 + ((cnt >> 2) & 3) * 0x4000, sum = 2166136261u;
@@ -809,8 +812,14 @@ static void hud_make_backdrop(void) {
 			++drawn;
 			luma += (c & 0xFF) + ((c >> 8) & 0xFF) + ((c >> 16) & 0xFF);
 		}
-		bool good = drawn > GBA_W * GBA_H / 2 && luma / SDL_max(drawn, 1) > 3 * 60;
-		hudRegrab = good ? 0 : hudFrames + 30;
+		long level = luma / SDL_max(drawn, 1) / 3;
+		bool good = drawn > GBA_W * GBA_H / 2 && level > 60;
+		/* after a fade, only once the brightness has stopped rising */
+		static long lastLevel;
+		if (hudSettle && good && labs(level - lastLevel) > 3) good = false;
+		lastLevel = level;
+		if (good) hudSettle = false;
+		hudRegrab = good ? 0 : hudFrames + (hudSettle ? 15 : 30);
 		if (debug) fprintf(stderr, "frame %llu: map layer grabbed: %ld%% drawn, brightness %ld%s\n", (unsigned long long) frameCount,
 		                   drawn * 100 / (GBA_W * GBA_H), luma / SDL_max(drawn, 1) / 3, good ? "" : " (again later)");
 		if (!good && hudBackValid) return; /* keep the last good one meanwhile */
@@ -1099,6 +1108,24 @@ static void update_hud(void) {
 		if (hudFrames == hudRegrab || !hudBackValid || sum != hudMapSum) {
 			hudMapSum = sum;
 			emu_hud_grab_cnt(&emu, h->mapCnt, hudGrab);
+		}
+	}
+	/* a scene change: the game fades to black and back (to another map, or
+	 * the same one elsewhere); once the picture's back, take the map again
+	 * (the take is retried until it's bright enough) */
+	static int darkRun;
+	if (h->mapCnt) {
+		bool dark = frame_is_dark(emu.fb);
+		if (dark) {
+			++darkRun;
+		} else {
+			if (darkRun >= 6 && hudBackValid) {
+				if (debug) fprintf(stderr, "frame %llu: faded in: the backdrop again\n", (unsigned long long) frameCount);
+				if (hudOn) hudRegrab = hudFrames + 10;
+				hudSettle = true;
+				hudMapSum = 0; /* (and when the HUD comes back on) */
+			}
+			darkRun = 0;
 		}
 	}
 	/* menus: the logo (or the map), once it's been gone for a third of a
