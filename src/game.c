@@ -785,6 +785,19 @@ static void snapshot_hiding_sprites(const SpriteRule* hide, int n, const SpriteR
 /* The grabbed sky and scenery (the rows above the horizon), scaled up to
  * cover the canvas (centred), and dimmed well back. */
 static bool frame_is_dark(const uint32_t* fb);
+/* One colour all over, nearly: a fade to black or to white, a blank screen. */
+static bool frame_is_flat(const uint32_t* fb) {
+	long sum = 0, n = 0;
+	static int l[GBA_W * GBA_H / 7 + 1];
+	for (int i = 0; i < GBA_W * GBA_H; i += 7) {
+		uint32_t c = fb[i];
+		l[n] = (int) ((c & 0xFF) + ((c >> 8) & 0xFF) + ((c >> 16) & 0xFF));
+		sum += l[n++];
+	}
+	long mean = sum / n, off = 0;
+	for (long i = 0; i < n; ++i) off += labs(l[i] - mean) > 36;
+	return off * 20 < n; /* 95% within 12 a channel of the average */
+}
 static int hudRegrab; /* hudFrames at which to grab the map layer again (0: kept) */
 static bool hudSettle; /* after a fade: wait for the brightness to settle */
 static uint32_t hudMapSum; /* the grabbed map's tiles (map_tiles_sum) */
@@ -814,16 +827,16 @@ static void hud_make_backdrop(void) {
 			luma += (c & 0xFF) + ((c >> 8) & 0xFF) + ((c >> 16) & 0xFF);
 		}
 		long level = luma / SDL_max(drawn, 1) / 3;
-		bool good = drawn > GBA_W * GBA_H / 2 && level > 60;
+		bool good = drawn > GBA_W * GBA_H / 2 && level > 60 && !frame_is_flat(hudGrab);
 		/* after a fade, only once the brightness has stopped rising */
 		static long lastLevel;
 		if (hudSettle && good && labs(level - lastLevel) > 3) good = false;
 		lastLevel = level;
-		if (good) hudSettle = false;
+		hudSettle = !good; /* (a poor take: the next must also hold steady) */
 		hudRegrab = good ? 0 : hudFrames + (hudSettle ? 15 : 30);
 		if (debug) fprintf(stderr, "frame %llu: backdrop taken: %ld%% drawn, brightness %ld%s\n", (unsigned long long) frameCount,
 		                   drawn * 100 / (GBA_W * GBA_H), luma / SDL_max(drawn, 1) / 3, good ? "" : " (again later)");
-		if (!good && hudBackValid) return; /* keep the last good one meanwhile */
+		if (!good) return; /* keep the last good one meanwhile (or none: black) */
 	}
 	hudBackValid = true;
 	if (debug) {
@@ -1116,12 +1129,12 @@ static void update_hud(void) {
 			hud_make_backdrop();
 		}
 	}
-	/* a scene change: the game fades to black and back (to another map, or
-	 * the same one elsewhere); once the picture's back, take the map again
-	 * (the take is retried until it's bright enough) */
+	/* a scene change: the game fades to black (or white) and back (to
+	 * another map, or the same one elsewhere); once the picture's back,
+	 * take the scene again (retried until its brightness settles) */
 	static int darkRun;
 	if (h->mapCnt) {
-		bool dark = frame_is_dark(emu.fb);
+		bool dark = frame_is_flat(emu.fb);
 		if (dark) {
 			++darkRun;
 		} else {
