@@ -1200,7 +1200,7 @@ static unsigned effect_bgs(int pal) {
  * racing (the first pause-menu frame is split too, and is dropped). */
 static void update_hud(void) {
 	const typeof(hudProf->hud)* h = &hudProf->hud;
-	bool race = memprobes_match(h->on, 4, &emu);
+	bool race = memprobes_match(h->on, 4, &emu) || (hudOn && h->stay[0].addr && memprobes_match(h->stay, 2, &emu));
 	/* the map layer: which BG has it (none: not on a map) */
 	int mapBg = -1;
 	bool world = false;

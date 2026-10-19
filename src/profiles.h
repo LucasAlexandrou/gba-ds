@@ -167,6 +167,10 @@ typedef struct MapProfile {
 	struct {
 		MemProbe on[4];
 		MemProbe keep[4];
+		/* While it's on, it stays on while these match too (it isn't
+		 * turned on by them): Super Mario Advance 2 fading out through a
+		 * pipe, which the world map does too on the way into a level. */
+		MemProbe stay[2];
 		unsigned bgMask;
 		SpriteRule objs[6]; /* the sprites that move with it */
 		/* While every `layout` probe matches (racing, not the results):

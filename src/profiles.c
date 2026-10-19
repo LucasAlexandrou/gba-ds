@@ -352,10 +352,12 @@ static const MapProfile profiles[] = {
 		 * item box (104-135; the item in it is a sprite and stays). The rest
 		 * of BG3 (message and pause boxes) stays on the game picture. */
 		.hud = {
-			/* (and through doors and pipes: the fade out, 0x1F, then the
-			 * level loading again, 0x20-0x23) */
-			.on = { { 0x03002BC6, 0xFF, 0x1F, 1, true, 0x24, true }, { 0x0400000E, 0xFFFF, 0xDC44, 2 },
+			.on = { { 0x03002BC6, 0xFF, 0x24, 1 }, { 0x0400000E, 0xFFFF, 0xDC44, 2 },
 			        { 0x04000000, 0x0800, 0x0800, 2 } },
+			/* through doors and pipes: the fade out (0x1F, also the world
+			 * map's into a level: on only from a level), the level loading
+			 * again (0x20-0x23) */
+			.stay = { { 0x03002BC6, 0xFF, 0x1F, 1, true, 0x23, true } },
 			/* to the world map (0x1B, 0x1D) or the title it goes */
 			.keep = { { 0x03002BC6, 0xFF, 0x1F, 1, true, 0x23, true } },
 			.bgMask = 8,
@@ -559,6 +561,7 @@ static void sma2_jpn(MapProfile* p) {
 	p->live[2] = (MemProbe) { 0 };
 	p->hud.on[0].addr -= 0x10;
 	p->hud.keep[0].addr -= 0x10;
+	p->hud.stay[0].addr -= 0x10;
 	p->menu[0].addr -= 0x10;
 	p->controls.snes.when[0].addr -= 0x10;
 	p->controls.snes.when[2].addr -= 0x10;
